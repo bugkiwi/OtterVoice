@@ -1,0 +1,30 @@
+{
+  "name": "@ottervoice/protocol",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "JSON wire protocol for OtterVoice sessions — encode/parse/validate session events for native (Swift/Kotlin) and cross-process clients.",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "src", "README.md"],
+  "sideEffects": false,
+  "scripts": {
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "build": "rm -rf dist tsconfig.tsbuildinfo && tsc -p tsconfig.json",
+    "test": "bun test"
+  },
+  "peerDependencies": {
+    "@ottervoice/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@ottervoice/core": "workspace:*"
+  }
+}

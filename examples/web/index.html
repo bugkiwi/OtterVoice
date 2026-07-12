@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OtterVoice — Web demo</title>
+    <style>
+      body { font: 16px/1.5 system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; }
+      h1 { font-size: 1.4rem; }
+      button { font: inherit; padding: 8px 16px; margin-right: 8px; border-radius: 8px; border: 1px solid #ccc; cursor: pointer; }
+      button:disabled { opacity: .5; cursor: default; }
+      #state { display: inline-block; padding: 2px 10px; border-radius: 999px; background: #eef; }
+      #log { margin-top: 20px; }
+      .turn { padding: 8px 12px; border-radius: 10px; margin: 6px 0; }
+      .user { background: #eef6ff; }
+      .assistant { background: #f3f3f3; }
+      .muted { color: #888; }
+    </style>
+  </head>
+  <body>
+    <h1>🦦 OtterVoice — Web demo</h1>
+    <p class="muted">
+      Real microphone capture + playback via <code>@ottervoice/runtime-web</code>.
+      Cognition is mocked, so no API keys are needed. Click <b>Start</b> (allow the
+      mic), speak, then click <b>Done speaking</b> to end your turn.
+    </p>
+    <p>State: <span id="state">idle</span></p>
+    <button id="start">Start</button>
+    <button id="done" disabled>Done speaking</button>
+    <button id="finish" disabled>End session</button>
+    <div id="log"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

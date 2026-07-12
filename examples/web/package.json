@@ -1,0 +1,13 @@
+{
+  "name": "@ottervoice/example-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run serve.ts"
+  },
+  "dependencies": {
+    "@ottervoice/core": "workspace:*",
+    "@ottervoice/runtime-web": "workspace:*"
+  }
+}

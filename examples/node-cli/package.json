@@ -1,0 +1,12 @@
+{
+  "name": "@ottervoice/example-node-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run index.ts"
+  },
+  "dependencies": {
+    "@ottervoice/core": "workspace:*"
+  }
+}

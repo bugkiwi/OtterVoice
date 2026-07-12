@@ -1,0 +1,8 @@
+[test]
+# Enforce full coverage of every package's source. CI fails below 100%.
+coverage = true
+coverageThreshold = { line = 1.0, function = 1.0 }
+coverageSkipTestFiles = true
+coverageReporter = ["text"]
+# Built artifacts and demos are not unit-test targets; measure src only.
+coveragePathIgnorePatterns = ["/dist/", "/node_modules/", "/examples/"]

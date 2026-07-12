@@ -1,0 +1,460 @@
+/**
+ * Core type definitions for OtterVoice.
+ *
+ * These types are platform-agnostic: they must not reference DOM, React,
+ * React Native or Node-specific APIs. Platform capabilities arrive through
+ * the {@link RuntimeAdapter}; cloud capabilities through the provider
+ * interfaces.
+ */
+
+// ---------------------------------------------------------------------------
+// Session state
+// ---------------------------------------------------------------------------
+
+export type VoiceSessionState =
+  | 'idle'
+  | 'starting'
+  | 'assistant_speaking'
+  | 'listening'
+  | 'user_speaking'
+  | 'processing'
+  | 'scoring'
+  | 'paused'
+  | 'finished'
+  | 'error';
+
+// ---------------------------------------------------------------------------
+// Errors
+// ---------------------------------------------------------------------------
+
+export type VoiceErrorCode =
+  | 'permission_denied'
+  | 'microphone_unavailable'
+  | 'network_error'
+  | 'asr_connection_failed'
+  | 'asr_timeout'
+  | 'llm_failed'
+  | 'tts_failed'
+  | 'audio_playback_failed'
+  | 'provider_rate_limited'
+  | 'provider_quota_exceeded'
+  | 'unsupported_runtime'
+  | 'invalid_state'
+  | 'aborted'
+  | 'unknown';
+
+export interface NormalizedVoiceError {
+  code: VoiceErrorCode;
+  message: string;
+  provider?: string;
+  retryable?: boolean;
+  raw?: unknown;
+}
+
+// ---------------------------------------------------------------------------
+// Turns & usage
+// ---------------------------------------------------------------------------
+
+export type TurnRole = 'user' | 'assistant' | 'system';
+
+export interface VoiceTurn {
+  id: string;
+  role: TurnRole;
+  text: string;
+  audioUrl?: string;
+  startedAt: number;
+  endedAt?: number;
+  durationMs?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface VoiceUsageSnapshot {
+  sessionDurationMs: number;
+  userSpeechMs: number;
+  assistantSpeechChars: number;
+  asrAudioMs: number;
+  ttsChars: number;
+  llmInputTokens?: number;
+  llmOutputTokens?: number;
+  providerCosts?: Record<string, number>;
+}
+
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
+
+export type VoiceSessionEventMap = {
+  statechange: {
+    from: VoiceSessionState;
+    to: VoiceSessionState;
+    reason?: string;
+  };
+  asr_partial: {
+    text: string;
+    turnId: string;
+    confidence?: number;
+  };
+  asr_final: {
+    text: string;
+    turnId: string;
+    confidence?: number;
+    durationMs?: number;
+  };
+  assistant_text: {
+    text: string;
+    turnId: string;
+  };
+  assistant_audio_start: {
+    turnId: string;
+  };
+  assistant_audio_end: {
+    turnId: string;
+  };
+  turn: {
+    turn: VoiceTurn;
+  };
+  usage: VoiceUsageSnapshot;
+  finished: {
+    turns: VoiceTurn[];
+  };
+  error: NormalizedVoiceError;
+};
+
+// ---------------------------------------------------------------------------
+// ASR provider
+// ---------------------------------------------------------------------------
+
+export type AudioEncoding = 'pcm_s16le' | 'opus' | 'webm' | 'wav' | 'mp3';
+
+export interface ASRCapabilities {
+  streaming: boolean;
+  batch: boolean;
+  partialResults: boolean;
+  wordTimestamps?: boolean;
+  confidence?: boolean;
+  endpointing?: boolean;
+  languages: string[];
+}
+
+export interface ASRSessionOptions {
+  language?: string;
+  sampleRate?: number;
+  encoding?: AudioEncoding;
+  interimResults?: boolean;
+  endpointing?: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ASRWord {
+  text: string;
+  startMs?: number;
+  endMs?: number;
+  confidence?: number;
+}
+
+export interface ASRResult {
+  text: string;
+  confidence?: number;
+  startMs?: number;
+  endMs?: number;
+  words?: ASRWord[];
+  raw?: unknown;
+}
+
+export interface ASRSession {
+  sendAudio(chunk: ArrayBuffer): void | Promise<void>;
+  stop(): Promise<void>;
+  close(): Promise<void>;
+  onPartial(cb: (result: ASRResult) => void): () => void;
+  onFinal(cb: (result: ASRResult) => void): () => void;
+  onError(cb: (error: NormalizedVoiceError) => void): () => void;
+}
+
+export interface ASRProvider {
+  name: string;
+  capabilities: ASRCapabilities;
+  createSession(options: ASRSessionOptions): Promise<ASRSession>;
+}
+
+// ---------------------------------------------------------------------------
+// LLM provider
+// ---------------------------------------------------------------------------
+
+export interface LLMMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export interface LLMUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}
+
+export interface LLMGenerateInput {
+  system?: string;
+  messages: LLMMessage[];
+  temperature?: number;
+  maxTokens?: number;
+  responseFormat?: 'text' | 'json';
+  metadata?: Record<string, unknown>;
+}
+
+export interface LLMGenerateOutput {
+  text: string;
+  json?: unknown;
+  usage?: LLMUsage;
+  raw?: unknown;
+}
+
+export interface LLMStreamChunk {
+  type: 'text_delta' | 'usage' | 'done' | 'error';
+  text?: string;
+  usage?: LLMUsage;
+  error?: NormalizedVoiceError;
+}
+
+export interface LLMProvider {
+  name: string;
+  generate(input: LLMGenerateInput): Promise<LLMGenerateOutput>;
+  stream?(input: LLMGenerateInput): AsyncIterable<LLMStreamChunk>;
+}
+
+// ---------------------------------------------------------------------------
+// TTS provider
+// ---------------------------------------------------------------------------
+
+export type TTSFormat = 'mp3' | 'wav' | 'ogg' | 'opus' | 'pcm';
+
+export interface TTSVoice {
+  id: string;
+  name: string;
+  language: string;
+  gender?: 'male' | 'female' | 'neutral';
+  style?: string[];
+}
+
+export interface TTSCapabilities {
+  streaming: boolean;
+  voices: TTSVoice[];
+  formats: TTSFormat[];
+  languages: string[];
+}
+
+export interface TTSInput {
+  text: string;
+  voice?: string;
+  language?: string;
+  speed?: number;
+  pitch?: number;
+  format?: TTSFormat;
+  cacheKey?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface TTSOutput {
+  audioUrl?: string;
+  audioBuffer?: ArrayBuffer;
+  mimeType: string;
+  durationMs?: number;
+  cached?: boolean;
+  raw?: unknown;
+}
+
+export interface TTSProvider {
+  name: string;
+  capabilities: TTSCapabilities;
+  synthesize(input: TTSInput): Promise<TTSOutput>;
+}
+
+// ---------------------------------------------------------------------------
+// Pronunciation provider
+// ---------------------------------------------------------------------------
+
+export interface PronunciationInput {
+  audio?: ArrayBuffer | string;
+  transcript: string;
+  referenceText?: string;
+  language?: string;
+  durationMs?: number;
+  words?: ASRWord[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface PronunciationResult {
+  overall?: number;
+  accuracy?: number;
+  fluency?: number;
+  completeness?: number;
+  prosody?: number;
+  words?: Array<{
+    text: string;
+    score?: number;
+    errorType?: string;
+  }>;
+  raw?: unknown;
+}
+
+export interface PronunciationProvider {
+  name: string;
+  assess(input: PronunciationInput): Promise<PronunciationResult>;
+}
+
+// ---------------------------------------------------------------------------
+// Runtime adapter
+// ---------------------------------------------------------------------------
+
+export interface AudioInputOptions {
+  sampleRate?: number;
+  channels?: number;
+  encoding?: 'pcm_s16le' | 'opus' | 'webm';
+  chunkMs?: number;
+  echoCancellation?: boolean;
+  noiseSuppression?: boolean;
+  autoGainControl?: boolean;
+}
+
+export interface AudioChunk {
+  data: ArrayBuffer;
+  timestamp: number;
+  durationMs?: number;
+  sampleRate?: number;
+  encoding?: string;
+}
+
+export interface AudioInputAdapter {
+  requestPermission(): Promise<boolean>;
+  start(options: AudioInputOptions): Promise<void>;
+  stop(): Promise<void>;
+  pause?(): Promise<void>;
+  resume?(): Promise<void>;
+  onChunk(cb: (chunk: AudioChunk) => void): () => void;
+  onVolume?(cb: (level: number) => void): () => void;
+  onError(cb: (error: NormalizedVoiceError) => void): () => void;
+}
+
+export interface AudioPlaybackInput {
+  audioUrl?: string;
+  audioBuffer?: ArrayBuffer;
+  mimeType?: string;
+  volume?: number;
+}
+
+export interface AudioOutputAdapter {
+  play(input: AudioPlaybackInput): Promise<void>;
+  stop(): Promise<void>;
+  pause?(): Promise<void>;
+  resume?(): Promise<void>;
+  onStart(cb: () => void): () => void;
+  onEnd(cb: () => void): () => void;
+  onError(cb: (error: NormalizedVoiceError) => void): () => void;
+}
+
+export interface RuntimeWebSocket {
+  send(data: string | ArrayBuffer): void;
+  close(code?: number, reason?: string): void;
+  onOpen(cb: () => void): () => void;
+  onMessage(cb: (data: string | ArrayBuffer) => void): () => void;
+  onError(cb: (error: unknown) => void): () => void;
+  onClose(cb: () => void): () => void;
+}
+
+export interface NetworkAdapter {
+  fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
+  createWebSocket(url: string, protocols?: string | string[]): RuntimeWebSocket;
+}
+
+export interface RuntimeStorageAdapter {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string): Promise<void>;
+  remove(key: string): Promise<void>;
+}
+
+export interface LoggerAdapter {
+  debug(...args: unknown[]): void;
+  info(...args: unknown[]): void;
+  warn(...args: unknown[]): void;
+  error(...args: unknown[]): void;
+}
+
+export interface RuntimeAdapter {
+  audioInput: AudioInputAdapter;
+  audioOutput: AudioOutputAdapter;
+  network?: NetworkAdapter;
+  storage?: RuntimeStorageAdapter;
+  logger?: LoggerAdapter;
+}
+
+// ---------------------------------------------------------------------------
+// Agent plugin
+// ---------------------------------------------------------------------------
+
+export interface AgentTurnInput {
+  turns: VoiceTurn[];
+  lastUserText: string;
+}
+
+export interface AgentSessionInput {
+  turns: VoiceTurn[];
+}
+
+export interface VoiceAgentPlugin {
+  getInitialAssistantMessage(): Promise<string>;
+  generateNextAssistantMessage(input: AgentTurnInput): Promise<string>;
+  shouldFinishSession(input: AgentSessionInput): boolean;
+  generateReport?(input: AgentSessionInput): Promise<unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Turn detection
+// ---------------------------------------------------------------------------
+
+export type TurnDetectionStrategy =
+  | 'volume'
+  | 'asr_endpointing'
+  | 'manual'
+  | 'hybrid';
+
+export interface TurnDetectionConfig {
+  strategy: TurnDetectionStrategy;
+  minSpeechMs?: number;
+  silenceTimeoutMs?: number;
+  maxTurnMs?: number;
+  volumeThreshold?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Session config
+// ---------------------------------------------------------------------------
+
+export type VoiceSessionMode =
+  | 'half_duplex'
+  | 'push_to_talk'
+  | 'streaming_transcript';
+
+export interface VoiceSessionPolicy {
+  silenceTimeoutMs?: number;
+  maxTurnDurationMs?: number;
+  maxSessionDurationMs?: number;
+  autoStartListening?: boolean;
+  allowInterruption?: boolean;
+}
+
+export interface VoiceSessionConfig {
+  mode: VoiceSessionMode;
+  runtime: RuntimeAdapter;
+  providers: {
+    asr: ASRProvider;
+    llm: LLMProvider;
+    tts?: TTSProvider;
+    pronunciation?: PronunciationProvider;
+  };
+  agent?: VoiceAgentPlugin;
+  turnDetection?: TurnDetectionConfig;
+  policy?: VoiceSessionPolicy;
+  /** Override id generation (useful for deterministic tests). */
+  generateId?: () => string;
+  /** Override the clock (useful for deterministic tests). */
+  now?: () => number;
+  metadata?: Record<string, unknown>;
+}

@@ -1,0 +1,158 @@
+import type {
+  AudioChunk,
+  AudioInputAdapter,
+  AudioInputOptions,
+  AudioOutputAdapter,
+  AudioPlaybackInput,
+  NormalizedVoiceError,
+  RuntimeAdapter,
+} from '../types';
+
+export interface MockAudioInputOptions {
+  /** Permission result returned by `requestPermission`. Default true. */
+  permission?: boolean;
+}
+
+/**
+ * In-memory audio input. Tests drive it by calling {@link MockAudioInput.emitChunk}
+ * / {@link MockAudioInput.emitVolume}; nothing touches a real microphone.
+ */
+export class MockAudioInput implements AudioInputAdapter {
+  private chunkCbs = new Set<(chunk: AudioChunk) => void>();
+  private volumeCbs = new Set<(level: number) => void>();
+  private errorCbs = new Set<(error: NormalizedVoiceError) => void>();
+  private readonly permission: boolean;
+  started = false;
+  paused = false;
+  lastOptions: AudioInputOptions | undefined;
+
+  constructor(options: MockAudioInputOptions = {}) {
+    this.permission = options.permission ?? true;
+  }
+
+  async requestPermission(): Promise<boolean> {
+    return this.permission;
+  }
+
+  async start(options: AudioInputOptions): Promise<void> {
+    this.started = true;
+    this.paused = false;
+    this.lastOptions = options;
+  }
+
+  async stop(): Promise<void> {
+    this.started = false;
+    this.paused = false;
+  }
+
+  async pause(): Promise<void> {
+    this.paused = true;
+  }
+
+  async resume(): Promise<void> {
+    this.paused = false;
+  }
+
+  emitChunk(chunk: AudioChunk): void {
+    for (const cb of [...this.chunkCbs]) cb(chunk);
+  }
+
+  emitVolume(level: number): void {
+    for (const cb of [...this.volumeCbs]) cb(level);
+  }
+
+  emitError(error: NormalizedVoiceError): void {
+    for (const cb of [...this.errorCbs]) cb(error);
+  }
+
+  onChunk(cb: (chunk: AudioChunk) => void): () => void {
+    this.chunkCbs.add(cb);
+    return () => this.chunkCbs.delete(cb);
+  }
+
+  onVolume(cb: (level: number) => void): () => void {
+    this.volumeCbs.add(cb);
+    return () => this.volumeCbs.delete(cb);
+  }
+
+  onError(cb: (error: NormalizedVoiceError) => void): () => void {
+    this.errorCbs.add(cb);
+    return () => this.errorCbs.delete(cb);
+  }
+}
+
+export interface MockAudioOutputOptions {
+  /** Auto-fire start/end around `play`. Default true. */
+  autoComplete?: boolean;
+  /** When set, `play` rejects with this error. */
+  failWith?: NormalizedVoiceError;
+}
+
+/** In-memory audio output. Records what was "played". */
+export class MockAudioOutput implements AudioOutputAdapter {
+  private startCbs = new Set<() => void>();
+  private endCbs = new Set<() => void>();
+  private errorCbs = new Set<(error: NormalizedVoiceError) => void>();
+  private readonly autoComplete: boolean;
+  private readonly failWith: NormalizedVoiceError | undefined;
+  played: AudioPlaybackInput[] = [];
+  stopped = 0;
+
+  constructor(options: MockAudioOutputOptions = {}) {
+    this.autoComplete = options.autoComplete ?? true;
+    this.failWith = options.failWith;
+  }
+
+  async play(input: AudioPlaybackInput): Promise<void> {
+    if (this.failWith) {
+      for (const cb of [...this.errorCbs]) cb(this.failWith);
+      throw this.failWith;
+    }
+    this.played.push(input);
+    if (this.autoComplete) {
+      for (const cb of [...this.startCbs]) cb();
+      for (const cb of [...this.endCbs]) cb();
+    }
+  }
+
+  async stop(): Promise<void> {
+    this.stopped += 1;
+  }
+
+  fireEnd(): void {
+    for (const cb of [...this.endCbs]) cb();
+  }
+
+  onStart(cb: () => void): () => void {
+    this.startCbs.add(cb);
+    return () => this.startCbs.delete(cb);
+  }
+
+  onEnd(cb: () => void): () => void {
+    this.endCbs.add(cb);
+    return () => this.endCbs.delete(cb);
+  }
+
+  onError(cb: (error: NormalizedVoiceError) => void): () => void {
+    this.errorCbs.add(cb);
+    return () => this.errorCbs.delete(cb);
+  }
+}
+
+export interface MockRuntimeOptions {
+  input?: MockAudioInputOptions;
+  output?: MockAudioOutputOptions;
+}
+
+export interface MockRuntime extends RuntimeAdapter {
+  audioInput: MockAudioInput;
+  audioOutput: MockAudioOutput;
+}
+
+/** Assemble a fully in-memory {@link RuntimeAdapter} for tests and Node demos. */
+export function createMockRuntime(options: MockRuntimeOptions = {}): MockRuntime {
+  return {
+    audioInput: new MockAudioInput(options.input),
+    audioOutput: new MockAudioOutput(options.output),
+  };
+}

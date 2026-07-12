@@ -1,0 +1,22 @@
+{
+  "name": "ottervoice",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "OtterVoice — a TypeScript-first, platform-agnostic SDK for half-duplex voice conversation (ASR + LLM + TTS).",
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage",
+    "typecheck": "tsc -b",
+    "demo": "bun run examples/node-cli/index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.0"
+  }
+}

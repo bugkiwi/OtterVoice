@@ -1,0 +1,199 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "ottervoice",
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.9.0",
+      },
+    },
+    "examples/node-cli": {
+      "name": "@ottervoice/example-node-cli",
+      "version": "0.1.0",
+      "dependencies": {
+        "@ottervoice/core": "workspace:*",
+      },
+    },
+    "examples/node-openrouter": {
+      "name": "@ottervoice/example-node-openrouter",
+      "version": "0.1.0",
+      "dependencies": {
+        "@ottervoice/core": "workspace:*",
+        "@ottervoice/provider-openrouter": "workspace:*",
+      },
+    },
+    "examples/react-native-expo": {
+      "name": "@ottervoice/example-react-native-expo",
+      "version": "0.1.0",
+      "dependencies": {
+        "@ottervoice/core": "workspace:*",
+        "@ottervoice/runtime-react-native": "workspace:*",
+      },
+    },
+    "examples/token-broker": {
+      "name": "@ottervoice/example-token-broker",
+      "version": "0.1.0",
+    },
+    "examples/web": {
+      "name": "@ottervoice/example-web",
+      "version": "0.1.0",
+      "dependencies": {
+        "@ottervoice/core": "workspace:*",
+        "@ottervoice/runtime-web": "workspace:*",
+      },
+    },
+    "packages/core": {
+      "name": "@ottervoice/core",
+      "version": "0.1.0",
+    },
+    "packages/protocol": {
+      "name": "@ottervoice/protocol",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@ottervoice/core": "workspace:*",
+      },
+      "peerDependencies": {
+        "@ottervoice/core": "workspace:*",
+      },
+    },
+    "packages/provider-azure-speech": {
+      "name": "@ottervoice/provider-azure-speech",
+      "version": "0.1.0",
+      "dependencies": {
+        "@ottervoice/provider-utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@ottervoice/core": "workspace:*",
+        "@ottervoice/provider-utils": "workspace:*",
+      },
+      "peerDependencies": {
+        "@ottervoice/core": "workspace:*",
+      },
+    },
+    "packages/provider-deepgram": {
+      "name": "@ottervoice/provider-deepgram",
+      "version": "0.1.0",
+      "dependencies": {
+        "@ottervoice/provider-utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@ottervoice/core": "workspace:*",
+        "@ottervoice/provider-utils": "workspace:*",
+      },
+      "peerDependencies": {
+        "@ottervoice/core": "workspace:*",
+      },
+    },
+    "packages/provider-elevenlabs": {
+      "name": "@ottervoice/provider-elevenlabs",
+      "version": "0.1.0",
+      "dependencies": {
+        "@ottervoice/provider-utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@ottervoice/core": "workspace:*",
+        "@ottervoice/provider-utils": "workspace:*",
+      },
+      "peerDependencies": {
+        "@ottervoice/core": "workspace:*",
+      },
+    },
+    "packages/provider-openrouter": {
+      "name": "@ottervoice/provider-openrouter",
+      "version": "0.1.0",
+      "dependencies": {
+        "@ottervoice/provider-utils": "workspace:*",
+      },
+      "devDependencies": {
+        "@ottervoice/core": "workspace:*",
+        "@ottervoice/provider-utils": "workspace:*",
+      },
+      "peerDependencies": {
+        "@ottervoice/core": "workspace:*",
+      },
+    },
+    "packages/provider-utils": {
+      "name": "@ottervoice/provider-utils",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@ottervoice/core": "workspace:*",
+      },
+      "peerDependencies": {
+        "@ottervoice/core": "workspace:*",
+      },
+    },
+    "packages/runtime-node": {
+      "name": "@ottervoice/runtime-node",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@ottervoice/core": "workspace:*",
+      },
+      "peerDependencies": {
+        "@ottervoice/core": "workspace:*",
+      },
+    },
+    "packages/runtime-react-native": {
+      "name": "@ottervoice/runtime-react-native",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@ottervoice/core": "workspace:*",
+      },
+      "peerDependencies": {
+        "@ottervoice/core": "workspace:*",
+      },
+    },
+    "packages/runtime-web": {
+      "name": "@ottervoice/runtime-web",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@ottervoice/core": "workspace:*",
+      },
+      "peerDependencies": {
+        "@ottervoice/core": "workspace:*",
+      },
+    },
+  },
+  "packages": {
+    "@ottervoice/core": ["@ottervoice/core@workspace:packages/core"],
+
+    "@ottervoice/example-node-cli": ["@ottervoice/example-node-cli@workspace:examples/node-cli"],
+
+    "@ottervoice/example-node-openrouter": ["@ottervoice/example-node-openrouter@workspace:examples/node-openrouter"],
+
+    "@ottervoice/example-react-native-expo": ["@ottervoice/example-react-native-expo@workspace:examples/react-native-expo"],
+
+    "@ottervoice/example-token-broker": ["@ottervoice/example-token-broker@workspace:examples/token-broker"],
+
+    "@ottervoice/example-web": ["@ottervoice/example-web@workspace:examples/web"],
+
+    "@ottervoice/protocol": ["@ottervoice/protocol@workspace:packages/protocol"],
+
+    "@ottervoice/provider-azure-speech": ["@ottervoice/provider-azure-speech@workspace:packages/provider-azure-speech"],
+
+    "@ottervoice/provider-deepgram": ["@ottervoice/provider-deepgram@workspace:packages/provider-deepgram"],
+
+    "@ottervoice/provider-elevenlabs": ["@ottervoice/provider-elevenlabs@workspace:packages/provider-elevenlabs"],
+
+    "@ottervoice/provider-openrouter": ["@ottervoice/provider-openrouter@workspace:packages/provider-openrouter"],
+
+    "@ottervoice/provider-utils": ["@ottervoice/provider-utils@workspace:packages/provider-utils"],
+
+    "@ottervoice/runtime-node": ["@ottervoice/runtime-node@workspace:packages/runtime-node"],
+
+    "@ottervoice/runtime-react-native": ["@ottervoice/runtime-react-native@workspace:packages/runtime-react-native"],
+
+    "@ottervoice/runtime-web": ["@ottervoice/runtime-web@workspace:packages/runtime-web"],
+
+    "@types/bun": ["@types/bun@1.3.14", "https://registry.npmmirror.com/@types/bun/-/bun-1.3.14.tgz", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
+
+    "@types/node": ["@types/node@26.0.1", "https://registry.npmmirror.com/@types/node/-/node-26.0.1.tgz", { "dependencies": { "undici-types": "~8.3.0" } }, "sha512-fc3KiUoBt6kie0N9bIW3E47vZsuaMf0PM2AaUpLCLT0s/LvX1nxAim6Fc049cNxODPpGm6qRAuUOB86SkRuPQw=="],
+
+    "bun-types": ["bun-types@1.3.14", "https://registry.npmmirror.com/bun-types/-/bun-types-1.3.14.tgz", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
+
+    "typescript": ["typescript@5.9.3", "https://registry.npmmirror.com/typescript/-/typescript-5.9.3.tgz", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+
+    "undici-types": ["undici-types@8.3.0", "https://registry.npmmirror.com/undici-types/-/undici-types-8.3.0.tgz", {}, "sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ=="],
+  }
+}

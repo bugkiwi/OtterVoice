@@ -1,0 +1,13 @@
+{
+  "name": "@ottervoice/example-node-openrouter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run index.ts"
+  },
+  "dependencies": {
+    "@ottervoice/core": "workspace:*",
+    "@ottervoice/provider-openrouter": "workspace:*"
+  }
+}

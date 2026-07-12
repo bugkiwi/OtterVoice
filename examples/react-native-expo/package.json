@@ -1,0 +1,12 @@
+{
+  "name": "@ottervoice/example-react-native-expo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Illustrative Expo wiring for @ottervoice/runtime-react-native (needs a real Expo app to run).",
+  "dependencies": {
+    "@ottervoice/core": "workspace:*",
+    "@ottervoice/runtime-react-native": "workspace:*"
+  },
+  "comment": "expo, expo-av, expo-file-system, react, react-native are provided by the host Expo app (see README); not installed here."
+}

@@ -1,0 +1,15 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/protocol" },
+    { "path": "./packages/runtime-node" },
+    { "path": "./packages/provider-utils" },
+    { "path": "./packages/provider-openrouter" },
+    { "path": "./packages/provider-azure-speech" },
+    { "path": "./packages/provider-deepgram" },
+    { "path": "./packages/provider-elevenlabs" },
+    { "path": "./packages/runtime-web" },
+    { "path": "./packages/runtime-react-native" }
+  ]
+}
