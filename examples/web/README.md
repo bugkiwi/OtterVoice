@@ -121,8 +121,8 @@ assistant playback after every uninterrupted reply.
 The project showcase lives in `docs/site`, keeping this directory focused on the
 reusable example. The docs site bundles this example as its primary live demo.
 
-- `docs/site/vercel.json`: root-workspace install, build output, Singapore region
-  (required for GPT Audio availability), and Function limits
+- `docs/site/vercel.json`: clean-clone workspace install/build, site output,
+  Singapore region (required for GPT Audio availability), and Function limits
 - `docs/site/api/openrouter/**`: the three deployed same-origin API Functions
 - `docs/site/build.ts`: showcase bundle plus a best-effort prebuilt opening voice
 

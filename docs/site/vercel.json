@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "installCommand": "bun install --cwd ../.. --frozen-lockfile",
-  "buildCommand": "bun run build",
+  "installCommand": "cd ../.. && bun install --frozen-lockfile && cd examples/web && bun install --frozen-lockfile",
+  "buildCommand": "cd ../.. && bun run build && cd docs/site && bun run build",
   "outputDirectory": "dist",
   "regions": ["sin1"],
   "functions": {
