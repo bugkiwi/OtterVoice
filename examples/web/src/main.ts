@@ -30,6 +30,95 @@ const cascadeBtn = $<HTMLButtonElement>('mode-cascade');
 const audioBtn = $<HTMLButtonElement>('mode-audio');
 const pipelineEl = $('pipeline-copy');
 const latencyEl = $('latency');
+const langZhBtn = $<HTMLButtonElement>('lang-zh');
+const langEnBtn = $<HTMLButtonElement>('lang-en');
+
+type AppLanguage = 'zh' | 'en';
+
+const translations = {
+  zh: {
+    metaDescription: 'OtterVoice — 面向 Web 与 React Native 的全双工实时语音对话 SDK。',
+    navDemo: '在线体验', navNative: 'React Native', navDocs: '项目说明',
+    heroEyebrow: 'Open voice infrastructure · TypeScript first',
+    heroLine1: '让语音对话，', heroLine2: '像呼吸一样自然。',
+    heroCopy: 'OtterVoice 把持续收音、停顿提交、语音直进直出和自然打断收敛为一套跨 Web 与 React Native 的全双工会话内核。',
+    heroPrimary: '直接体验', heroSecondary: '运行移动端 Demo',
+    signal1Title: 'Full duplex', signal1Copy: '边播边听，开口即可打断',
+    signal2Copy: '同一状态机与会话策略', signal3Copy: '音频分片返回即排队播放',
+    demoEyebrow: 'Example 01 · Web full duplex', demoTitle: '现在，直接开口。',
+    demoCopy: '麦克风会持续监听。停顿即提交，AI 说话时也可直接插话打断；屏幕同步保留完整文字记录。',
+    pipelineFootnote: 'OpenRouter 低延迟通路 · 密钥仅保留在服务端',
+    controlsAria: '对话控制', modeAria: '语音处理模式', transcriptAria: '对话记录',
+    modeAudio: '新 · Audio LLM', modeCascade: '旧 · ASR→LLM→TTS', liveChannel: '实时通路',
+    start: '开始语音对话', finish: '结束会话',
+    phoneTitle: '现在，直接开口。', phoneCopy: '持续监听；停顿提交；说话即可打断。', phoneState: '正在持续收听',
+    nativeEyebrow: 'Example 02 · React Native / Expo', nativeTitle: '同一条 Audio LLM 通路，装进手机。',
+    nativeCopy: 'Expo SDK 57 示例接入原生 PCM 麦克风流和无缝播放队列。它复用 Web 示例的模型、VAD、短语打断与误打断恢复策略，客户端只访问线上代理。',
+    nativeFeature1Title: '持续原生收音', nativeFeature1Copy: '实时 RMS 驱动 VAD，在 AI 理解和播报期间都不会停止监听。',
+    nativeFeature2Title: '分片即到即播', nativeFeature2Copy: '每个 PCM 分片落入 AudioPlaylist，首片到达即可开始播放。',
+    nativeFeature3Title: '短语也能打断', nativeFeature3Copy: '200 ms 强语音快速通路兼顾中英文短指令和回声过滤。',
+    nativeFeature4Title: '可扫码、可出包', nativeFeature4Copy: 'Expo Go 本地扫码预览，EAS profiles 提供模拟器与真机 Demo 包。',
+    quickstartTitle: '扫码体验 · 本地开发',
+    docsEyebrow: 'Project guide · Architecture', docsTitle: '基础能力负责实时，业务只需要定义对话。',
+    flow1Title: 'Runtime', flow1Copy: 'Web Audio 或 Expo PCM 负责采集、音量和播放。',
+    flow2Title: 'Core', flow2Copy: '状态机组织 turn、并发、打断、取消和错误恢复。',
+    flow3Title: 'Providers', flow3Copy: 'Audio LLM，或可替换的 ASR → LLM → TTS 级联通路。',
+    flow4Title: 'Experience', flow4Copy: '字幕、首音频延迟、连续播放与自然插话。',
+    packageCore: '跨平台 VoiceSession、事件和全双工策略。',
+    packageWeb: 'MediaRecorder、Web Audio VAD 与流式 PCM 播放。',
+    packageNative: 'Expo 原生 PCM 输入、AudioPlaylist 输出与文件清理。',
+    packageProvider: 'Audio LLM、ASR、LLM 和 TTS 的统一 OpenRouter 接入。',
+    packageUtils: 'SSE、HTTP 错误和 provider 公共能力。',
+    packageExamples: '可直接运行的 Web、Expo 和 Node 集成样板。',
+    securityTitle: '密钥不进入浏览器或 App。',
+    securityCopy: '示例统一请求 ottervoice.vercel.app 的同源代理，由服务端注入 OpenRouter 凭据；生产项目可以替换为自己的 token broker。',
+    readDocs: '阅读完整 README ↗', footerStack: 'TypeScript / Web Audio / Expo / OpenRouter',
+  },
+  en: {
+    metaDescription: 'OtterVoice — a full-duplex real-time voice SDK for Web and React Native.',
+    navDemo: 'Live demo', navNative: 'React Native', navDocs: 'Project guide',
+    heroEyebrow: 'Open voice infrastructure · TypeScript first',
+    heroLine1: 'Voice that feels', heroLine2: 'as natural as breathing.',
+    heroCopy: 'OtterVoice brings continuous listening, pause-to-submit, speech-to-speech models and natural barge-in into one full-duplex session core for Web and React Native.',
+    heroPrimary: 'Try it live', heroSecondary: 'Run the mobile demo',
+    signal1Title: 'Full duplex', signal1Copy: 'Listen while playing; interrupt by speaking',
+    signal2Copy: 'One state machine and session policy', signal3Copy: 'Queue audio chunks as soon as they arrive',
+    demoEyebrow: 'Example 01 · Web full duplex', demoTitle: 'Now, just speak.',
+    demoCopy: 'The microphone keeps listening. A pause submits your turn; speak over the assistant to interrupt while the full transcript stays on screen.',
+    pipelineFootnote: 'Low-latency OpenRouter path · secrets stay on the server',
+    controlsAria: 'Conversation controls', modeAria: 'Voice processing mode', transcriptAria: 'Transcript',
+    modeAudio: 'New · Audio LLM', modeCascade: 'Classic · ASR→LLM→TTS', liveChannel: 'Live channel',
+    start: 'Start voice session', finish: 'End session',
+    phoneTitle: 'Now, just speak.', phoneCopy: 'Always listening. Pause to submit. Speak to interrupt.', phoneState: 'Listening continuously',
+    nativeEyebrow: 'Example 02 · React Native / Expo', nativeTitle: 'The same Audio LLM path, now in your pocket.',
+    nativeCopy: 'The Expo SDK 57 example connects a native PCM microphone stream to a gapless playback queue. It shares the Web demo’s models, VAD, short-phrase interruption and false-barge-in recovery policy, and only calls the hosted proxy.',
+    nativeFeature1Title: 'Continuous native input', nativeFeature1Copy: 'Real-time RMS drives VAD without stopping while the model thinks or speaks.',
+    nativeFeature2Title: 'Play chunks on arrival', nativeFeature2Copy: 'Each PCM chunk enters AudioPlaylist, so playback begins with the first chunk.',
+    nativeFeature3Title: 'Short phrases interrupt', nativeFeature3Copy: 'A 200 ms strong-speech fast path covers brief Chinese and English commands with echo filtering.',
+    nativeFeature4Title: 'Scan or build', nativeFeature4Copy: 'Preview locally with Expo Go QR codes, or use EAS profiles for simulator and device packages.',
+    quickstartTitle: 'Scan to try · local development',
+    docsEyebrow: 'Project guide · Architecture', docsTitle: 'The infrastructure owns real time. Your product defines the conversation.',
+    flow1Title: 'Runtime', flow1Copy: 'Web Audio or Expo PCM handles capture, levels and playback.',
+    flow2Title: 'Core', flow2Copy: 'The state machine coordinates turns, concurrency, interruption, cancellation and recovery.',
+    flow3Title: 'Providers', flow3Copy: 'Use an Audio LLM, or swap in a classic ASR → LLM → TTS cascade.',
+    flow4Title: 'Experience', flow4Copy: 'Captions, first-audio latency, continuous playback and natural barge-in.',
+    packageCore: 'Cross-platform VoiceSession, events and full-duplex policy.',
+    packageWeb: 'MediaRecorder, Web Audio VAD and streaming PCM playback.',
+    packageNative: 'Expo native PCM input, AudioPlaylist output and file cleanup.',
+    packageProvider: 'Unified OpenRouter access for Audio LLM, ASR, LLM and TTS.',
+    packageUtils: 'Shared SSE parsing, HTTP errors and provider primitives.',
+    packageExamples: 'Runnable Web, Expo and Node integration templates.',
+    securityTitle: 'Secrets never enter the browser or app.',
+    securityCopy: 'The examples call the same-origin proxy at ottervoice.vercel.app, where OpenRouter credentials are injected server-side. Production apps can replace it with their own token broker.',
+    readDocs: 'Read the full README ↗', footerStack: 'TypeScript / Web Audio / Expo / OpenRouter',
+  },
+} as const;
+
+let language: AppLanguage = (() => {
+  const saved = localStorage.getItem('ottervoice-language');
+  if (saved === 'zh' || saved === 'en') return saved;
+  return navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+})();
 
 const OPENROUTER_PROXY = '/api/openrouter';
 // This is a non-secret placeholder. The Bun proxy replaces it server-side.
@@ -50,6 +139,23 @@ type SseAudioCapture = {
 let lastSseAudio: SseAudioCapture | undefined;
 let debugAudioPlayer: HTMLAudioElement | undefined;
 
+const runtimeText = {
+  zh: {
+    you: '你', otter: 'Otter', playing: '播放中…', playFailed: '播放失败', playSse: '▶ SSE 音频',
+    playTitle: '播放 OpenRouter SSE 组装后的原始音频（独立于会话播放）', chunks: '片', pending: '待测',
+    latencyEmpty: '完成一轮对话后显示“停顿 → 开始播放”的实测延迟',
+    pipelineAudio: '<code>GPT Audio Mini</code> 语音直进直出 · <code>Qwen3 ASR</code> 仅并行生成字幕',
+    pipelineCascade: '<code>Qwen3 ASR</code> → <code>DeepSeek V4 Flash</code> → <code>Kokoro 82M</code>',
+  },
+  en: {
+    you: 'You', otter: 'Otter', playing: 'Playing…', playFailed: 'Playback failed', playSse: '▶ SSE audio',
+    playTitle: 'Play the original audio assembled from OpenRouter SSE chunks', chunks: 'chunks', pending: 'pending',
+    latencyEmpty: 'Measured pause → first audio playback latency appears after one turn',
+    pipelineAudio: '<code>GPT Audio Mini</code> speech-to-speech · <code>Qwen3 ASR</code> captions in parallel',
+    pipelineCascade: '<code>Qwen3 ASR</code> → <code>DeepSeek V4 Flash</code> → <code>Kokoro 82M</code>',
+  },
+} as const;
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   return `${(bytes / 1024).toFixed(1)} KB`;
@@ -66,13 +172,13 @@ function playSseAudio(capture: SseAudioCapture, button: HTMLButtonElement) {
   audio.dataset.objectUrl = url;
   debugAudioPlayer = audio;
   button.disabled = true;
-  button.textContent = '播放中…';
+  button.textContent = runtimeText[language].playing;
   void audio.play().catch(() => {
-    button.textContent = '播放失败';
+    button.textContent = runtimeText[language].playFailed;
     button.disabled = false;
   });
   audio.onended = () => {
-    button.textContent = '▶ SSE 音频';
+    button.textContent = runtimeText[language].playSse;
     button.disabled = false;
   };
 }
@@ -86,7 +192,7 @@ function addTurn(
   div.className = `turn ${role}`;
   const label = document.createElement('span');
   label.className = 'speaker';
-  label.textContent = role === 'user' ? 'You' : 'Otter';
+  label.textContent = role === 'user' ? runtimeText[language].you : runtimeText[language].otter;
   const body = document.createElement('div');
   body.className = 'turn-body';
   const message = document.createElement('span');
@@ -98,12 +204,12 @@ function addTurn(
     const playBtn = document.createElement('button');
     playBtn.type = 'button';
     playBtn.className = 'sse-audio-play';
-    playBtn.textContent = '▶ SSE 音频';
-    playBtn.title = '播放 OpenRouter SSE 组装后的原始音频（独立于会话播放）';
+    playBtn.textContent = runtimeText[language].playSse;
+    playBtn.title = runtimeText[language].playTitle;
     playBtn.addEventListener('click', () => playSseAudio(capture, playBtn));
     const meta = document.createElement('span');
     meta.className = 'sse-audio-meta';
-    meta.textContent = `${capture.chunkCount} 片 · ${formatBytes(capture.byteLength)}`;
+    meta.textContent = `${capture.chunkCount} ${runtimeText[language].chunks} · ${formatBytes(capture.byteLength)}`;
     body.append(playBtn, meta);
   }
 
@@ -112,21 +218,23 @@ function addTurn(
   logEl.scrollTop = logEl.scrollHeight;
 }
 
-const stateCopy: Record<string, string> = {
-  idle: 'Ready when you are',
-  starting: 'Opening the microphone…',
-  assistant_speaking: 'Otter is replying · speak to interrupt',
-  listening: 'Listening continuously',
-  user_speaking: 'I hear you',
-  processing: 'Transcribing and thinking…',
-  finished: 'Conversation ended',
-  error: 'Something went wrong',
+const stateCopy: Record<AppLanguage, Record<string, string>> = {
+  zh: {
+    idle: '准备好就可以开始', starting: '正在打开麦克风…',
+    assistant_speaking: 'Otter 正在回复 · 开口即可打断', listening: '正在持续收听',
+    user_speaking: '听到你了', processing: '正在转写和理解…', finished: '本次对话已结束', error: '通路出现问题',
+  },
+  en: {
+    idle: 'Ready when you are', starting: 'Opening the microphone…',
+    assistant_speaking: 'Otter is replying · speak to interrupt', listening: 'Listening continuously',
+    user_speaking: 'I hear you', processing: 'Transcribing and thinking…', finished: 'Conversation ended', error: 'Something went wrong',
+  },
 };
 
 function renderState(state: string) {
   stateEl.textContent = state.replaceAll('_', ' ');
   stateEl.dataset.state = state;
-  stateCopyEl.textContent = stateCopy[state] ?? state;
+  stateCopyEl.textContent = stateCopy[language][state] ?? state;
 }
 
 const proxyOptions = {
@@ -213,20 +321,25 @@ function renderPipeline() {
   cascadeBtn.setAttribute('aria-pressed', String(!isAudio));
   audioBtn.setAttribute('aria-pressed', String(isAudio));
   pipelineEl.innerHTML = isAudio
-    ? '<code>GPT Audio Mini</code> 语音直进直出 · <code>Qwen3 ASR</code> 仅并行生成字幕'
-    : '<code>Qwen3 ASR</code> → <code>DeepSeek V4 Flash</code> → <code>Kokoro 82M</code>';
+    ? runtimeText[language].pipelineAudio
+    : runtimeText[language].pipelineCascade;
 }
 
+let lastLatency: { pipeline: Pipeline; value: number } | undefined;
+
 function renderLatency(currentPipeline: Pipeline, latest: number) {
+  lastLatency = { pipeline: currentPipeline, value: latest };
   const samples = latencySamples[currentPipeline];
   const average = Math.round(samples.reduce((sum, value) => sum + value, 0) / samples.length);
   const oldAverage = latencySamples.asr_llm_tts.length
     ? `${Math.round(latencySamples.asr_llm_tts.reduce((a, b) => a + b, 0) / latencySamples.asr_llm_tts.length)} ms`
-    : '待测';
+    : runtimeText[language].pending;
   const audioAverage = latencySamples.audio_llm.length
     ? `${Math.round(latencySamples.audio_llm.reduce((a, b) => a + b, 0) / latencySamples.audio_llm.length)} ms`
-    : '待测';
-  latencyEl.textContent = `本轮 ${Math.round(latest)} ms · 当前模式均值 ${average} ms · 旧 ${oldAverage} / 新 ${audioAverage}`;
+    : runtimeText[language].pending;
+  latencyEl.textContent = language === 'zh'
+    ? `本轮 ${Math.round(latest)} ms · 当前模式均值 ${average} ms · 旧 ${oldAverage} / 新 ${audioAverage}`
+    : `Latest ${Math.round(latest)} ms · current average ${average} ms · classic ${oldAverage} / Audio LLM ${audioAverage}`;
 }
 
 function buildSession(pipeline: Pipeline) {
@@ -356,4 +469,47 @@ for (const [button, pipeline] of [
   });
 }
 
-renderPipeline();
+function applyLanguage(next: AppLanguage) {
+  language = next;
+  localStorage.setItem('ottervoice-language', next);
+  document.documentElement.lang = next === 'zh' ? 'zh-CN' : 'en';
+  const dictionary: Record<string, string> = translations[next];
+  document.querySelectorAll<HTMLElement>('[data-i18n]').forEach((element) => {
+    const key = element.dataset.i18n;
+    if (key && dictionary[key]) element.textContent = dictionary[key];
+  });
+  document.querySelectorAll<HTMLElement>('[data-i18n-aria]').forEach((element) => {
+    const key = element.dataset.i18nAria;
+    if (key && dictionary[key]) element.setAttribute('aria-label', dictionary[key]);
+  });
+  document.querySelector<HTMLMetaElement>('meta[name="description"]')?.setAttribute(
+    'content',
+    dictionary.metaDescription ?? '',
+  );
+  langZhBtn.classList.toggle('selected', next === 'zh');
+  langEnBtn.classList.toggle('selected', next === 'en');
+  langZhBtn.setAttribute('aria-pressed', String(next === 'zh'));
+  langEnBtn.setAttribute('aria-pressed', String(next === 'en'));
+
+  logEl.querySelectorAll<HTMLElement>('.turn').forEach((turn) => {
+    const speaker = turn.querySelector<HTMLElement>('.speaker');
+    if (!speaker) return;
+    speaker.textContent = turn.classList.contains('user')
+      ? runtimeText[next].you
+      : runtimeText[next].otter;
+  });
+  logEl.querySelectorAll<HTMLButtonElement>('.sse-audio-play:not(:disabled)').forEach((button) => {
+    button.textContent = runtimeText[next].playSse;
+    button.title = runtimeText[next].playTitle;
+  });
+
+  renderPipeline();
+  renderState(stateEl.dataset.state ?? 'idle');
+  if (lastLatency) renderLatency(lastLatency.pipeline, lastLatency.value);
+  else latencyEl.textContent = runtimeText[next].latencyEmpty;
+}
+
+langZhBtn.addEventListener('click', () => applyLanguage('zh'));
+langEnBtn.addEventListener('click', () => applyLanguage('en'));
+
+applyLanguage(language);
