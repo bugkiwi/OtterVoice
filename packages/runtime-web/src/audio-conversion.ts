@@ -81,7 +81,12 @@ export async function measureBrowserAudioEnvelope(
   if (!AC) return { levels: [], frameMs };
   const context = new AC();
   try {
-    const decoded = await context.decodeAudioData(input.slice(0));
+    let decoded: DecodedAudioLike;
+    try {
+      decoded = await context.decodeAudioData(input.slice(0));
+    } catch {
+      return { levels: [], frameMs };
+    }
     const frameSamples = Math.max(1, Math.round((decoded.sampleRate * frameMs) / 1_000));
     const channels = Array.from(
       { length: decoded.numberOfChannels },

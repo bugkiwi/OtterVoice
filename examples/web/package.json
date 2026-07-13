@@ -6,6 +6,8 @@
   "scripts": {
     "start": "bun run serve.ts",
     "benchmark": "bun run benchmark.ts",
+    "probe:audio-sse": "bun run probe-audio-sse.ts",
+    "test:audio-story": "bun run test-audio-story.ts",
     "test:acoustic": "bun run acoustic-loopback.ts"
   },
   "dependencies": {

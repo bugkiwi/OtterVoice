@@ -389,7 +389,7 @@ export interface AudioOutputAdapter {
   pause?(): Promise<void>;
   resume?(): Promise<void>;
   /** Normalized RMS of the assistant audio currently being played. */
-  onVolume?(cb: (level: number) => void): () => void;
+  onVolume?(cb: (level: number, at?: number) => void): () => void;
   onStart(cb: () => void): () => void;
   onEnd(cb: () => void): () => void;
   onError(cb: (error: NormalizedVoiceError) => void): () => void;
@@ -488,6 +488,10 @@ export interface VoiceSessionPolicy {
   falseInterruptionSilenceMs?: number;
   /** Maximum time to keep playback tentatively paused without confirming speech. */
   falseInterruptionTimeoutMs?: number;
+  /** Ignore microphone energy right after a tentative pause while speaker echo decays. */
+  interruptionTailIgnoreMs?: number;
+  /** Ignore new barge-in candidates shortly after resuming a false interruption. */
+  interruptionCooldownMs?: number;
 }
 
 export interface VoiceSessionConfig {
@@ -496,6 +500,11 @@ export interface VoiceSessionConfig {
   pipeline?: 'asr_llm_tts' | 'audio_llm';
   /** Optional system instruction forwarded to a native audio LLM. */
   audioLlmSystemPrompt?: string;
+  /**
+   * Cap native audio LLM output tokens (audio + transcript share this budget).
+   * Omit to use the model's default maximum — required for long-form speech.
+   */
+  audioLlmMaxTokens?: number;
   /** Preferred ASR language; omit to let compatible providers auto-detect. */
   language?: string;
   runtime: RuntimeAdapter;

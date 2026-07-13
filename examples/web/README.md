@@ -13,8 +13,16 @@ bun run examples/web/serve.ts
 # open http://localhost:5173
 ```
 
+`serve.ts` serves `dist/opening.mp3` for the cached welcome clip. If that file is
+missing, the demo falls back to live TTS (requires `OPENROUTER_API_KEY`).
+
 `serve.ts` bundles `src/main.ts` with Bun's bundler and serves it — no Vite or
-webpack. Click **Start conversation** (allow the microphone), speak naturally,
+webpack. **Local dev always bundles from `packages/*/src`** (`development`
+export + explicit aliases in `serve.ts`), so you never need to rebuild `dist/`
+just to pick up core/provider changes. Run `bun run build` only before deploy
+(`docs/site` uses compiled `dist/`).
+
+Click **Start conversation** (allow the microphone), speak naturally,
 and pause when you are done — volume-based VAD ends each turn automatically.
 While the assistant is replying you can speak again to barge in.
 
@@ -23,12 +31,12 @@ from the assistant audio, and core searches 0–300 ms of acoustic delay before
 subtracting the learned speaker-to-microphone echo baseline. A 4-of-12 voiced
 frame gate then rejects isolated knocks without requiring uninterrupted speech.
 That first signal is only a candidate: playback is paused rather than destroyed.
-If microphone speech continues after the loudspeaker tail has decayed, core
+If ASR hears distinct user speech after the loudspeaker tail has decayed, core
 commits the interruption; if it disappears, playback resumes from the same
-position. Streaming ASR partials are also ignored during assistant speech unless
-there is already a candidate and at least two words or visible characters. This
-prevents the assistant from hearing itself while keeping real spoken
-interruptions responsive, including during the welcome message.
+position. Volume alone never confirms an interruption after the pause — only
+non-echo ASR text can. Streaming ASR partials are also ignored during assistant
+speech unless there is already a candidate and at least two words or visible
+characters that are not a substring of the assistant reply.
 
 Run the deterministic real-waveform loopback matrix (requires `ffmpeg`):
 

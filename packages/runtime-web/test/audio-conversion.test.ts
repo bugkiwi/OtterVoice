@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { encodeMonoWav } from '../src/audio-conversion';
+import { encodeMonoWav, measureBrowserAudioEnvelope } from '../src/audio-conversion';
 
 describe('encodeMonoWav', () => {
   it('mixes channels and writes playable PCM16 WAV bytes', () => {
@@ -16,5 +16,12 @@ describe('encodeMonoWav', () => {
     expect(view.getUint32(24, true)).toBe(48_000);
     expect(view.getInt16(44, true)).toBeGreaterThan(16_000);
     expect(view.getInt16(46, true)).toBeLessThan(-16_000);
+  });
+});
+
+describe('measureBrowserAudioEnvelope', () => {
+  it('returns an empty envelope when decode fails', async () => {
+    const envelope = await measureBrowserAudioEnvelope(new TextEncoder().encode('<html>').buffer);
+    expect(envelope).toEqual({ levels: [], frameMs: 50 });
   });
 });

@@ -58,6 +58,18 @@ function emitChunk(runtime: ReturnType<typeof createMockRuntime>, durationMs?: n
   });
 }
 
+function calibrateEchoOnly(
+  runtime: ReturnType<typeof createMockRuntime>,
+  time: ReturnType<typeof clock>,
+  endAt = 950,
+) {
+  for (let at = 0; at <= endAt; at += 50) {
+    time.set(at);
+    runtime.audioOutput.emitVolume(0.1);
+    runtime.audioInput.emitVolume(0.06);
+  }
+}
+
 interface Harness {
   session: VoiceSession;
   runtime: ReturnType<typeof createMockRuntime>;
@@ -553,13 +565,27 @@ describe('VoiceSession policies & agent', () => {
 });
 
 describe('VoiceSession full_duplex', () => {
+  function calibratePlaybackEcho(
+    runtime: ReturnType<typeof createMockRuntime>,
+    time: ReturnType<typeof clock>,
+    endAt = 950,
+  ) {
+    for (let at = 0; at <= endAt; at += 50) {
+      time.set(at);
+      runtime.audioOutput.emitVolume(0.1);
+      runtime.audioInput.emitVolume(0.06);
+    }
+  }
+
   it('subtracts synchronized assistant playback echo before barge-in detection', async () => {
     const time = clock(0);
     const runtime = createMockRuntime({ output: { autoComplete: false } });
+    const { provider, ctl } = controllableASR();
     const { session } = makeSession({
       mode: 'full_duplex',
       runtime,
       now: time.now,
+      providers: { asr: provider } as any,
       interruptionDetection: {
         minSpeechMs: 300,
         silenceTimeoutMs: 300,
@@ -572,32 +598,31 @@ describe('VoiceSession full_duplex', () => {
     await nextState(session, 'assistant_speaking');
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    runtime.audioOutput.emitVolume(0.1);
-    runtime.audioInput.emitVolume(0.02);
+    calibratePlaybackEcho(runtime, time);
     time.set(400);
     runtime.audioInput.emitVolume(0.02);
     expect(session.state).toBe('assistant_speaking');
 
-    time.set(1_000);
     for (const at of [1_000, 1_050, 1_100, 1_150]) {
       time.set(at);
+      runtime.audioOutput.emitVolume(0.1);
       runtime.audioInput.emitVolume(0.08);
     }
     expect(runtime.audioOutput.paused).toBe(1);
-    for (const at of [1_300, 1_350, 1_400]) {
-      time.set(at);
-      runtime.audioInput.emitVolume(0.08);
-    }
+    time.set(1_800);
+    ctl.emitPartial({ text: '停一下' });
     expect(session.state).toBe('user_speaking');
   });
 
   it('uses stricter sustained-speech detection for barge-in than normal listening', async () => {
     const time = clock(0);
     const runtime = createMockRuntime({ output: { autoComplete: false } });
+    const { provider, ctl } = controllableASR();
     const { session } = makeSession({
       mode: 'full_duplex',
       runtime,
       now: time.now,
+      providers: { asr: provider } as any,
       interruptionDetection: {
         minSpeechMs: 500,
         silenceTimeoutMs: 300,
@@ -619,11 +644,7 @@ describe('VoiceSession full_duplex', () => {
 
     // The asynchronously decoded playback reference becomes available, then
     // receives enough echo-only frames to finish calibration.
-    for (const at of [600, 650, 700, 750, 800, 850, 900, 950]) {
-      time.set(at);
-      runtime.audioOutput.emitVolume(0.1);
-      runtime.audioInput.emitVolume(0.06);
-    }
+    calibratePlaybackEcho(runtime, time);
 
     // Sustained loudness still behaves as an intentional spoken interruption.
     for (const at of [1_000, 1_050, 1_100, 1_150]) {
@@ -632,10 +653,8 @@ describe('VoiceSession full_duplex', () => {
       runtime.audioInput.emitVolume(0.4);
     }
     expect(runtime.audioOutput.paused).toBe(1);
-    for (const at of [1_300, 1_350, 1_400]) {
-      time.set(at);
-      runtime.audioInput.emitVolume(0.4);
-    }
+    time.set(1_800);
+    ctl.emitPartial({ text: '停一下' });
     expect(session.state).toBe('user_speaking');
     expect(runtime.audioOutput.stopped).toBeGreaterThan(0);
   });
@@ -657,6 +676,32 @@ describe('VoiceSession full_duplex', () => {
     expect(session.state).toBe('listening');
   });
 
+  it('opens the mic during native audio LLM replies in full_duplex', async () => {
+    const runtime = createMockRuntime();
+    const audioLlm: AudioLLMProvider = {
+      name: 'audio-llm',
+      async generate() {
+        return {
+          text: '语音模型回复',
+          audioBuffer: new ArrayBuffer(8),
+          mimeType: 'audio/wav',
+        };
+      },
+    };
+    const { session } = makeSession({
+      mode: 'full_duplex',
+      pipeline: 'audio_llm',
+      runtime,
+      providers: { audioLlm } as any,
+    });
+    await session.start();
+    emitChunk(runtime);
+    const speaking = nextState(session, 'assistant_speaking');
+    await session.endUserTurn();
+    await speaking;
+    expect(runtime.audioInput.started).toBe(true);
+  });
+
   it('returns to listening when full-duplex has no TTS provider', async () => {
     const { session } = makeSession({
       mode: 'full_duplex',
@@ -669,7 +714,7 @@ describe('VoiceSession full_duplex', () => {
   it('barge-in stops playback and processes the new user turn', async () => {
     const time = clock(0);
     const runtime = createMockRuntime({ output: { autoComplete: false } });
-    const { provider } = controllableASR({ finalOnStop: 'wait actually' });
+    const { provider, ctl } = controllableASR({ finalOnStop: 'wait actually' });
     const { session, events } = makeSession({
       mode: 'full_duplex',
       runtime,
@@ -695,21 +740,15 @@ describe('VoiceSession full_duplex', () => {
 
     expect(runtime.audioOutput.played).toHaveLength(1);
 
-    for (const at of [0, 50, 100, 150, 200, 250, 300, 350]) {
-      time.set(at);
-      runtime.audioOutput.emitVolume(0.1);
-      runtime.audioInput.emitVolume(0.06);
-    }
+    calibratePlaybackEcho(runtime, time, 350);
     for (let frame = 0; frame < 4; frame += 1) {
       time.set(400 + frame * 50);
       runtime.audioOutput.emitVolume(0.1);
       runtime.audioInput.emitVolume(0.5); // speech-shaped barge-in
     }
     expect(runtime.audioOutput.paused).toBe(1);
-    for (const at of [700, 750, 800]) {
-      time.set(at);
-      runtime.audioInput.emitVolume(0.5);
-    }
+    time.set(1_600);
+    ctl.emitPartial({ text: 'wait actually' });
     expect(session.state).toBe('user_speaking');
     expect(runtime.audioOutput.stopped).toBeGreaterThan(0);
 
@@ -731,6 +770,67 @@ describe('VoiceSession full_duplex', () => {
     ).toBe(true);
   });
 
+  it('does not confirm a tentative interruption from loudspeaker echo tail alone', async () => {
+    const time = clock(0);
+    const runtime = createMockRuntime({ output: { autoComplete: false } });
+    const { session } = makeSession({
+      mode: 'full_duplex',
+      runtime,
+      now: time.now,
+      interruptionDetection: { volumeThreshold: 0.02 },
+      policy: { allowInterruption: true, falseInterruptionSilenceMs: 250 },
+    });
+    await session.start();
+    void session.submitUserText('hello');
+    await nextState(session, 'assistant_speaking');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    calibratePlaybackEcho(runtime, time, 350);
+    for (const at of [400, 450, 500, 550]) {
+      time.set(at);
+      runtime.audioOutput.emitVolume(0.1);
+      runtime.audioInput.emitVolume(0.5);
+    }
+    expect(runtime.audioOutput.paused).toBe(1);
+
+    for (const at of [1_200, 1_250, 1_300, 1_350]) {
+      time.set(at);
+      runtime.audioInput.emitVolume(0.04);
+    }
+    expect(session.state).toBe('assistant_speaking');
+    expect(runtime.audioOutput.stopped).toBe(0);
+  });
+
+  it('does not confirm a tentative interruption from assistant echo ASR', async () => {
+    const time = clock(0);
+    const runtime = createMockRuntime({ output: { autoComplete: false } });
+    const { provider, ctl } = controllableASR();
+    const { session } = makeSession({
+      mode: 'full_duplex',
+      runtime,
+      now: time.now,
+      providers: { asr: provider } as any,
+      policy: { allowInterruption: true },
+    });
+    await session.start();
+    void session.submitUserText('hello');
+    await nextState(session, 'assistant_speaking');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    calibratePlaybackEcho(runtime, time, 350);
+    for (const at of [400, 450, 500, 550]) {
+      time.set(at);
+      runtime.audioOutput.emitVolume(0.1);
+      runtime.audioInput.emitVolume(0.5);
+    }
+    expect(runtime.audioOutput.paused).toBe(1);
+
+    time.set(1_200);
+    ctl.emitPartial({ text: 'assistant reply' });
+    expect(session.state).toBe('assistant_speaking');
+    expect(runtime.audioOutput.stopped).toBe(0);
+  });
+
   it('resumes playback when a tentative interruption disappears after pausing', async () => {
     const time = clock(0);
     const runtime = createMockRuntime({ output: { autoComplete: false } });
@@ -741,7 +841,7 @@ describe('VoiceSession full_duplex', () => {
       interruptionDetection: { volumeThreshold: 0.02 },
       policy: {
         allowInterruption: true,
-        falseInterruptionSilenceMs: 250,
+        falseInterruptionSilenceMs: 400,
       },
     });
     await session.start();
@@ -749,11 +849,7 @@ describe('VoiceSession full_duplex', () => {
     await nextState(session, 'assistant_speaking');
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    for (const at of [0, 50, 100, 150, 200, 250, 300, 350]) {
-      time.set(at);
-      runtime.audioOutput.emitVolume(0.1);
-      runtime.audioInput.emitVolume(0.06);
-    }
+    calibratePlaybackEcho(runtime, time, 350);
     for (const at of [400, 450, 500, 550]) {
       time.set(at);
       runtime.audioOutput.emitVolume(0.1);
@@ -762,9 +858,9 @@ describe('VoiceSession full_duplex', () => {
     expect(runtime.audioOutput.paused).toBe(1);
     expect(session.state).toBe('assistant_speaking');
 
-    time.set(700);
+    time.set(1_200);
     runtime.audioInput.emitVolume(0);
-    time.set(950);
+    time.set(1_700);
     runtime.audioInput.emitVolume(0);
 
     expect(runtime.audioOutput.resumed).toBe(1);
@@ -791,11 +887,7 @@ describe('VoiceSession full_duplex', () => {
     ctl.emitPartial({ text: 'assistant echo words' });
     expect(session.state).toBe('assistant_speaking');
 
-    for (const at of [0, 50, 100, 150, 200, 250, 300, 350]) {
-      time.set(at);
-      runtime.audioOutput.emitVolume(0.1);
-      runtime.audioInput.emitVolume(0.06);
-    }
+    calibratePlaybackEcho(runtime, time, 350);
     for (const at of [400, 450, 500, 550]) {
       time.set(at);
       runtime.audioOutput.emitVolume(0.1);
@@ -803,6 +895,7 @@ describe('VoiceSession full_duplex', () => {
     }
     expect(runtime.audioOutput.paused).toBe(1);
 
+    time.set(1_600);
     ctl.emitPartial({ text: '等等' });
     expect(session.state).toBe('user_speaking');
     expect(runtime.audioOutput.stopped).toBeGreaterThan(0);

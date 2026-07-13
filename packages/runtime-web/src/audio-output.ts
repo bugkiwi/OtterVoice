@@ -43,6 +43,7 @@ export class WebAudioOutput implements AudioOutputAdapter {
   private playbackStartedAt: number | undefined;
   private pausedElapsedMs = 0;
   private playbackPaused = false;
+  private lastEnvelopeIndex = -1;
 
   constructor(private readonly options: WebAudioOutputOptions) {}
 
@@ -119,15 +120,19 @@ export class WebAudioOutput implements AudioOutputAdapter {
       this.playbackPaused = false;
       this.fire(this.startCbs);
       if (envelope) {
-        void envelope.then((value) => {
-          if (token === this.playToken && this.current === el) {
-            this.activeEnvelope = value;
-            this.activeVolume = el.volume;
-            if (!this.playbackPaused) {
-              this.startVolumeMeter(value, el.volume, playbackStartedAt);
+        void envelope
+          .then((value) => {
+            if (token === this.playToken && this.current === el) {
+              this.activeEnvelope = value;
+              this.activeVolume = el.volume;
+              if (!this.playbackPaused) {
+                this.startVolumeMeter(value, el.volume, playbackStartedAt);
+              }
             }
-          }
-        });
+          })
+          .catch(() => {
+            // Echo-aware VAD is optional; playback should still continue.
+          });
       }
       await finished;
     } finally {
@@ -151,7 +156,11 @@ export class WebAudioOutput implements AudioOutputAdapter {
 
   async resume(): Promise<void> {
     if (!this.current || !this.playbackPaused) return;
-    await this.current.play();
+    try {
+      await this.current.play();
+    } catch {
+      return;
+    }
     const now = this.options.now?.() ?? Date.now();
     this.playbackStartedAt = now - this.pausedElapsedMs;
     this.playbackPaused = false;
@@ -179,6 +188,25 @@ export class WebAudioOutput implements AudioOutputAdapter {
     this.playbackStartedAt = undefined;
     this.pausedElapsedMs = 0;
     this.playbackPaused = false;
+    this.lastEnvelopeIndex = -1;
+  }
+
+  private emitEnvelopeFrames(
+    envelope: AudioEnvelope,
+    volume: number,
+    playbackStartedAt: number,
+    fromIndex: number,
+    toIndex: number,
+  ): void {
+    const start = Math.max(0, fromIndex);
+    const end = Math.min(envelope.levels.length - 1, toIndex);
+    for (let index = start; index <= end; index += 1) {
+      this.emitVolume(
+        (envelope.levels[index] ?? 0) * volume,
+        playbackStartedAt + index * envelope.frameMs,
+      );
+    }
+    this.lastEnvelopeIndex = end;
   }
 
   private startVolumeMeter(
@@ -188,13 +216,29 @@ export class WebAudioOutput implements AudioOutputAdapter {
   ): void {
     this.stopVolumeMeter();
     if (envelope.levels.length === 0) return;
+    this.lastEnvelopeIndex = -1;
+    const nowFn = this.options.now ?? Date.now;
+    const currentIndex = Math.min(
+      envelope.levels.length - 1,
+      Math.max(0, Math.floor((nowFn() - playbackStartedAt) / envelope.frameMs)),
+    );
+    // Backfill the echo reference so correlation stays aligned when decoding
+    // finishes after audible playback has already started.
+    this.emitEnvelopeFrames(envelope, volume, playbackStartedAt, 0, currentIndex);
     const emitFrame = () => {
-      const elapsed = (this.options.now?.() ?? Date.now()) - playbackStartedAt;
       const index = Math.min(
         envelope.levels.length - 1,
-        Math.max(0, Math.floor(elapsed / envelope.frameMs)),
+        Math.max(0, Math.floor((nowFn() - playbackStartedAt) / envelope.frameMs)),
       );
-      this.emitVolume((envelope.levels[index] ?? 0) * volume);
+      if (index > this.lastEnvelopeIndex) {
+        this.emitEnvelopeFrames(
+          envelope,
+          volume,
+          playbackStartedAt,
+          this.lastEnvelopeIndex + 1,
+          index,
+        );
+      }
     };
     emitFrame();
     this.volumeTimer = setInterval(emitFrame, envelope.frameMs);
@@ -208,8 +252,8 @@ export class WebAudioOutput implements AudioOutputAdapter {
     this.emitVolume(0);
   }
 
-  private emitVolume(level: number): void {
-    for (const cb of [...this.volumeCbs]) cb(level);
+  private emitVolume(level: number, at?: number): void {
+    for (const cb of [...this.volumeCbs]) cb(level, at);
   }
 
   private fire(cbs: Set<() => void>): void {
@@ -225,7 +269,7 @@ export class WebAudioOutput implements AudioOutputAdapter {
     return () => this.startCbs.delete(cb);
   }
 
-  onVolume(cb: (level: number) => void): () => void {
+  onVolume(cb: (level: number, at?: number) => void): () => void {
     this.volumeCbs.add(cb);
     return () => this.volumeCbs.delete(cb);
   }

@@ -29,4 +29,9 @@ describe('parseSSEStream', () => {
   it('handles an empty stream', async () => {
     expect(await collect(streamFromStrings([]))).toEqual([]);
   });
+
+  it('yields a trailing data line that never received a final newline', async () => {
+    const out = await collect(streamFromStrings(['data: {"a":1}']));
+    expect(out).toEqual(['{"a":1}']);
+  });
 });

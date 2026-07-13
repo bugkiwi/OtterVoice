@@ -24,6 +24,11 @@ export async function* parseSSEStream(
         }
       }
     }
+    buffer += decoder.decode();
+    const trailing = buffer.trim();
+    if (trailing.startsWith('data:')) {
+      yield trailing.slice('data:'.length).trim();
+    }
   } finally {
     reader.releaseLock();
   }

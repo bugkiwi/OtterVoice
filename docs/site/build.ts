@@ -12,6 +12,7 @@ const result = await Bun.build({
   naming: 'app.js',
   target: 'browser',
   minify: true,
+  conditions: ['import', 'browser'],
 });
 
 if (!result.success) {

@@ -91,7 +91,6 @@ async function benchmarkAudioLlm() {
     format: 'mp3',
     messages: [],
     system,
-    maxTokens: 80,
     temperature: 0.45,
   });
   const readyAt = performance.now();

@@ -42,6 +42,16 @@ function runLoop(options: {
 }
 
 describe('PlaybackEchoFilter acoustic loopback simulation', () => {
+  it('suppresses barge-in before playback reference frames are active', () => {
+    const filter = new PlaybackEchoFilter({ frameMs: FRAME_MS });
+    const gate = new BargeInSpeechGate();
+    expect(filter.filter(0.12, 0)).toBe(0);
+    expect(gate.push(filter.filter(0.12, 50))).toBe(false);
+    filter.start(0);
+    expect(filter.filter(0.09, 0)).toBe(0);
+    expect(gate.push(filter.filter(0.09, 0))).toBe(false);
+  });
+
   it('does not arm barge-in before the first asynchronously decoded output frame', () => {
     const filter = new PlaybackEchoFilter({ frameMs: FRAME_MS });
     const gate = new BargeInSpeechGate();

@@ -43,15 +43,74 @@ const MODELS = {
 } as const;
 const OPENING_MESSAGE = '你好，我是 Otter。现在可以直接跟我说话，想打断时开口就行。';
 
-function addTurn(role: 'user' | 'assistant', text: string) {
+type SseAudioCapture = {
+  audioBuffer: ArrayBuffer;
+  mimeType: string;
+  chunkCount: number;
+  byteLength: number;
+};
+
+let lastSseAudio: SseAudioCapture | undefined;
+let debugAudioPlayer: HTMLAudioElement | undefined;
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+function playSseAudio(capture: SseAudioCapture, button: HTMLButtonElement) {
+  debugAudioPlayer?.pause();
+  if (debugAudioPlayer) {
+    const previousUrl = debugAudioPlayer.dataset.objectUrl;
+    if (previousUrl) URL.revokeObjectURL(previousUrl);
+  }
+  const url = URL.createObjectURL(new Blob([capture.audioBuffer], { type: capture.mimeType }));
+  const audio = new Audio(url);
+  audio.dataset.objectUrl = url;
+  debugAudioPlayer = audio;
+  button.disabled = true;
+  button.textContent = '播放中…';
+  void audio.play().catch(() => {
+    button.textContent = '播放失败';
+    button.disabled = false;
+  });
+  audio.onended = () => {
+    button.textContent = '▶ SSE 音频';
+    button.disabled = false;
+  };
+}
+
+function addTurn(
+  role: 'user' | 'assistant',
+  text: string,
+  options?: { sseAudio?: SseAudioCapture },
+) {
   const div = document.createElement('div');
   div.className = `turn ${role}`;
   const label = document.createElement('span');
   label.className = 'speaker';
   label.textContent = role === 'user' ? 'You' : 'Otter';
+  const body = document.createElement('div');
+  body.className = 'turn-body';
   const message = document.createElement('span');
   message.textContent = text;
-  div.append(label, message);
+  body.append(message);
+
+  if (role === 'assistant' && options?.sseAudio) {
+    const capture = options.sseAudio;
+    const playBtn = document.createElement('button');
+    playBtn.type = 'button';
+    playBtn.className = 'sse-audio-play';
+    playBtn.textContent = '▶ SSE 音频';
+    playBtn.title = '播放 OpenRouter SSE 组装后的原始音频（独立于会话播放）';
+    playBtn.addEventListener('click', () => playSseAudio(capture, playBtn));
+    const meta = document.createElement('span');
+    meta.className = 'sse-audio-meta';
+    meta.textContent = `${capture.chunkCount} 片 · ${formatBytes(capture.byteLength)}`;
+    body.append(playBtn, meta);
+  }
+
+  div.append(label, body);
   logEl.appendChild(div);
   logEl.scrollTop = logEl.scrollHeight;
 }
@@ -113,10 +172,11 @@ const fastOpeningTts: TTSProvider = {
     if (input.text === OPENING_MESSAGE) {
       try {
         const response = await fetch('/opening.mp3');
-        if (response.ok) {
+        const contentType = response.headers.get('content-type') ?? '';
+        if (response.ok && contentType.startsWith('audio/')) {
           return {
             audioBuffer: await response.arrayBuffer(),
-            mimeType: response.headers.get('content-type') ?? 'audio/mpeg',
+            mimeType: contentType,
             cached: true,
           };
         }
@@ -128,13 +188,31 @@ const fastOpeningTts: TTSProvider = {
   },
 };
 
-const audioLlm = createOpenRouterAudioLLM({
+const audioLlmBase = createOpenRouterAudioLLM({
   ...proxyOptions,
   model: MODELS.audioLlm,
   voice: 'alloy',
   defaultTemperature: 0.45,
   prepareAudio: prepareBrowserAudio,
 });
+const audioLlm = {
+  ...audioLlmBase,
+  async generate(
+    ...args: Parameters<typeof audioLlmBase.generate>
+  ): ReturnType<typeof audioLlmBase.generate> {
+    const output = await audioLlmBase.generate(...args);
+    const raw = output.raw as
+      | { audioChunkCount?: number; audioByteLength?: number }
+      | undefined;
+    lastSseAudio = {
+      audioBuffer: output.audioBuffer.slice(0),
+      mimeType: output.mimeType,
+      chunkCount: raw?.audioChunkCount ?? 0,
+      byteLength: raw?.audioByteLength ?? output.audioBuffer.byteLength,
+    };
+    return output;
+  },
+};
 
 const runtime = createWebRuntime({
   volumePollMs: 50,
@@ -209,6 +287,10 @@ function buildSession(pipeline: Pipeline) {
     policy: {
       autoStartListening: true,
       allowInterruption: true,
+      interruptionTailIgnoreMs: 600,
+      falseInterruptionSilenceMs: 400,
+      falseInterruptionTimeoutMs: 2_000,
+      interruptionCooldownMs: 800,
     },
   });
 
@@ -230,7 +312,11 @@ function buildSession(pipeline: Pipeline) {
   session.on('user_audio_end', (event) => {
     userAudioEndedAt = event.at;
   });
-  session.on('assistant_text', (event) => addTurn('assistant', event.text));
+  session.on('assistant_text', (event) => {
+    const sseAudio = pipeline === 'audio_llm' ? lastSseAudio : undefined;
+    addTurn('assistant', event.text, sseAudio ? { sseAudio } : undefined);
+    lastSseAudio = undefined;
+  });
   session.on('assistant_audio_start', () => {
     if (userAudioEndedAt === undefined) return;
     const latency = Date.now() - userAudioEndedAt;
@@ -267,6 +353,8 @@ startBtn.addEventListener('click', async () => {
   startBtn.disabled = true;
   finishBtn.disabled = false;
   logEl.innerHTML = '';
+  lastSseAudio = undefined;
+  debugAudioPlayer?.pause();
   await session?.dispose();
   cascadeBtn.disabled = true;
   audioBtn.disabled = true;

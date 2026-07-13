@@ -99,7 +99,9 @@ export class PlaybackEchoFilter {
 
   filter(microphoneLevel: number, at: number): number {
     const mic = Math.max(0, microphoneLevel);
-    if (!this.playing) return mic;
+    // Suppress barge-in until playback reference frames exist. Returning raw
+    // microphone energy here would false-trigger during TTS/network latency.
+    if (!this.playing) return 0;
     // With no playback reference there is no safe way to distinguish the
     // assistant from the user. Prefer suppressing barge-in briefly over
     // stopping every reply because asynchronous decoding has not finished.
@@ -137,6 +139,13 @@ export class PlaybackEchoFilter {
     this.microphone = [];
     this.playbackStartedAt = undefined;
     this.playing = false;
+  }
+
+  /** True once enough playback reference frames exist to estimate echo. */
+  isReady(at: number): boolean {
+    if (!this.playing || this.output.length < 5) return false;
+    if (this.playbackStartedAt === undefined) return false;
+    return at - this.playbackStartedAt >= this.warmupMs;
   }
 
   private bestEchoEstimate(at: number):

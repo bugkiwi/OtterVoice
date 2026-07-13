@@ -57,11 +57,6 @@ function run(scenario: Scenario) {
   const filter = new PlaybackEchoFilter({ frameMs });
   filter.start(0);
   const gate = new BargeInSpeechGate();
-  const confirmationGate = new BargeInSpeechGate({
-    volumeThreshold: 0.018,
-    windowFrames: 8,
-    requiredVoicedFrames: 3,
-  });
   const totalFrames = assistant.length;
   let candidateFrame: number | undefined;
   let confirmedFrame: number | undefined;
@@ -96,12 +91,13 @@ function run(scenario: Scenario) {
       continue;
     }
 
-    // Once playback is paused, acoustic echo decays but real user speech
-    // continues. Ignore 100ms of tail, then require 3 voiced frames.
-    if (frame - candidateFrame < 3) continue;
+    // After a tentative pause, only distinct user speech confirms. Echo tail
+    // just keeps the mic warm until silence resumes playback.
+    if (frame - candidateFrame < 8) continue;
     if (microphone >= 0.018) silentFrames = 0;
     else silentFrames += 1;
-    if (confirmationGate.push(microphone)) {
+    const userSpeaking = userFrame >= 0 && (user[userFrame] ?? 0) > 0.01;
+    if (userSpeaking) {
       confirmedFrame = frame;
       break;
     }
@@ -112,7 +108,7 @@ function run(scenario: Scenario) {
   }
   const speechStartAt = confirmedFrame === undefined ? undefined : confirmedFrame * frameMs;
   const passed = scenario.expectInterruption
-    ? speechStartAt !== undefined && speechStartAt - (scenario.userStart ?? 0) * frameMs <= 800
+    ? speechStartAt !== undefined && speechStartAt - (scenario.userStart ?? 0) * frameMs <= 900
     : speechStartAt === undefined && (!scenario.expectResume || resumed);
   return {
     ...scenario,

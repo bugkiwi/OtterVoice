@@ -54,7 +54,7 @@ describe('WebAudioOutput.play', () => {
     expect(levels.at(-1)).toBe(0);
   });
 
-  it('aligns a delayed decoded envelope to the actual playback position', async () => {
+  it('backfills a delayed decoded envelope for echo-aware VAD', async () => {
     const fake = new FakeAudio();
     let now = 0;
     let resolveEnvelope!: (value: { levels: number[]; frameMs: number }) => void;
@@ -75,8 +75,7 @@ describe('WebAudioOutput.play', () => {
     now = 60;
     resolveEnvelope({ levels: [0.1, 0.2, 0.3], frameMs: 50 });
     await tick();
-    expect(levels).toContain(0.2);
-    expect(levels).not.toContain(0.1);
+    expect(levels).toEqual([0, 0.1, 0.2]);
 
     fake.dispatch('ended');
     await playing;

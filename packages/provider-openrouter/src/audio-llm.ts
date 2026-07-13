@@ -57,15 +57,14 @@ function base64ToBytes(value: string): Uint8Array {
   return output;
 }
 
-function joinBytes(chunks: readonly Uint8Array[]): Uint8Array {
-  const total = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
-  const joined = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    joined.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return joined;
+function extractStreamAudioDelta(json: Record<string, unknown>):
+  | { data?: string; transcript?: string }
+  | undefined {
+  const choice = (json.choices as Array<Record<string, unknown>> | undefined)?.[0];
+  const delta = choice?.delta as { audio?: { data?: string; transcript?: string } } | undefined;
+  if (delta?.audio) return delta.audio;
+  const message = choice?.message as { audio?: { data?: string; transcript?: string } } | undefined;
+  return message?.audio;
 }
 
 /** Wrap OpenAI's 24 kHz mono PCM16 stream so browser audio elements can play it. */
@@ -144,19 +143,20 @@ export function createOpenRouterAudioLLM(
 
       const { token } = await resolveCredential();
       const startedAt = performance.now();
+      const body: Record<string, unknown> = {
+        model: options.model,
+        messages,
+        modalities: ['text', 'audio'],
+        audio: { voice: options.voice ?? 'alloy', format: 'pcm16' },
+        stream: true,
+        stream_options: { include_usage: true },
+        temperature: input.temperature ?? options.defaultTemperature,
+      };
+      if (input.maxTokens !== undefined) body.max_tokens = input.maxTokens;
       const res = await fetchImpl(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: buildHeaders(token, options),
-        body: JSON.stringify({
-          model: options.model,
-          messages,
-          modalities: ['text', 'audio'],
-          audio: { voice: options.voice ?? 'alloy', format: 'pcm16' },
-          stream: true,
-          stream_options: { include_usage: true },
-          temperature: input.temperature ?? options.defaultTemperature,
-          max_tokens: input.maxTokens,
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok || !res.body) {
         throw new VoiceError(
@@ -167,7 +167,7 @@ export function createOpenRouterAudioLLM(
         );
       }
 
-      const audioChunks: Uint8Array[] = [];
+      const audioB64Parts: string[] = [];
       let text = '';
       let usage;
       let rawUsage: Record<string, unknown> | undefined;
@@ -180,21 +180,19 @@ export function createOpenRouterAudioLLM(
         } catch {
           continue;
         }
-        const delta = (json as {
-          choices?: Array<{ delta?: { audio?: { data?: string; transcript?: string } } }>;
-        }).choices?.[0]?.delta;
-        if (delta?.audio?.data) {
+        const audio = extractStreamAudioDelta(json);
+        if (audio?.data) {
           firstAudioAtMs ??= performance.now() - startedAt;
-          audioChunks.push(base64ToBytes(delta.audio.data));
+          audioB64Parts.push(audio.data);
         }
-        if (delta?.audio?.transcript) text += delta.audio.transcript;
+        if (audio?.transcript) text += audio.transcript;
         const chunkUsage = (json as { usage?: Record<string, unknown> }).usage;
         if (chunkUsage) rawUsage = chunkUsage;
         usage = mapUsage(chunkUsage as never) ?? usage;
       }
 
-      const pcm = joinBytes(audioChunks);
-      if (pcm.byteLength === 0) {
+      const audioBytes = base64ToBytes(audioB64Parts.join(''));
+      if (audioBytes.byteLength === 0) {
         throw new VoiceError({
           code: 'llm_failed',
           message: 'Audio LLM returned no audio',
@@ -202,9 +200,10 @@ export function createOpenRouterAudioLLM(
           retryable: true,
         });
       }
+      const wav = pcm16ToWav(audioBytes);
       return {
         text,
-        audioBuffer: pcm16ToWav(pcm),
+        audioBuffer: wav,
         mimeType: 'audio/wav',
         ...(usage ? { usage } : {}),
         raw: {
@@ -212,6 +211,8 @@ export function createOpenRouterAudioLLM(
           totalMs: performance.now() - startedAt,
           generationId: res.headers.get('x-generation-id'),
           usage: rawUsage,
+          audioChunkCount: audioB64Parts.length,
+          audioByteLength: audioBytes.byteLength,
         },
       };
     },
