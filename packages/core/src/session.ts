@@ -8,6 +8,7 @@ import { BargeInSpeechGate, PlaybackEchoFilter } from './playback-echo-filter';
 import { createIdGenerator, defaultNow } from './internal/ids';
 import type {
   AudioLLMAudioChunk,
+  AudioLLMInputFormat,
   AudioLLMGenerateOutput,
   AudioOutputStream,
   ASRResult,
@@ -33,6 +34,7 @@ interface TurnCapture {
   inputCleanups: Array<() => void>;
   asrCleanups: Array<() => void>;
   audioChunks: ArrayBuffer[];
+  audioFormat?: AudioLLMInputFormat;
   asrContainerHeaderForwarded: boolean;
   ended: boolean;
   finalResult?: ASRResult;
@@ -295,6 +297,7 @@ export class VoiceSession {
       audioInput.onChunk((chunk) => {
         if (this.config.pipeline === 'audio_llm' && chunk.data.byteLength > 0) {
           capture.audioChunks.push(chunk.data.slice(0));
+          capture.audioFormat ??= this.audioLlmFormat(chunk.encoding);
         }
         const isWebmHeader =
           !capture.asrContainerHeaderForwarded &&
@@ -850,6 +853,14 @@ export class VoiceSession {
     return encoding?.toLowerCase().includes('webm') ?? false;
   }
 
+  private audioLlmFormat(encoding: string | undefined): AudioLLMInputFormat {
+    const normalized = encoding?.toLowerCase() ?? '';
+    if (normalized.includes('wav')) return 'wav';
+    if (normalized.includes('mpeg') || normalized.includes('mp3')) return 'mp3';
+    if (normalized.includes('opus')) return 'opus';
+    return 'webm';
+  }
+
   private interruptionTailIgnoreMs(): number {
     return this.config.policy?.interruptionTailIgnoreMs ?? 200;
   }
@@ -1142,7 +1153,7 @@ export class VoiceSession {
     }
     return provider.generate({
       audio: joined.buffer,
-      format: 'webm',
+      format: capture?.audioFormat ?? 'webm',
       messages: this.transcript.toMessages(),
       ...(this.config.audioLlmSystemPrompt
         ? { system: this.config.audioLlmSystemPrompt }

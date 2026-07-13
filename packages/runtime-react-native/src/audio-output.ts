@@ -1,40 +1,121 @@
 import {
   createVoiceError,
   type AudioOutputAdapter,
+  type AudioOutputStream,
   type AudioPlaybackInput,
   type NormalizedVoiceError,
+  type PcmAudioStreamOptions,
 } from '@ottervoice/core';
 
 export interface ExpoPlaybackStatus {
   didJustFinish?: boolean;
+  error?: string | null;
 }
 
-/** An Expo `Audio.Sound`-like handle (abstracted for injection/testing). */
+/** An Expo `AudioPlayer`-like handle (abstracted for injection/testing). */
 export interface ExpoSound {
   playAsync(): Promise<void>;
+  pauseAsync?(): Promise<void>;
   stopAsync(): Promise<void>;
   unloadAsync(): Promise<void>;
   setOnPlaybackStatusUpdate(cb: (status: ExpoPlaybackStatus) => void): void;
 }
 
-export interface ExpoAudioOutputOptions {
-  /** Load a sound from a URI (wrap `Audio.Sound.createAsync`). */
-  createSound: (uri: string) => Promise<ExpoSound>;
-  /** Persist an audio buffer to a file URI (wrap `expo-file-system`). */
-  writeAudioFile?: (buffer: ArrayBuffer, mimeType: string) => Promise<string>;
+export interface ExpoPcmPlaylistStatus {
+  currentIndex: number;
+  currentTime: number;
+  didJustFinish: boolean;
+  playing: boolean;
+  trackCount: number;
+  error?: string | null;
 }
 
-/** Expo sound playback. `audioUrl` plays directly; an `audioBuffer` is written
- * to a file first (which requires `writeAudioFile`). */
+/** Gapless Expo AudioPlaylist surface used for incremental PCM playback. */
+export interface ExpoPcmPlaylist {
+  add(uri: string): void;
+  next(): void;
+  play(): void | Promise<void>;
+  pause(): void | Promise<void>;
+  clear(): void;
+  destroy(): void;
+  setOnPlaybackStatusUpdate(cb: (status: ExpoPcmPlaylistStatus) => void): () => void;
+}
+
+export interface ExpoPcmChunkFileInput extends PcmAudioStreamOptions {
+  data: ArrayBuffer;
+  index: number;
+}
+
+export interface ExpoAudioOutputOptions {
+  /** Load a sound from a URI (wrap `createAudioPlayer`). */
+  createSound: (uri: string) => Promise<ExpoSound>;
+  /** Persist a complete audio buffer to a file URI. */
+  writeAudioFile?: (buffer: ArrayBuffer, mimeType: string) => Promise<string>;
+  /** Create an Expo `AudioPlaylist` configured for frequent status updates. */
+  createPcmPlaylist?: () => ExpoPcmPlaylist | Promise<ExpoPcmPlaylist>;
+  /** Wrap and persist one PCM16 response chunk as a small WAV file. */
+  writePcmChunk?: (input: ExpoPcmChunkFileInput) => Promise<string>;
+  /** Best-effort cleanup for temporary response chunk files. */
+  deleteAudioFile?: (uri: string) => void | Promise<void>;
+}
+
+interface CurrentSound {
+  sound: ExpoSound;
+  resolve(): void;
+}
+
+interface ActivePcmPlayback {
+  stop(): Promise<void>;
+  pause(): Promise<void>;
+  resume(): Promise<void>;
+}
+
+function pcm16Envelope(
+  data: ArrayBuffer,
+  sampleRate: number,
+  channels: number,
+  frameMs = 50,
+): number[] {
+  const view = new DataView(data);
+  const totalSamples = Math.floor(data.byteLength / 2);
+  const samplesPerFrame = Math.max(1, Math.round((sampleRate * channels * frameMs) / 1_000));
+  const levels: number[] = [];
+  for (let offset = 0; offset < totalSamples; offset += samplesPerFrame) {
+    const end = Math.min(totalSamples, offset + samplesPerFrame);
+    let sum = 0;
+    for (let sampleIndex = offset; sampleIndex < end; sampleIndex += 1) {
+      const sample = view.getInt16(sampleIndex * 2, true) / 32_768;
+      sum += sample * sample;
+    }
+    levels.push(Math.sqrt(sum / Math.max(1, end - offset)));
+  }
+  return levels;
+}
+
+/**
+ * Expo audio playback with an optional gapless PCM response queue. The latter
+ * lets React Native start speaking as soon as OpenRouter's first SSE audio
+ * delta arrives instead of waiting for the complete WAV response.
+ */
 export class ExpoAudioOutput implements AudioOutputAdapter {
   private readonly startCbs = new Set<() => void>();
   private readonly endCbs = new Set<() => void>();
+  private readonly volumeCbs = new Set<(level: number, at?: number) => void>();
   private readonly errorCbs = new Set<(error: NormalizedVoiceError) => void>();
-  private current: ExpoSound | undefined;
+  private current: CurrentSound | undefined;
+  private activePcm: ActivePcmPlayback | undefined;
+  readonly startPcmStream?: (
+    options: PcmAudioStreamOptions,
+  ) => Promise<AudioOutputStream>;
 
-  constructor(private readonly options: ExpoAudioOutputOptions) {}
+  constructor(private readonly options: ExpoAudioOutputOptions) {
+    if (options.createPcmPlaylist && options.writePcmChunk) {
+      this.startPcmStream = (streamOptions) => this.openPcmStream(streamOptions);
+    }
+  }
 
   async play(input: AudioPlaybackInput): Promise<void> {
+    await this.stop();
     let uri: string;
     if (input.audioUrl !== undefined) {
       uri = input.audioUrl;
@@ -52,20 +133,26 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
     }
 
     const sound = await this.options.createSound(uri);
-    this.current = sound;
+    let resolveFinished!: () => void;
     const finished = new Promise<void>((resolve) => {
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.didJustFinish) {
-          this.fire(this.endCbs);
-          resolve();
-        }
-      });
+      resolveFinished = resolve;
+    });
+    const current: CurrentSound = { sound, resolve: resolveFinished };
+    this.current = current;
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (status.error) {
+        current.resolve();
+      } else if (status.didJustFinish) {
+        this.fire(this.endCbs);
+        current.resolve();
+      }
     });
 
     try {
       this.fire(this.startCbs);
       await sound.playAsync();
       await finished;
+      if (this.current === current) this.current = undefined;
     } catch (err) {
       const error = createVoiceError('audio_playback_failed', 'playback failed', {
         raw: err,
@@ -73,15 +160,159 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
       this.emitError(error);
       throw error;
     } finally {
+      if (this.current === current) this.current = undefined;
       await sound.unloadAsync();
-      this.current = undefined;
     }
   }
 
+  private async openPcmStream(
+    streamOptions: PcmAudioStreamOptions,
+  ): Promise<AudioOutputStream> {
+    const createPlaylist = this.options.createPcmPlaylist;
+    const writePcmChunk = this.options.writePcmChunk;
+    if (!createPlaylist || !writePcmChunk) {
+      throw createVoiceError(
+        'unsupported_runtime',
+        'Expo PCM playback requires createPcmPlaylist and writePcmChunk',
+      );
+    }
+    await this.stop();
+    const playlist = await createPlaylist();
+    const files: string[] = [];
+    const envelopes: number[][] = [];
+    let started = false;
+    let closing = false;
+    let finished = false;
+    let waitingAtEnd = false;
+    let lastStatus: ExpoPcmPlaylistStatus | undefined;
+    let resolveDone!: () => void;
+    let rejectDone!: (error: unknown) => void;
+    const done = new Promise<void>((resolve, reject) => {
+      resolveDone = resolve;
+      rejectDone = reject;
+    });
+    let offStatus = () => {};
+    let control!: ActivePcmPlayback;
+
+    const cleanFiles = async () => {
+      if (!this.options.deleteAudioFile) return;
+      await Promise.all(
+        files.map((uri) => Promise.resolve(this.options.deleteAudioFile?.(uri)).catch(() => {})),
+      );
+    };
+    const finish = async (natural: boolean, error?: unknown) => {
+      if (finished) return;
+      finished = true;
+      offStatus();
+      playlist.clear();
+      playlist.destroy();
+      if (this.activePcm === control) this.activePcm = undefined;
+      await cleanFiles();
+      if (natural && started) this.fire(this.endCbs);
+      if (error) rejectDone(error);
+      else resolveDone();
+    };
+    offStatus = playlist.setOnPlaybackStatusUpdate((status) => {
+      lastStatus = status;
+      if (status.error) {
+        const error = createVoiceError('audio_playback_failed', status.error);
+        this.emitError(error);
+        void finish(false, error);
+        return;
+      }
+      const envelope = envelopes[status.currentIndex];
+      if (envelope) {
+        const frame = Math.min(
+          envelope.length - 1,
+          Math.max(0, Math.floor(status.currentTime / 0.05)),
+        );
+        const level = envelope[frame] ?? 0;
+        for (const cb of [...this.volumeCbs]) cb(level, Date.now());
+      }
+      if (!status.didJustFinish) return;
+      const atQueueEnd = status.currentIndex >= status.trackCount - 1;
+      if (closing && atQueueEnd) void finish(true);
+      else if (atQueueEnd) waitingAtEnd = true;
+    });
+
+    control = {
+      stop: async () => {
+        await finish(false);
+      },
+      pause: async () => {
+        await playlist.pause();
+      },
+      resume: async () => {
+        await playlist.play();
+      },
+    };
+    this.activePcm = control;
+
+    return {
+      write: async (data) => {
+        if (finished || closing || data.byteLength === 0) return;
+        const index = files.length;
+        const uri = await writePcmChunk({ ...streamOptions, data, index });
+        if (finished) {
+          await this.options.deleteAudioFile?.(uri);
+          return;
+        }
+        files.push(uri);
+        envelopes.push(
+          pcm16Envelope(data, streamOptions.sampleRate, streamOptions.channels),
+        );
+        playlist.add(uri);
+        if (waitingAtEnd) {
+          waitingAtEnd = false;
+          playlist.next();
+        }
+        if (!started) {
+          started = true;
+          this.fire(this.startCbs);
+        }
+        await playlist.play();
+      },
+      close: async () => {
+        if (finished) return done;
+        closing = true;
+        if (!started) {
+          await finish(false);
+        } else if (
+          lastStatus?.didJustFinish &&
+          lastStatus.currentIndex >= lastStatus.trackCount - 1
+        ) {
+          await finish(true);
+        }
+        await done;
+      },
+    };
+  }
+
   async stop(): Promise<void> {
-    if (!this.current) return;
-    await this.current.stopAsync();
+    const activePcm = this.activePcm;
+    this.activePcm = undefined;
+    if (activePcm) await activePcm.stop();
+    const current = this.current;
     this.current = undefined;
+    if (!current) return;
+    await current.sound.stopAsync();
+    current.resolve();
+  }
+
+  async pause(): Promise<void> {
+    if (this.activePcm) {
+      await this.activePcm.pause();
+      return;
+    }
+    await this.current?.sound.pauseAsync?.();
+  }
+
+  async resume(): Promise<void> {
+    if (this.activePcm) {
+      await this.activePcm.resume();
+      return;
+    }
+    await this.current?.sound.playAsync();
   }
 
   private fire(cbs: Set<() => void>): void {
@@ -90,6 +321,11 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
 
   private emitError(error: NormalizedVoiceError): void {
     for (const cb of [...this.errorCbs]) cb(error);
+  }
+
+  onVolume(cb: (level: number, at?: number) => void): () => void {
+    this.volumeCbs.add(cb);
+    return () => this.volumeCbs.delete(cb);
   }
 
   onStart(cb: () => void): () => void {

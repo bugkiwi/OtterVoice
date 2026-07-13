@@ -1,5 +1,11 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { ExpoAudioOutput, type ExpoPlaybackStatus, type ExpoSound } from '../src/audio-output';
+import {
+  ExpoAudioOutput,
+  type ExpoPcmPlaylist,
+  type ExpoPcmPlaylistStatus,
+  type ExpoPlaybackStatus,
+  type ExpoSound,
+} from '../src/audio-output';
 import { createExpoRuntime } from '../src/index';
 import { ExpoAudioInput } from '../src/audio-input';
 import type { NormalizedVoiceError } from '@ottervoice/core';
@@ -37,6 +43,56 @@ function sound(opts: { failPlay?: boolean } = {}) {
 }
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
+
+function pcmPlaylist() {
+  let statusCb: ((status: ExpoPcmPlaylistStatus) => void) | undefined;
+  const playlist: ExpoPcmPlaylist & {
+    sources: string[];
+    playCount: number;
+    paused: boolean;
+    destroyed: boolean;
+    update(status: Partial<ExpoPcmPlaylistStatus>): void;
+  } = {
+    sources: [],
+    playCount: 0,
+    paused: false,
+    destroyed: false,
+    add(uri) {
+      this.sources.push(uri);
+    },
+    next() {},
+    play() {
+      this.playCount += 1;
+      this.paused = false;
+    },
+    pause() {
+      this.paused = true;
+    },
+    clear() {
+      this.sources = [];
+    },
+    destroy() {
+      this.destroyed = true;
+    },
+    setOnPlaybackStatusUpdate(cb) {
+      statusCb = cb;
+      return () => {
+        statusCb = undefined;
+      };
+    },
+    update(status) {
+      statusCb?.({
+        currentIndex: 0,
+        currentTime: 0,
+        didJustFinish: false,
+        playing: true,
+        trackCount: this.sources.length,
+        ...status,
+      });
+    },
+  };
+  return playlist;
+}
 
 describe('ExpoAudioOutput.play', () => {
   it('plays an audioUrl, firing start then end, and unloads', async () => {
@@ -119,6 +175,82 @@ describe('ExpoAudioOutput.stop', () => {
     output.onStart(() => {})();
     output.onEnd(() => {})();
     output.onError(() => {})();
+  });
+});
+
+describe('ExpoAudioOutput.startPcmStream', () => {
+  it('queues SSE PCM chunks in a gapless playlist and resolves after the last track', async () => {
+    const playlist = pcmPlaylist();
+    const writes: number[] = [];
+    const deleted: string[] = [];
+    const output = new ExpoAudioOutput({
+      createSound: async () => sound(),
+      createPcmPlaylist: () => playlist,
+      writePcmChunk: async ({ index }) => {
+        writes.push(index);
+        return `file://chunk-${index}.wav`;
+      },
+      deleteAudioFile: async (uri) => {
+        deleted.push(uri);
+      },
+    });
+    const events: string[] = [];
+    const levels: number[] = [];
+    output.onStart(() => events.push('start'));
+    output.onEnd(() => events.push('end'));
+    output.onVolume((level) => levels.push(level));
+
+    const stream = await output.startPcmStream?.({
+      encoding: 'pcm_s16le',
+      sampleRate: 24_000,
+      channels: 1,
+    });
+    expect(stream).toBeDefined();
+    await stream!.write(new Int16Array([16_384, -16_384]).buffer);
+    await stream!.write(new Int16Array([8_192, -8_192]).buffer);
+    expect(writes).toEqual([0, 1]);
+    expect(playlist.sources).toEqual(['file://chunk-0.wav', 'file://chunk-1.wav']);
+    expect(events).toEqual(['start']);
+
+    playlist.update({ currentIndex: 0, currentTime: 0 });
+    expect(levels[0]).toBeCloseTo(0.5, 3);
+    const closing = stream!.close();
+    await tick();
+    playlist.update({
+      currentIndex: 1,
+      didJustFinish: true,
+      playing: false,
+      trackCount: 2,
+    });
+    await closing;
+
+    expect(events).toEqual(['start', 'end']);
+    expect(playlist.destroyed).toBe(true);
+    expect(deleted).toEqual(['file://chunk-0.wav', 'file://chunk-1.wav']);
+  });
+
+  it('pauses, resumes, and cancels an active PCM queue', async () => {
+    const playlist = pcmPlaylist();
+    const output = new ExpoAudioOutput({
+      createSound: async () => sound(),
+      createPcmPlaylist: () => playlist,
+      writePcmChunk: async ({ index }) => `file://chunk-${index}.wav`,
+    });
+    const stream = await output.startPcmStream?.({
+      encoding: 'pcm_s16le',
+      sampleRate: 24_000,
+      channels: 1,
+    });
+    await stream!.write(new Int16Array([1, 2]).buffer);
+    await output.pause();
+    expect(playlist.paused).toBe(true);
+    await output.resume();
+    expect(playlist.paused).toBe(false);
+
+    const closing = stream!.close();
+    await output.stop();
+    await closing;
+    expect(playlist.destroyed).toBe(true);
   });
 });
 

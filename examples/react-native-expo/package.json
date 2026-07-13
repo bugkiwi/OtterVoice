@@ -1,12 +1,38 @@
 {
   "name": "@ottervoice/example-react-native-expo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "type": "module",
-  "description": "Illustrative Expo wiring for @ottervoice/runtime-react-native (needs a real Expo app to run).",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start --go",
+    "start:dev": "expo start --dev-client",
+    "android": "expo start --go --android",
+    "ios": "expo start --go --ios",
+    "typecheck": "tsc --noEmit",
+    "export": "expo export --platform all --output-dir dist",
+    "prebuild": "expo prebuild",
+    "build:ios:local": "expo run:ios",
+    "build:android:local": "expo run:android",
+    "build:simulator": "eas build --platform ios --profile development-simulator",
+    "build:preview": "eas build --platform all --profile preview",
+    "build:ios:simulator": "eas build --platform ios --profile preview-simulator",
+    "build:android:preview": "eas build --platform android --profile preview"
+  },
   "dependencies": {
     "@ottervoice/core": "workspace:*",
-    "@ottervoice/runtime-react-native": "workspace:*"
+    "@ottervoice/provider-openrouter": "workspace:*",
+    "@ottervoice/runtime-react-native": "workspace:*",
+    "expo": "~57.0.4",
+    "expo-audio": "~57.0.0",
+    "expo-dev-client": "~57.0.5",
+    "expo-file-system": "~57.0.0",
+    "expo-status-bar": "~57.0.0",
+    "react": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-safe-area-context": "5.8.0"
   },
-  "comment": "expo, expo-av, expo-file-system, react, react-native are provided by the host Expo app (see README); not installed here."
+  "devDependencies": {
+    "@types/react": "~19.2.17",
+    "typescript": "^5.9.0"
+  }
 }

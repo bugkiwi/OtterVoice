@@ -47,7 +47,7 @@ production use.
 | `@ottervoice/provider-azure-speech` | TTS (REST + SSML) |
 | `@ottervoice/runtime-web` | getUserMedia + MediaRecorder + Web Audio VAD + HTMLAudio |
 | `@ottervoice/runtime-node` | fetch/WebSocket + stream audio I/O |
-| `@ottervoice/runtime-react-native` | Expo recording + sound playback |
+| `@ottervoice/runtime-react-native` | Expo native PCM capture + gapless chunk playback |
 
 ## Install
 
@@ -146,6 +146,8 @@ packages/
   runtime-react-native/      Expo runtime
 examples/
   node-cli/                  end-to-end mocked demo
+  web/                       full-duplex browser Audio LLM demo
+  react-native-expo/         full-duplex Expo Audio LLM demo
 docs/                        technical design
 ```
 
@@ -196,9 +198,10 @@ require a Vercel token. To validate everything without pushing, use
 - [x] `@ottervoice/provider-azure-speech` — TTS (REST + SSML)
 - [x] `@ottervoice/runtime-web` — getUserMedia + MediaRecorder + HTMLAudio
 - [x] `@ottervoice/runtime-node` — fetch/WebSocket + stream audio I/O
-- [x] `@ottervoice/runtime-react-native` — Expo recording + sound playback
+- [x] `@ottervoice/runtime-react-native` — continuous Expo PCM capture + AudioPlaylist playback
 
-Next: AudioWorklet streaming PCM for the web runtime, Azure pronunciation
+The Web and Expo showcases now share the Audio LLM pipeline, concurrent caption
+ASR, interruption policy and streaming PCM playback. Next: Azure pronunciation
 assessment, ElevenLabs TTS, and opt-in provider contract tests.
 
 ## License

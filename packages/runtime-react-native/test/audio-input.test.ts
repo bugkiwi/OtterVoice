@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'bun:test';
-import { ExpoAudioInput, type ExpoRecordingHandle } from '../src/audio-input';
+import {
+  ExpoAudioInput,
+  type ExpoPcmInputBuffer,
+  type ExpoRecordingHandle,
+} from '../src/audio-input';
 import type { AudioChunk, NormalizedVoiceError } from '@ottervoice/core';
 
 function recording(uri: string | null): ExpoRecordingHandle & { started: boolean; stopped: boolean } {
@@ -107,5 +111,71 @@ describe('ExpoAudioInput capture cycle', () => {
     await input.start();
     await input.stop();
     expect(chunks).toHaveLength(0);
+  });
+});
+
+describe('ExpoAudioInput native PCM stream', () => {
+  it('keeps VAD active while capture is suspended and emits a complete WAV turn', async () => {
+    let onBuffer: ((buffer: ExpoPcmInputBuffer) => void) | undefined;
+    let started = false;
+    let stopped = false;
+    const input = new ExpoAudioInput({
+      createPcmStream: (_options, cb) => {
+        onBuffer = cb;
+        return {
+          async start() {
+            started = true;
+          },
+          stop() {
+            stopped = true;
+          },
+        };
+      },
+      now: () => 777,
+    });
+    const levels: number[] = [];
+    const chunks: AudioChunk[] = [];
+    input.onVolume((level) => levels.push(level));
+    input.onChunk((chunk) => chunks.push(chunk));
+
+    await input.start({ sampleRate: 16_000, channels: 1, encoding: 'pcm_s16le' });
+    expect(started).toBe(true);
+    onBuffer?.({
+      data: new Int16Array([1_000, -1_000]).buffer,
+      encoding: 'pcm_s16le',
+      sampleRate: 16_000,
+      channels: 1,
+    });
+    await input.suspendCapture();
+    onBuffer?.({
+      data: new Int16Array([2_000, -2_000]).buffer,
+      encoding: 'pcm_s16le',
+      sampleRate: 16_000,
+      channels: 1,
+    });
+    await input.resumeCapture();
+    onBuffer?.({
+      data: new Int16Array([16_384, -16_384]).buffer,
+      encoding: 'pcm_s16le',
+      sampleRate: 16_000,
+      channels: 1,
+    });
+    await input.stop();
+
+    expect(stopped).toBe(true);
+    expect(levels).toHaveLength(3);
+    expect(levels[2]).toBeCloseTo(0.5, 3);
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toMatchObject({
+      timestamp: 777,
+      encoding: 'audio/wav',
+      sampleRate: 16_000,
+      durationMs: 0.125,
+    });
+    const wav = new Uint8Array(chunks[0]!.data);
+    expect(new TextDecoder().decode(wav.slice(0, 4))).toBe('RIFF');
+    expect(new Int16Array(wav.slice(44).buffer)).toEqual(
+      new Int16Array([16_384, -16_384]),
+    );
   });
 });

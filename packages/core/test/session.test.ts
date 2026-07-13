@@ -263,6 +263,36 @@ describe('VoiceSession turn loop', () => {
     ).toBe(true);
   });
 
+  it('passes a native WAV turn to the audio LLM without treating it as WebM', async () => {
+    let receivedFormat: string | undefined;
+    const audioLlm: AudioLLMProvider = {
+      name: 'native-wav-audio-llm',
+      async generate(input) {
+        receivedFormat = input.format;
+        return {
+          text: 'native reply',
+          audioBuffer: new ArrayBuffer(8),
+          mimeType: 'audio/wav',
+        };
+      },
+    };
+    const { session, runtime } = makeSession({
+      pipeline: 'audio_llm',
+      providers: { audioLlm } as any,
+    });
+    await session.start();
+    runtime.audioInput.emitChunk({
+      data: new Uint8Array([82, 73, 70, 70]).buffer,
+      timestamp: 1,
+      encoding: 'audio/wav',
+    });
+    const speaking = nextState(session, 'assistant_speaking');
+    await session.endUserTurn();
+    await speaking;
+
+    expect(receivedFormat).toBe('wav');
+  });
+
   it('finalizes audio input before generating a native audio reply', async () => {
     const runtime = createMockRuntime();
     const { provider } = controllableASR({ finalOnStop: 'hello there' });

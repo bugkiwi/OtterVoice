@@ -8,7 +8,7 @@ packages; none need API keys to start (cognition falls back to mocks).
 | [`node-cli`](node-cli) | Node | `bun run examples/node-cli/index.ts` |
 | [`node-openrouter`](node-openrouter) | Node + real LLM | `bun run examples/node-openrouter/index.ts` |
 | [`web`](web) | Browser | `bun run examples/web/serve.ts` → http://localhost:5173 |
-| [`react-native-expo`](react-native-expo) | Expo | copy into an Expo app (illustrative) |
+| [`react-native-expo`](react-native-expo) | Expo SDK 57 | `cd examples/react-native-expo && bun run start` |
 | [`token-broker`](token-broker) | Backend | `bun run examples/token-broker/server.ts` |
 
 ## What each shows
@@ -20,9 +20,9 @@ packages; none need API keys to start (cognition falls back to mocks).
 - **web** — full-duplex browser conversation with automatic volume endpointing,
   a live input meter, and barge-in via `@ottervoice/runtime-web`; bundled and
   served by Bun (no Vite). Swap in real providers + the token broker to ship.
-- **react-native-expo** — adapters bridging `expo-av` / `expo-file-system` to
-  `@ottervoice/runtime-react-native`, plus a sample screen. Illustrative: drop it
-  into a real Expo project.
+- **react-native-expo** — a runnable full-duplex Audio LLM app with native PCM
+  capture, continuous VAD/barge-in, SSE chunk playback through AudioPlaylist,
+  Expo Go QR preview, and EAS simulator/APK build profiles.
 - **token-broker** — the backend half of the security model (tech design §17):
   clients fetch short-lived credentials here instead of holding provider secrets.
 

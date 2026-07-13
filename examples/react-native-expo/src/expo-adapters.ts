@@ -1,80 +1,170 @@
+import { useMemo, useRef } from 'react';
+import {
+  createAudioPlayer,
+  createAudioPlaylist,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioStream,
+  type AudioStreamBuffer,
+} from 'expo-audio';
+import { File, Paths } from 'expo-file-system';
+import {
+  createExpoRuntime,
+  pcm16ToWav,
+  type ExpoPcmInputBuffer,
+  type ExpoRuntime,
+} from '@ottervoice/runtime-react-native';
+
+type BufferHandler = (buffer: ExpoPcmInputBuffer) => void;
+
+function extensionFor(mimeType: string): string {
+  if (mimeType.includes('wav')) return 'wav';
+  if (mimeType.includes('mpeg') || mimeType.includes('mp3')) return 'mp3';
+  return 'audio';
+}
+
+function writeCacheFile(name: string, data: ArrayBuffer): string {
+  const file = new File(Paths.cache, name);
+  file.create({ overwrite: true, intermediates: true });
+  file.write(new Uint8Array(data));
+  return file.uri;
+}
+
 /**
- * Bridges the real Expo audio APIs (`expo-av` + `expo-file-system`) to the
- * injected interfaces that `@ottervoice/runtime-react-native` expects. Copy
- * this into a real Expo app (`npx expo install expo-av expo-file-system`).
+ * Bind Expo SDK 57's native PCM microphone stream and gapless AudioPlaylist
+ * to the platform-neutral OtterVoice runtime.
  */
-import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
-import { createExpoRuntime, type ExpoRuntime } from '@ottervoice/runtime-react-native';
-
-function base64ToArrayBuffer(base64: string): ArrayBuffer {
-  const binary = globalThis.atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return bytes.buffer;
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]!);
-  return globalThis.btoa(binary);
-}
-
-/** Build an OtterVoice runtime backed by Expo. */
-export function createExpoAudioRuntime(): ExpoRuntime {
-  return createExpoRuntime({
-    input: {
-      requestPermission: async () => {
-        const { granted } = await Audio.requestPermissionsAsync();
-        return granted;
-      },
-      createRecording: async () => {
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-        // `createAsync` prepares *and* starts the recording.
-        const { recording } = await Audio.Recording.createAsync(
-          Audio.RecordingOptionsPresets.HIGH_QUALITY,
-        );
-        return {
-          startAsync: async () => {},
-          stopAndUnloadAsync: () => recording.stopAndUnloadAsync(),
-          getURI: () => recording.getURI(),
-        };
-      },
-      readAudioFile: async (uri) => {
-        const base64 = await FileSystem.readAsStringAsync(uri, {
-          encoding: FileSystem.EncodingType.Base64,
+export function useExpoAudioRuntime(): ExpoRuntime {
+  const bufferHandler = useRef<BufferHandler | undefined>(undefined);
+  const streamOptions = useMemo(
+    () => ({
+      sampleRate: 16_000,
+      channels: 1,
+      encoding: 'int16' as const,
+      onBuffer(buffer: AudioStreamBuffer) {
+        bufferHandler.current?.({
+          data: buffer.data,
+          encoding: 'pcm_s16le',
+          sampleRate: buffer.sampleRate,
+          channels: buffer.channels,
         });
-        return base64ToArrayBuffer(base64);
       },
-    },
-    output: {
-      createSound: async (uri) => {
-        const { sound } = await Audio.Sound.createAsync({ uri });
-        return {
-          playAsync: async () => {
-            await sound.playAsync();
+    }),
+    [],
+  );
+  const { stream } = useAudioStream(streamOptions);
+
+  return useMemo(
+    () =>
+      createExpoRuntime({
+        input: {
+          requestPermission: async () => {
+            const permission = await requestRecordingPermissionsAsync();
+            return permission.granted;
           },
-          stopAsync: async () => {
-            await sound.stopAsync();
+          createPcmStream: (_options, onBuffer) => {
+            bufferHandler.current = onBuffer;
+            return {
+              async start() {
+                await setAudioModeAsync({
+                  allowsRecording: true,
+                  playsInSilentMode: true,
+                  shouldRouteThroughEarpiece: false,
+                  interruptionMode: 'doNotMix',
+                });
+                await stream.start();
+              },
+              async stop() {
+                stream.stop();
+                bufferHandler.current = undefined;
+              },
+            };
           },
-          unloadAsync: async () => {
-            await sound.unloadAsync();
+        },
+        output: {
+          createSound: async (uri) => {
+            const player = createAudioPlayer(
+              { uri },
+              { updateInterval: 50, downloadFirst: uri.startsWith('http') },
+            );
+            let statusSubscription: { remove(): void } | undefined;
+            return {
+              async playAsync() {
+                player.play();
+              },
+              async pauseAsync() {
+                player.pause();
+              },
+              async stopAsync() {
+                player.pause();
+                await player.seekTo(0);
+              },
+              async unloadAsync() {
+                statusSubscription?.remove();
+                player.release();
+              },
+              setOnPlaybackStatusUpdate(cb) {
+                statusSubscription?.remove();
+                statusSubscription = player.addListener('playbackStatusUpdate', (status) =>
+                  cb({ didJustFinish: status.didJustFinish, error: status.error }),
+                );
+              },
+            };
           },
-          setOnPlaybackStatusUpdate: (cb) =>
-            sound.setOnPlaybackStatusUpdate((status) =>
-              cb({ didJustFinish: 'didJustFinish' in status ? status.didJustFinish : false }),
+          writeAudioFile: async (buffer, mimeType) =>
+            writeCacheFile(
+              `ottervoice-${Date.now()}.${extensionFor(mimeType)}`,
+              buffer,
             ),
-        };
-      },
-      writeAudioFile: async (buffer, mimeType) => {
-        const ext = mimeType.includes('wav') ? 'wav' : 'mp3';
-        const uri = `${FileSystem.cacheDirectory}ottervoice-tts-${Date.now()}.${ext}`;
-        await FileSystem.writeAsStringAsync(uri, arrayBufferToBase64(buffer), {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        return uri;
-      },
-    },
-  });
+          createPcmPlaylist: () => {
+            const playlist = createAudioPlaylist({ sources: [], updateInterval: 50 });
+            let statusSubscription: { remove(): void } | undefined;
+            return {
+              add(uri: string) {
+                playlist.add({ uri });
+              },
+              next() {
+                playlist.next();
+              },
+              play() {
+                playlist.play();
+              },
+              pause() {
+                playlist.pause();
+              },
+              clear() {
+                playlist.clear();
+              },
+              destroy() {
+                statusSubscription?.remove();
+                playlist.destroy();
+              },
+              setOnPlaybackStatusUpdate(cb) {
+                statusSubscription?.remove();
+                statusSubscription = playlist.addListener('playlistStatusUpdate', (status) =>
+                  cb({
+                    currentIndex: status.currentIndex,
+                    currentTime: status.currentTime,
+                    didJustFinish: status.didJustFinish,
+                    playing: status.playing,
+                    trackCount: status.trackCount,
+                  }),
+                );
+                return () => statusSubscription?.remove();
+              },
+            };
+          },
+          writePcmChunk: async ({ data, sampleRate, channels, index }) =>
+            writeCacheFile(
+              `ottervoice-stream-${Date.now()}-${index}.wav`,
+              pcm16ToWav(new Uint8Array(data), sampleRate, channels),
+            ),
+          deleteAudioFile: async (uri) => {
+            const file = new File(uri);
+            if (file.exists) file.delete();
+          },
+        },
+      }),
+    [stream],
+  );
 }

@@ -6,3 +6,6 @@ coverage/
 .env
 .env.local
 .vercel/
+.expo/
+examples/react-native-expo/ios/
+examples/react-native-expo/android/
