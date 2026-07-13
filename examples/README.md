@@ -17,9 +17,9 @@ packages; none need API keys to start (cognition falls back to mocks).
   the in-memory runtime. The smallest possible "hello world".
 - **node-openrouter** — a real LLM (`@ottervoice/provider-openrouter`) on the
   in-memory runtime; set `OPENROUTER_API_KEY` to go live, otherwise it uses a mock.
-- **web** — real browser microphone capture + playback via
-  `@ottervoice/runtime-web` (getUserMedia + MediaRecorder + HTMLAudio), bundled
-  and served by Bun (no Vite). Swap in real providers + the token broker to ship.
+- **web** — full-duplex browser conversation with automatic volume endpointing,
+  a live input meter, and barge-in via `@ottervoice/runtime-web`; bundled and
+  served by Bun (no Vite). Swap in real providers + the token broker to ship.
 - **react-native-expo** — adapters bridging `expo-av` / `expo-file-system` to
   `@ottervoice/runtime-react-native`, plus a sample screen. Illustrative: drop it
   into a real Expo project.

@@ -206,3 +206,40 @@ describe('WebAudioInput lifecycle', () => {
     expect(chunks).toHaveLength(0);
   });
 });
+
+describe('WebAudioInput.onVolume', () => {
+  it('emits RMS levels when an AudioContext is available', async () => {
+    const { stream } = fakeStream();
+    const analyser = {
+      fftSize: 256,
+      frequencyBinCount: 4,
+      getByteTimeDomainData(array: Uint8Array) {
+        array[0] = 200; // loud sample
+        array[1] = 56;
+        array[2] = 128;
+        array[3] = 128;
+      },
+    };
+    const input = new WebAudioInput({
+      getUserMedia: async () => stream,
+      mediaRecorder: FakeRecorder,
+      audioContext: class {
+        createAnalyser() {
+          return analyser;
+        }
+        createMediaStreamSource() {
+          return { connect: () => {} };
+        }
+        async close() {}
+      },
+      volumePollMs: 1,
+    });
+    const levels: number[] = [];
+    input.onVolume((v) => levels.push(v));
+    await input.start();
+    await new Promise((r) => setTimeout(r, 5));
+    await input.stop();
+    expect(levels.length).toBeGreaterThan(0);
+    expect(levels[0]).toBeGreaterThan(0);
+  });
+});

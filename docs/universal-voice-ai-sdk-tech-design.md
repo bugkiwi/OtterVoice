@@ -496,7 +496,7 @@ export interface VoiceTurn {
 
 ```ts
 export interface VoiceSessionConfig {
-  mode: 'half_duplex' | 'push_to_talk' | 'streaming_transcript'
+  mode: 'half_duplex' | 'full_duplex' | 'push_to_talk' | 'streaming_transcript'
 
   runtime: RuntimeAdapter
 
@@ -1934,4 +1934,3 @@ provider 可替换
 
 > 做一个 TypeScript-first 的半双工 Voice AI SDK。  
 > Core 保持纯净，Runtime 适配平台，Provider 适配模型，Plugin 适配业务。
-

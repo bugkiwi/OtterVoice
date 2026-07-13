@@ -1,7 +1,8 @@
 # @ottervoice/core
 
 Platform-agnostic core for [OtterVoice](https://github.com/gkiwi/OtterVoice) —
-a TypeScript-first SDK for half-duplex voice conversation.
+a TypeScript-first SDK for real-time voice conversation, including full-duplex
+barge-in.
 
 This package contains **no DOM, Node or native dependencies**. It provides the
 session state machine, typed events, provider router, transcript buffer, turn
@@ -16,7 +17,7 @@ bun add @ottervoice/core
 
 | Export | Purpose |
 | --- | --- |
-| `createVoiceSession` / `VoiceSession` | The half-duplex conversation loop. |
+| `createVoiceSession` / `VoiceSession` | Conversation loop and full-duplex interruption policy. |
 | `StateMachine`, `canTransition`, `isTerminal` | Session state transitions. |
 | `TypedEmitter` | Strongly-typed, unsubscribe-returning event emitter. |
 | `TranscriptBuffer` | Ordered turns → LLM message projection. |
@@ -32,6 +33,9 @@ Implement these interfaces to plug in real services / platforms:
 
 - **`ASRProvider`** — `createSession()` → streaming partial/final transcripts.
 - **`LLMProvider`** — `generate()` (and optional `stream()`).
+- **`AudioLLMProvider`** — one model consumes a completed audio turn and returns
+  assistant transcript + audio; set `pipeline: 'audio_llm'`. Caption ASR runs
+  in parallel and does not feed the model.
 - **`TTSProvider`** — `synthesize()` → audio buffer or URL.
 - **`PronunciationProvider`** — `assess()` → scores.
 - **`RuntimeAdapter`** — `audioInput`, `audioOutput`, optional `network` /
@@ -42,7 +46,7 @@ Every error raised by an adapter should be a `NormalizedVoiceError` (use
 
 ## Session events
 
-`statechange`, `asr_partial`, `asr_final`, `assistant_text`,
+`statechange`, `asr_partial`, `asr_final`, `user_audio_end`, `assistant_text`,
 `assistant_audio_start`, `assistant_audio_end`, `turn`, `usage`, `finished`,
 `error`. Subscribe with `session.on(event, cb)`; the returned function
 unsubscribes.

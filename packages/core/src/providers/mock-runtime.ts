@@ -93,10 +93,14 @@ export class MockAudioOutput implements AudioOutputAdapter {
   private startCbs = new Set<() => void>();
   private endCbs = new Set<() => void>();
   private errorCbs = new Set<(error: NormalizedVoiceError) => void>();
+  private volumeCbs = new Set<(level: number) => void>();
   private readonly autoComplete: boolean;
   private readonly failWith: NormalizedVoiceError | undefined;
   played: AudioPlaybackInput[] = [];
   stopped = 0;
+  paused = 0;
+  resumed = 0;
+  private playDone: (() => void) | undefined;
 
   constructor(options: MockAudioOutputOptions = {}) {
     this.autoComplete = options.autoComplete ?? true;
@@ -109,18 +113,43 @@ export class MockAudioOutput implements AudioOutputAdapter {
       throw this.failWith;
     }
     this.played.push(input);
+    for (const cb of [...this.startCbs]) cb();
     if (this.autoComplete) {
-      for (const cb of [...this.startCbs]) cb();
       for (const cb of [...this.endCbs]) cb();
+      return;
     }
+    await new Promise<void>((resolve) => {
+      this.playDone = resolve;
+    });
   }
 
   async stop(): Promise<void> {
     this.stopped += 1;
+    this.playDone?.();
+    this.playDone = undefined;
+  }
+
+  async pause(): Promise<void> {
+    this.paused += 1;
+  }
+
+  async resume(): Promise<void> {
+    this.resumed += 1;
   }
 
   fireEnd(): void {
     for (const cb of [...this.endCbs]) cb();
+    this.playDone?.();
+    this.playDone = undefined;
+  }
+
+  emitVolume(level: number): void {
+    for (const cb of [...this.volumeCbs]) cb(level);
+  }
+
+  onVolume(cb: (level: number) => void): () => void {
+    this.volumeCbs.add(cb);
+    return () => this.volumeCbs.delete(cb);
   }
 
   onStart(cb: () => void): () => void {

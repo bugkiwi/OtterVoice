@@ -99,4 +99,12 @@ describe('TurnDetector', () => {
     expect(d.isSpeaking).toBe(false);
     expect(d.pushVolume(0.5, 200)).toBeUndefined();
   });
+
+  it('can continue endpointing after externally confirmed speech', () => {
+    const d = new TurnDetector(cfg);
+    d.forceSpeechStart(100);
+    expect(d.isSpeaking).toBe(true);
+    expect(d.pushVolume(0.0, 150)).toBeUndefined();
+    expect(d.pushVolume(0.0, 350)).toBe('speech_end');
+  });
 });

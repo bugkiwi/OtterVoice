@@ -9,6 +9,7 @@ export interface ChatBody {
   max_tokens?: number;
   stream?: boolean;
   response_format?: { type: 'json_object' };
+  reasoning?: { enabled: boolean };
 }
 
 /** Build the OpenAI-compatible chat-completions request body. */
@@ -16,6 +17,7 @@ export function buildChatBody(
   model: string,
   input: LLMGenerateInput,
   defaults: { temperature?: number; stream?: boolean } = {},
+  openRouter: { reasoningEnabled?: boolean } = {},
 ): ChatBody {
   const messages: ChatBody['messages'] = [];
   if (input.system !== undefined) {
@@ -29,6 +31,9 @@ export function buildChatBody(
   if (input.maxTokens !== undefined) body.max_tokens = input.maxTokens;
   if (defaults.stream) body.stream = true;
   if (input.responseFormat === 'json') body.response_format = { type: 'json_object' };
+  if (openRouter.reasoningEnabled !== undefined) {
+    body.reasoning = { enabled: openRouter.reasoningEnabled };
+  }
   return body;
 }
 

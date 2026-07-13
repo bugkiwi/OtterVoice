@@ -1,12 +1,13 @@
 {
-  "name": "@ottervoice/example-web",
+  "name": "@ottervoice/docs-site",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
-    "start": "bun run serve.ts",
-    "benchmark": "bun run benchmark.ts",
-    "test:acoustic": "bun run acoustic-loopback.ts"
+    "build": "bun run build.ts"
   },
   "dependencies": {
     "@ottervoice/core": "workspace:*",

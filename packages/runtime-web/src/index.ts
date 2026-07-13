@@ -1,13 +1,16 @@
 import type { RuntimeAdapter } from '@ottervoice/core';
 import {
   WebAudioInput,
+  type AudioContextCtor,
   type GetUserMedia,
   type MediaRecorderCtor,
 } from './audio-input';
 import { WebAudioOutput, type AudioElementLike } from './audio-output';
+import { measureBrowserAudioEnvelope } from './audio-conversion';
 
 export * from './audio-input';
 export * from './audio-output';
+export * from './audio-conversion';
 
 export interface WebRuntimeOptions {
   getUserMedia?: GetUserMedia;
@@ -17,6 +20,8 @@ export interface WebRuntimeOptions {
   revokeObjectURL?: (url: string) => void;
   mimeType?: string;
   timesliceMs?: number;
+  volumePollMs?: number;
+  audioContext?: AudioContextCtor;
   now?: () => number;
 }
 
@@ -57,9 +62,16 @@ export function createWebRuntime(options: WebRuntimeOptions = {}): WebRuntime {
   };
   if (options.mimeType !== undefined) inputOptions.mimeType = options.mimeType;
   if (options.timesliceMs !== undefined) inputOptions.timesliceMs = options.timesliceMs;
+  if (options.volumePollMs !== undefined) inputOptions.volumePollMs = options.volumePollMs;
+  if (options.audioContext !== undefined) inputOptions.audioContext = options.audioContext;
   if (options.now !== undefined) inputOptions.now = options.now;
 
   const outputOptions: ConstructorParameters<typeof WebAudioOutput>[0] = { createAudio };
+  const hasAudioContext = Boolean(
+    (globalThis as unknown as { AudioContext?: unknown }).AudioContext,
+  );
+  if (hasAudioContext) outputOptions.measureAudio = measureBrowserAudioEnvelope;
+  if (options.now !== undefined) outputOptions.now = options.now;
   if (createObjectURL !== undefined) outputOptions.createObjectURL = createObjectURL;
   if (revokeObjectURL !== undefined) outputOptions.revokeObjectURL = revokeObjectURL;
 

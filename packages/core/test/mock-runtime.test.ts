@@ -71,9 +71,11 @@ describe('MockAudioOutput', () => {
     const output = new MockAudioOutput({ autoComplete: false });
     const events: string[] = [];
     const off = output.onEnd(() => events.push('end'));
-    await output.play({});
+    const playing = output.play({});
+    await Promise.resolve();
     expect(events).toEqual([]);
     output.fireEnd();
+    await playing;
     expect(events).toEqual(['end']);
     off();
     output.fireEnd();
@@ -97,6 +99,16 @@ describe('MockAudioOutput', () => {
     await output.stop();
     await output.stop();
     expect(output.stopped).toBe(2);
+  });
+
+  it('tracks tentative pause and resume calls', async () => {
+    const output = new MockAudioOutput({ autoComplete: false });
+    void output.play({});
+    await output.pause();
+    await output.resume();
+    expect(output.paused).toBe(1);
+    expect(output.resumed).toBe(1);
+    await output.stop();
   });
 });
 

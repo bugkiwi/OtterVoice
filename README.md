@@ -1,7 +1,7 @@
 # OtterVoice 🦦
 
-A TypeScript-first, platform-agnostic SDK for **half-duplex voice conversation** —
-the loop of *assistant speaks → user speaks → ASR → LLM → assistant speaks*.
+A TypeScript-first, platform-agnostic SDK for **real-time voice conversation** —
+half-duplex, push-to-talk, or full-duplex with barge-in.
 
 OtterVoice gives you a clean, well-tested core for building voice-AI experiences
 (voice assistants, spoken practice, companions, task dialogs) without wiring ASR,
@@ -21,8 +21,8 @@ OtterVoice
   ElevenLabs, Deepgram, OpenRouter, Azure, etc. without touching app logic.
 - **Runtime-agnostic** — the core never touches the DOM, Node `fs`, or native
   audio. Platform capabilities are injected via a `RuntimeAdapter`.
-- **Half-duplex by design** — a deterministic state machine drives turn-taking,
-  with rule-based VAD / endpointing, barge-in support, and manual push-to-talk.
+- **Explicit conversation modes** — a deterministic state machine drives
+  half-duplex, full-duplex barge-in, and manual push-to-talk turn-taking.
 - **Secure by default** — clients never hold provider secrets; providers talk to
   a token broker on your backend.
 - **100% test coverage** on the core, with built-in mocks so you can develop and
@@ -41,11 +41,11 @@ production use.
 | `@ottervoice/core` | Session, state machine, router, events, mocks |
 | `@ottervoice/protocol` | JSON wire protocol for native/cross-process clients |
 | `@ottervoice/provider-utils` | Token broker, HTTP errors, SSE & WebSocket-ASR helpers |
-| `@ottervoice/provider-openrouter` | LLM (OpenAI-compatible HTTP) |
+| `@ottervoice/provider-openrouter` | LLM + speech-to-text + text-to-speech |
 | `@ottervoice/provider-elevenlabs` | Streaming ASR (WebSocket) |
 | `@ottervoice/provider-deepgram` | Streaming ASR (WebSocket) |
 | `@ottervoice/provider-azure-speech` | TTS (REST + SSML) |
-| `@ottervoice/runtime-web` | getUserMedia + MediaRecorder + HTMLAudio |
+| `@ottervoice/runtime-web` | getUserMedia + MediaRecorder + Web Audio VAD + HTMLAudio |
 | `@ottervoice/runtime-node` | fetch/WebSocket + stream audio I/O |
 | `@ottervoice/runtime-react-native` | Expo recording + sound playback |
 
@@ -137,7 +137,7 @@ packages/
   core/                      @ottervoice/core
   protocol/                  @ottervoice/protocol
   provider-utils/            shared HTTP/SSE/WebSocket/token-broker helpers
-  provider-openrouter/       LLM
+  provider-openrouter/       LLM + ASR + TTS through OpenRouter
   provider-elevenlabs/       ASR
   provider-deepgram/         ASR
   provider-azure-speech/     TTS
@@ -168,7 +168,7 @@ bun run demo        # run the node-cli demo
 - [x] `@ottervoice/core` — session, state machine, router, mocks
 - [x] `@ottervoice/protocol` — JSON event schema for native (Swift/Kotlin) clients
 - [x] `@ottervoice/provider-utils` — token broker, HTTP/SSE/WebSocket helpers
-- [x] `@ottervoice/provider-openrouter` — LLM over OpenAI-compatible HTTP
+- [x] `@ottervoice/provider-openrouter` — LLM, ASR and TTS over OpenRouter HTTP
 - [x] `@ottervoice/provider-elevenlabs` — streaming ASR
 - [x] `@ottervoice/provider-deepgram` — streaming ASR
 - [x] `@ottervoice/provider-azure-speech` — TTS (REST + SSML)

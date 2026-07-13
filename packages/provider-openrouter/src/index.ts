@@ -24,6 +24,8 @@ import {
 } from './chat';
 
 export * from './chat';
+export * from './audio';
+export * from './audio-llm';
 
 export interface OpenRouterOptions extends CredentialOptions, HeaderOptions {
   model: string;
@@ -31,6 +33,8 @@ export interface OpenRouterOptions extends CredentialOptions, HeaderOptions {
   baseUrl?: string;
   /** Applied when a request does not specify its own temperature. */
   defaultTemperature?: number;
+  /** Explicitly enable/disable reasoning tokens on compatible models. */
+  reasoningEnabled?: boolean;
 }
 
 const PROVIDER = 'openrouter';
@@ -53,6 +57,8 @@ export function createOpenRouterLLM(options: OpenRouterOptions): LLMProvider {
     const body = buildChatBody(options.model, input, {
       temperature: options.defaultTemperature,
       stream,
+    }, {
+      reasoningEnabled: options.reasoningEnabled,
     });
     return fetchImpl(url, {
       method: 'POST',

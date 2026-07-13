@@ -2,7 +2,7 @@ import type { VoiceSessionState } from './types';
 import { VoiceError } from './errors';
 
 /**
- * Allowed transitions for the half-duplex voice session.
+ * Allowed transitions for the voice session state machine.
  *
  * `error` and `finished` are reachable from every non-terminal state; the map
  * below only lists the *forward* transitions plus the recovery edges out of
@@ -19,7 +19,14 @@ const TRANSITIONS: Record<VoiceSessionState, readonly VoiceSessionState[]> = {
     'finished',
     'error',
   ],
-  listening: ['user_speaking', 'processing', 'paused', 'finished', 'error'],
+  listening: [
+    'assistant_speaking',
+    'user_speaking',
+    'processing',
+    'paused',
+    'finished',
+    'error',
+  ],
   user_speaking: ['processing', 'listening', 'paused', 'finished', 'error'],
   processing: [
     'assistant_speaking',

@@ -9,6 +9,15 @@
         "typescript": "^5.9.0",
       },
     },
+    "docs/site": {
+      "name": "@ottervoice/docs-site",
+      "version": "0.1.0",
+      "dependencies": {
+        "@ottervoice/core": "workspace:*",
+        "@ottervoice/provider-openrouter": "workspace:*",
+        "@ottervoice/runtime-web": "workspace:*",
+      },
+    },
     "examples/node-cli": {
       "name": "@ottervoice/example-node-cli",
       "version": "0.1.0",
@@ -41,6 +50,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@ottervoice/core": "workspace:*",
+        "@ottervoice/provider-openrouter": "workspace:*",
         "@ottervoice/runtime-web": "workspace:*",
       },
     },
@@ -157,6 +167,8 @@
   },
   "packages": {
     "@ottervoice/core": ["@ottervoice/core@workspace:packages/core"],
+
+    "@ottervoice/docs-site": ["@ottervoice/docs-site@workspace:docs/site"],
 
     "@ottervoice/example-node-cli": ["@ottervoice/example-node-cli@workspace:examples/node-cli"],
 

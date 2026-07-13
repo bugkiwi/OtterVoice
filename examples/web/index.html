@@ -1,34 +1,107 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OtterVoice — Web demo</title>
+    <meta name="description" content="OtterVoice — TypeScript 全双工实时语音对话 SDK。" />
+    <title>OtterVoice — Real-time voice, naturally</title>
     <style>
-      body { font: 16px/1.5 system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; }
-      h1 { font-size: 1.4rem; }
-      button { font: inherit; padding: 8px 16px; margin-right: 8px; border-radius: 8px; border: 1px solid #ccc; cursor: pointer; }
-      button:disabled { opacity: .5; cursor: default; }
-      #state { display: inline-block; padding: 2px 10px; border-radius: 999px; background: #eef; }
-      #log { margin-top: 20px; }
-      .turn { padding: 8px 12px; border-radius: 10px; margin: 6px 0; }
-      .user { background: #eef6ff; }
-      .assistant { background: #f3f3f3; }
-      .muted { color: #888; }
+      :root { color-scheme: light; --ink:#17332d; --paper:#f4efe4; --coral:#ee684d; --mint:#cee4d5; --line:#9eb3aa; --muted:#537069; }
+      * { box-sizing:border-box; }
+      html { scroll-behavior:smooth; }
+      body { margin:0; color:var(--ink); background:var(--paper); font:16px/1.55 "Avenir Next",Avenir,"PingFang SC",sans-serif; }
+      body::before { content:""; position:fixed; inset:0; z-index:-1; opacity:.35; background-image:radial-gradient(#52746b .7px,transparent .7px); background-size:18px 18px; mask-image:linear-gradient(black,transparent 72%); }
+      a { color:inherit; }
+      .shell { width:min(1120px,calc(100% - 40px)); margin:auto; }
+      nav { display:flex; align-items:center; justify-content:space-between; padding:22px 0; border-bottom:1px solid color-mix(in oklch,var(--ink) 18%,transparent); }
+      .brand { font:700 1.15rem Georgia,serif; text-decoration:none; }
+      .nav-links { display:flex; align-items:center; gap:22px; font-size:.78rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+      .nav-links a { text-decoration:none; }
+      .pill { display:inline-flex; align-items:center; min-height:40px; padding:0 16px; border:1px solid var(--ink); border-radius:99px; }
+      .hero { min-height:520px; display:grid; grid-template-columns:1.25fr .75fr; gap:64px; align-items:center; padding:clamp(64px,8vw,104px) 0; }
+      .eyebrow { margin:0 0 18px; color:#98614f; font-size:.72rem; font-weight:800; letter-spacing:.16em; text-transform:uppercase; }
+      h1 { max-width:800px; margin:0; font:500 clamp(4rem,10vw,8.7rem)/.82 Georgia,"Times New Roman",serif; letter-spacing:-.07em; }
+      h1 em { color:var(--coral); font-weight:inherit; }
+      .hero-copy { max-width:420px; padding-bottom:8px; color:var(--muted); font-size:1.08rem; }
+      .hero-copy strong { display:block; margin-bottom:18px; color:var(--ink); font:500 1.55rem/1.2 Georgia,serif; }
+      .demo { padding:70px 0 92px; border-top:2px solid var(--ink); }
+      .section-head { display:flex; justify-content:space-between; align-items:end; gap:30px; margin-bottom:34px; }
+      h2 { margin:0; font:500 clamp(2.5rem,6vw,5rem)/.95 Georgia,serif; letter-spacing:-.045em; }
+      .section-note { max-width:450px; margin:0; color:var(--muted); }
+      .demo-card { display:grid; grid-template-columns:1fr 1fr; min-height:470px; border:1px solid var(--ink); border-radius:26px; overflow:hidden; background:color-mix(in oklch,var(--paper) 88%,white); box-shadow:10px 12px 0 var(--mint); }
+      .demo-intro { display:flex; flex-direction:column; justify-content:space-between; padding:clamp(28px,5vw,54px); border-right:1px solid var(--ink); }
+      .demo-intro h3 { max-width:440px; margin:0; font:500 clamp(2.5rem,5vw,4.8rem)/.91 Georgia,serif; letter-spacing:-.05em; }
+      .demo-intro h3 em { color:var(--coral); font-weight:inherit; }
+      .pipeline { margin-top:28px; color:var(--muted); font-size:.82rem; }
+      code { color:#895544; font-size:.9em; }
+      .console { display:flex; flex-direction:column; justify-content:center; padding:clamp(28px,5vw,54px); }
+      .mode-switch { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-bottom:24px; padding:5px; border:1px solid var(--line); border-radius:99px; }
+      .mode-switch button { min-height:36px; padding:0 12px; border:0; color:var(--muted); background:transparent; font-size:.76rem; }
+      .mode-switch button.selected { color:var(--paper); background:var(--ink); }
+      .status-row { display:flex; justify-content:space-between; align-items:center; gap:20px; }
+      #state { padding:5px 10px; border-radius:99px; background:var(--mint); font-size:.7rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+      #state[data-state="assistant_speaking"] { background:#f5b6a7; } #state[data-state="user_speaking"] { background:#f1ca72; }
+      #state-copy { margin:9px 0 22px; min-height:1.55em; color:var(--muted); }
+      #meter { --level:0; height:64px; display:flex; align-items:end; gap:5px; margin-bottom:26px; overflow:hidden; }
+      #meter span { width:9px; height:calc(8px + var(--level) * var(--scale) * 42px); max-height:58px; border-radius:9px; background:var(--coral); transition:height 80ms linear; }
+      #meter span:nth-child(1),#meter span:nth-child(9){--scale:.35} #meter span:nth-child(2),#meter span:nth-child(8){--scale:.55} #meter span:nth-child(3),#meter span:nth-child(7){--scale:.75} #meter span:nth-child(4),#meter span:nth-child(6){--scale:.9} #meter span:nth-child(5){--scale:1}
+      .actions { display:flex; flex-wrap:wrap; gap:10px; }
+      button { min-height:48px; padding:0 20px; border:1px solid var(--ink); border-radius:99px; color:var(--paper); background:var(--ink); font:700 .9rem/1 inherit; cursor:pointer; transition:transform 160ms ease; }
+      button:not(:disabled):hover { transform:translateY(-2px); } #finish { color:var(--ink); background:transparent; } button:disabled { opacity:.36; cursor:default; }
+      #partial { min-height:1.5em; margin:18px 0 0; color:#8a5a48; font-style:italic; }
+      #latency { min-height:1.4em; margin:10px 0 0; color:var(--muted); font-size:.72rem; }
+      #log { grid-column:1/-1; display:grid; gap:8px; max-height:360px; padding:0 36px 26px; overflow-y:auto; background:color-mix(in oklch,var(--paper) 82%,white); }
+      #log:empty { display:none; }
+      .turn { display:grid; grid-template-columns:74px 1fr; gap:14px; padding:14px 0; border-top:1px solid color-mix(in oklch,var(--ink) 16%,transparent); }
+      .speaker { color:#98614f; font-size:.7rem; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
+      .assistant { font-family:Georgia,serif; font-size:1.08rem; } .assistant .speaker { font-family:"Avenir Next",sans-serif; }
+      .capabilities { padding:90px 0; border-top:1px solid var(--line); }
+      .grid { display:grid; grid-template-columns:repeat(3,1fr); margin-top:48px; border-top:1px solid var(--ink); }
+      .feature { padding:28px 30px 36px 0; border-bottom:1px solid var(--line); }
+      .feature + .feature { padding-left:30px; border-left:1px solid var(--line); }
+      .feature b { display:block; margin-bottom:16px; color:var(--coral); font:500 2.4rem Georgia,serif; }
+      .feature h3 { margin:0 0 9px; font:500 1.35rem Georgia,serif; }
+      .feature p { margin:0; color:var(--muted); font-size:.9rem; }
+      footer { display:flex; justify-content:space-between; gap:24px; padding:34px 0 48px; border-top:2px solid var(--ink); color:var(--muted); font-size:.82rem; }
+      @media(max-width:760px){ .nav-links a:not(.pill){display:none}.hero{grid-template-columns:1fr;gap:30px;min-height:auto}.demo-card{grid-template-columns:1fr}.demo-intro{min-height:370px;border-right:0;border-bottom:1px solid var(--ink)}.section-head{display:block}.section-note{margin-top:18px}.grid{grid-template-columns:1fr}.feature+.feature{padding-left:0;border-left:0}.shell{width:min(100% - 28px,1120px)} }
+      @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition-duration:0s!important}}
     </style>
   </head>
   <body>
-    <h1>🦦 OtterVoice — Web demo</h1>
-    <p class="muted">
-      Real microphone capture + playback via <code>@ottervoice/runtime-web</code>.
-      Cognition is mocked, so no API keys are needed. Click <b>Start</b> (allow the
-      mic), speak, then click <b>Done speaking</b> to end your turn.
-    </p>
-    <p>State: <span id="state">idle</span></p>
-    <button id="start">Start</button>
-    <button id="done" disabled>Done speaking</button>
-    <button id="finish" disabled>End session</button>
-    <div id="log"></div>
+    <header class="shell"><nav><a class="brand" href="#">OtterVoice</a><div class="nav-links"><a href="#demo">Live demo</a><a href="#sdk">SDK</a><a class="pill" href="https://github.com/bugkiwi/OtterVoice" target="_blank" rel="noreferrer">GitHub ↗</a></div></nav></header>
+    <main class="shell">
+      <section class="hero">
+        <div><p class="eyebrow">Open-source · TypeScript-first</p><h1>Voice,<br /><em>without turns.</em></h1></div>
+        <p class="hero-copy"><strong>像自然交谈一样构建语音 AI。</strong>OtterVoice 把采集、VAD、打断、ASR、LLM 与 TTS 组合成跨平台的全双工会话。</p>
+      </section>
+
+      <section class="demo" id="demo">
+        <div class="section-head"><div><p class="eyebrow">Example 01 · Full duplex</p><h2>现在，直接开口。</h2></div><p class="section-note">麦克风会持续监听。停顿即提交，AI 说话时也可直接插话打断；屏幕同步保留完整文字记录。</p></div>
+        <div class="demo-card">
+          <div class="demo-intro"><h3>Talk.<br /><em>Don’t tap.</em></h3><p class="pipeline"><span id="pipeline-copy"><code>GPT Audio Mini</code> 语音直进直出 · <code>Qwen3 ASR</code> 仅并行生成字幕</span><br />OpenRouter 低延迟对比 · 密钥仅保留在服务端</p></div>
+          <section class="console" aria-label="Conversation controls">
+            <div class="mode-switch" aria-label="语音处理模式"><button id="mode-audio" type="button" aria-pressed="true">新 · Audio LLM</button><button id="mode-cascade" type="button" aria-pressed="false">旧 · ASR→LLM→TTS</button></div>
+            <div class="status-row"><span class="eyebrow">Live channel</span><span id="state" data-state="idle">idle</span></div>
+            <p id="state-copy" aria-live="polite">准备好就可以开始</p>
+            <div id="meter" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+            <div class="actions"><button id="start">开始语音对话</button><button id="finish" disabled>结束会话</button></div>
+            <p id="partial" aria-live="polite"></p>
+            <p id="latency" aria-live="polite">完成一轮对话后显示“停顿 → 开始播放”的实测延迟</p>
+          </section>
+          <div id="log" aria-label="Transcript" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="capabilities" id="sdk">
+        <p class="eyebrow">Built as capability, shown as example</p><h2>基础能力负责实时，<br />示例只负责体验。</h2>
+        <div class="grid">
+          <article class="feature"><b>01</b><h3>全双工会话内核</h3><p>状态机、并发 turn、barge-in 与取消语义沉淀在 core，其他运行时可直接复用。</p></article>
+          <article class="feature"><b>02</b><h3>浏览器实时运行时</h3><p>runtime-web 负责持续采集、能量 VAD、回声友好的播放和低延迟打断。</p></article>
+          <article class="feature"><b>03</b><h3>可替换模型提供商</h3><p>ASR、LLM、TTS 使用独立 provider 接口；本示例统一通过 OpenRouter 接入便宜模型。</p></article>
+        </div>
+      </section>
+    </main>
+    <footer class="shell"><span>OtterVoice · real-time voice toolkit</span><span>TypeScript / Web Audio / OpenRouter</span></footer>
     <script type="module" src="/app.js"></script>
   </body>
 </html>

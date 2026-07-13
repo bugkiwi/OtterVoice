@@ -2,7 +2,7 @@
   "name": "@ottervoice/provider-openrouter",
   "version": "0.1.0",
   "type": "module",
-  "description": "OpenRouter LLM provider for OtterVoice (OpenAI-compatible HTTP, no heavy SDK).",
+  "description": "OpenRouter text/audio LLM, speech-to-text and text-to-speech providers for OtterVoice.",
   "license": "MIT",
   "main": "./dist/index.js",
   "module": "./dist/index.js",

@@ -100,6 +100,11 @@ export type VoiceSessionEventMap = {
     confidence?: number;
     durationMs?: number;
   };
+  /** VAD/manual boundary used as the response-latency start point. */
+  user_audio_end: {
+    turnId: string;
+    at: number;
+  };
   assistant_text: {
     text: string;
     turnId: string;
@@ -163,6 +168,8 @@ export interface ASRResult {
 
 export interface ASRSession {
   sendAudio(chunk: ArrayBuffer): void | Promise<void>;
+  /** Drop buffered non-user audio while keeping the session connected. */
+  resetAudio?(): void | Promise<void>;
   stop(): Promise<void>;
   close(): Promise<void>;
   onPartial(cb: (result: ASRResult) => void): () => void;
@@ -218,6 +225,40 @@ export interface LLMProvider {
   name: string;
   generate(input: LLMGenerateInput): Promise<LLMGenerateOutput>;
   stream?(input: LLMGenerateInput): AsyncIterable<LLMStreamChunk>;
+}
+
+// ---------------------------------------------------------------------------
+// Native audio LLM provider
+// ---------------------------------------------------------------------------
+
+export type AudioLLMInputFormat = 'webm' | 'wav' | 'mp3' | 'opus';
+
+export interface AudioLLMGenerateInput {
+  /** Complete audio for the current VAD-delimited user turn. */
+  audio: ArrayBuffer;
+  format: AudioLLMInputFormat;
+  /** Text history from completed earlier turns. */
+  messages: LLMMessage[];
+  system?: string;
+  temperature?: number;
+  maxTokens?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AudioLLMGenerateOutput {
+  /** Transcript of the generated assistant audio. */
+  text: string;
+  audioBuffer: ArrayBuffer;
+  mimeType: string;
+  usage?: LLMUsage;
+  /** Provider timing/cost metadata, when available. */
+  raw?: unknown;
+}
+
+/** A single model that consumes audio and directly generates speech. */
+export interface AudioLLMProvider {
+  name: string;
+  generate(input: AudioLLMGenerateInput): Promise<AudioLLMGenerateOutput>;
 }
 
 // ---------------------------------------------------------------------------
@@ -341,10 +382,14 @@ export interface AudioPlaybackInput {
 }
 
 export interface AudioOutputAdapter {
+  /** Prime browser autoplay permission from a direct user gesture. */
+  unlock?(): Promise<void>;
   play(input: AudioPlaybackInput): Promise<void>;
   stop(): Promise<void>;
   pause?(): Promise<void>;
   resume?(): Promise<void>;
+  /** Normalized RMS of the assistant audio currently being played. */
+  onVolume?(cb: (level: number) => void): () => void;
   onStart(cb: () => void): () => void;
   onEnd(cb: () => void): () => void;
   onError(cb: (error: NormalizedVoiceError) => void): () => void;
@@ -429,6 +474,7 @@ export interface TurnDetectionConfig {
 
 export type VoiceSessionMode =
   | 'half_duplex'
+  | 'full_duplex'
   | 'push_to_talk'
   | 'streaming_transcript';
 
@@ -438,19 +484,37 @@ export interface VoiceSessionPolicy {
   maxSessionDurationMs?: number;
   autoStartListening?: boolean;
   allowInterruption?: boolean;
+  /** Silence after a tentative pause before playback is resumed as a false interruption. */
+  falseInterruptionSilenceMs?: number;
+  /** Maximum time to keep playback tentatively paused without confirming speech. */
+  falseInterruptionTimeoutMs?: number;
 }
 
 export interface VoiceSessionConfig {
   mode: VoiceSessionMode;
+  /** Defaults to the classic ASR -> LLM -> TTS cascade. */
+  pipeline?: 'asr_llm_tts' | 'audio_llm';
+  /** Optional system instruction forwarded to a native audio LLM. */
+  audioLlmSystemPrompt?: string;
+  /** Preferred ASR language; omit to let compatible providers auto-detect. */
+  language?: string;
   runtime: RuntimeAdapter;
   providers: {
     asr: ASRProvider;
     llm: LLMProvider;
     tts?: TTSProvider;
+    /** Required when `pipeline` is `audio_llm`; ASR still runs in parallel for captions. */
+    audioLlm?: AudioLLMProvider;
     pronunciation?: PronunciationProvider;
   };
   agent?: VoiceAgentPlugin;
   turnDetection?: TurnDetectionConfig;
+  /**
+   * Stricter VAD used only while assistant audio is playing. Keeping this
+   * separate prevents taps and playback echo from triggering barge-in without
+   * making normal listening less sensitive.
+   */
+  interruptionDetection?: Partial<Omit<TurnDetectionConfig, 'strategy'>>;
   policy?: VoiceSessionPolicy;
   /** Override id generation (useful for deterministic tests). */
   generateId?: () => string;

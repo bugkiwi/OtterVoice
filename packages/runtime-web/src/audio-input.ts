@@ -29,6 +29,20 @@ export type MediaRecorderCtor = new (
 ) => MediaRecorderLike;
 export type GetUserMedia = (constraints: unknown) => Promise<MediaStreamLike>;
 
+export interface AnalyserNodeLike {
+  fftSize: number;
+  frequencyBinCount: number;
+  getByteTimeDomainData(array: Uint8Array): void;
+}
+
+export interface AudioContextLike {
+  createMediaStreamSource(stream: MediaStreamLike): { connect(node: AnalyserNodeLike): void };
+  createAnalyser(): AnalyserNodeLike;
+  close(): Promise<void>;
+}
+
+export type AudioContextCtor = new () => AudioContextLike;
+
 export interface WebAudioInputOptions {
   getUserMedia: GetUserMedia;
   mediaRecorder: MediaRecorderCtor;
@@ -36,28 +50,39 @@ export interface WebAudioInputOptions {
   mimeType?: string;
   /** Emit a chunk every N ms (MediaRecorder timeslice). Default 100. */
   timesliceMs?: number;
+  /** Poll microphone RMS level every N ms for VAD. Default 50. */
+  volumePollMs?: number;
+  /** Override AudioContext (defaults to the browser global). */
+  audioContext?: AudioContextCtor;
   now?: () => number;
 }
 
 /**
  * Microphone capture via `getUserMedia` + `MediaRecorder` timeslices. Suitable
- * for near-real-time ASR; streaming PCM (AudioWorklet) is a future enhancement,
- * so this adapter intentionally exposes no `onVolume`.
+ * for near-real-time ASR; streaming PCM (AudioWorklet) is a future enhancement.
+ *
+ * When an {@link AudioContext} is available, {@link WebAudioInput.onVolume}
+ * reports RMS levels for rule-based turn detection.
  *
  * Platform primitives are injected; {@link createWebRuntime} supplies the
  * browser globals by default.
  */
 export class WebAudioInput implements AudioInputAdapter {
   private readonly chunkCbs = new Set<(chunk: AudioChunk) => void>();
+  private readonly volumeCbs = new Set<(level: number) => void>();
   private readonly errorCbs = new Set<(error: NormalizedVoiceError) => void>();
   private readonly now: () => number;
   private readonly timesliceMs: number;
+  private readonly volumePollMs: number;
   private stream: MediaStreamLike | undefined;
   private recorder: MediaRecorderLike | undefined;
+  private audioContext: AudioContextLike | undefined;
+  private volumeTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(private readonly options: WebAudioInputOptions) {
     this.now = options.now ?? Date.now;
     this.timesliceMs = options.timesliceMs ?? 100;
+    this.volumePollMs = options.volumePollMs ?? 50;
   }
 
   async requestPermission(): Promise<boolean> {
@@ -98,6 +123,32 @@ export class WebAudioInput implements AudioInputAdapter {
     });
     recorder.start(this.timesliceMs);
     this.recorder = recorder;
+    this.startVolumeMonitor(stream);
+  }
+
+  private startVolumeMonitor(stream: MediaStreamLike): void {
+    const AC =
+      this.options.audioContext ??
+      (globalThis as unknown as { AudioContext?: AudioContextCtor }).AudioContext;
+    if (!AC) return;
+
+    const ctx = new AC();
+    this.audioContext = ctx;
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    ctx.createMediaStreamSource(stream).connect(analyser);
+    const data = new Uint8Array(analyser.frequencyBinCount);
+
+    this.volumeTimer = setInterval(() => {
+      analyser.getByteTimeDomainData(data);
+      let sum = 0;
+      for (let i = 0; i < data.length; i += 1) {
+        const sample = (data[i]! - 128) / 128;
+        sum += sample * sample;
+      }
+      const level = Math.sqrt(sum / data.length);
+      for (const cb of [...this.volumeCbs]) cb(level);
+    }, this.volumePollMs);
   }
 
   private async handleData(blob: BlobLike | undefined): Promise<void> {
@@ -109,6 +160,14 @@ export class WebAudioInput implements AudioInputAdapter {
   }
 
   async stop(): Promise<void> {
+    if (this.volumeTimer !== undefined) {
+      clearInterval(this.volumeTimer);
+      this.volumeTimer = undefined;
+    }
+    if (this.audioContext) {
+      await this.audioContext.close();
+      this.audioContext = undefined;
+    }
     this.recorder?.stop();
     this.recorder = undefined;
     if (this.stream) {
@@ -132,6 +191,11 @@ export class WebAudioInput implements AudioInputAdapter {
   onChunk(cb: (chunk: AudioChunk) => void): () => void {
     this.chunkCbs.add(cb);
     return () => this.chunkCbs.delete(cb);
+  }
+
+  onVolume(cb: (level: number) => void): () => void {
+    this.volumeCbs.add(cb);
+    return () => this.volumeCbs.delete(cb);
   }
 
   onError(cb: (error: NormalizedVoiceError) => void): () => void {

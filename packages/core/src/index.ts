@@ -17,6 +17,11 @@ export {
 } from './turn-detector';
 export type { TurnDetectorEvent } from './turn-detector';
 export { UsageMeter } from './usage-meter';
+export { BargeInSpeechGate, PlaybackEchoFilter } from './playback-echo-filter';
+export type {
+  BargeInSpeechGateOptions,
+  PlaybackEchoFilterOptions,
+} from './playback-echo-filter';
 export {
   ProviderRegistry,
   providerProfiles,

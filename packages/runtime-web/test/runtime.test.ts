@@ -3,7 +3,11 @@ import { createWebRuntime } from '../src/index';
 import { WebAudioInput } from '../src/audio-input';
 import { WebAudioOutput } from '../src/audio-output';
 import type { AudioElementLike } from '../src/audio-output';
-import type { MediaRecorderLike, MediaStreamLike } from '../src/audio-input';
+import type {
+  AudioContextLike,
+  MediaRecorderLike,
+  MediaStreamLike,
+} from '../src/audio-input';
 import type { AudioChunk } from '@ottervoice/core';
 
 class FakeRecorder implements MediaRecorderLike {
@@ -46,6 +50,20 @@ class FakeAudioAuto implements AudioElementLike {
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const stream: MediaStreamLike = { getTracks: () => [{ stop: () => {} }] };
 
+class FakeAudioContext implements AudioContextLike {
+  createMediaStreamSource() {
+    return { connect: () => {} };
+  }
+  createAnalyser() {
+    return {
+      fftSize: 0,
+      frequencyBinCount: 1,
+      getByteTimeDomainData: (data: Uint8Array) => data.fill(128),
+    };
+  }
+  async close() {}
+}
+
 afterEach(() => {
   delete (globalThis as { Audio?: unknown }).Audio;
 });
@@ -62,6 +80,8 @@ describe('createWebRuntime', () => {
       revokeObjectURL: () => {},
       mimeType: 'audio/webm',
       timesliceMs: 200,
+      volumePollMs: 10,
+      audioContext: FakeAudioContext,
       now: () => 1234,
     });
     expect(runtime.audioInput).toBeInstanceOf(WebAudioInput);
@@ -77,6 +97,7 @@ describe('createWebRuntime', () => {
     });
     await tick();
     expect(chunks[0]).toMatchObject({ timestamp: 1234, encoding: 'audio/webm' });
+    await runtime.audioInput.stop();
 
     await runtime.audioOutput.play({ audioBuffer: new ArrayBuffer(2) });
     expect(createObjectURL).toHaveBeenCalled();

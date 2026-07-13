@@ -36,6 +36,12 @@ describe('buildChatBody', () => {
     expect(body.response_format).toEqual({ type: 'json_object' });
   });
 
+  it('can explicitly disable OpenRouter reasoning', () => {
+    expect(
+      buildChatBody('m', { messages: [] }, {}, { reasoningEnabled: false }),
+    ).toMatchObject({ reasoning: { enabled: false } });
+  });
+
   it('omits optional fields by default', () => {
     const body = buildChatBody('m', { messages: [{ role: 'user', content: 'x' }] });
     expect(body.max_tokens).toBeUndefined();

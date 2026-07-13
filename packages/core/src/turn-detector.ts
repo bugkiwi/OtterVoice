@@ -53,6 +53,14 @@ export class TurnDetector {
     return this.config;
   }
 
+  /** Continue endpointing after another detector has already confirmed speech. */
+  forceSpeechStart(timestampMs: number): void {
+    this.speaking = true;
+    this.speechStartedAt = timestampMs;
+    this.aboveSince = undefined;
+    this.belowSince = undefined;
+  }
+
   /**
    * Feed a volume sample. Returns an event when a boundary is crossed, else
    * `undefined`.
