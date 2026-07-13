@@ -9,7 +9,6 @@ import {
   createVoiceSession,
   type LLMGenerateInput,
   type LLMProvider,
-  type TTSProvider,
 } from '@ottervoice/core';
 import {
   createOpenRouterASR,
@@ -41,8 +40,6 @@ const MODELS = {
   tts: 'hexgrad/kokoro-82m',
   audioLlm: 'openai/gpt-audio-mini',
 } as const;
-const OPENING_MESSAGE = '你好，我是 Otter。现在可以直接跟我说话，想打断时开口就行。';
-
 type SseAudioCapture = {
   audioBuffer: ArrayBuffer;
   mimeType: string;
@@ -160,33 +157,12 @@ const conversationLlm: LLMProvider = {
   },
 };
 
-const rawTts = createOpenRouterTTS({
+const tts = createOpenRouterTTS({
   ...proxyOptions,
   model: MODELS.tts,
   voice: 'zf_xiaoxiao',
   speed: 1.05,
 });
-const fastOpeningTts: TTSProvider = {
-  ...rawTts,
-  async synthesize(input) {
-    if (input.text === OPENING_MESSAGE) {
-      try {
-        const response = await fetch('/opening.mp3');
-        const contentType = response.headers.get('content-type') ?? '';
-        if (response.ok && contentType.startsWith('audio/')) {
-          return {
-            audioBuffer: await response.arrayBuffer(),
-            mimeType: contentType,
-            cached: true,
-          };
-        }
-      } catch {
-        // Local development and incomplete builds fall through to live TTS.
-      }
-    }
-    return rawTts.synthesize(input);
-  },
-};
 
 const audioLlmBase = createOpenRouterAudioLLM({
   ...proxyOptions,
@@ -268,26 +244,31 @@ function buildSession(pipeline: Pipeline) {
         format: 'webm',
       }),
       llm: conversationLlm,
-      tts: fastOpeningTts,
+      tts,
       audioLlm,
     },
     turnDetection: {
       strategy: 'volume',
       minSpeechMs: 300,
-      silenceTimeoutMs: 600,
+      // Short thinking pauses are common in natural speech. A 600 ms endpoint
+      // split clauses too aggressively and made the continuation look lost.
+      silenceTimeoutMs: 1_000,
       volumeThreshold: 0.025,
     },
     interruptionDetection: {
       // Core subtracts the synchronized playback envelope first; this lower
       // residual threshold makes real speech responsive without hearing itself.
-      minSpeechMs: 350,
+      // Four 50 ms foreground frames make short commands such as “停” eligible
+      // for the strong-speech fast path; weaker candidates still use the
+      // echo-tail and ASR confirmation path.
+      minSpeechMs: 200,
       silenceTimeoutMs: 450,
       volumeThreshold: 0.018,
     },
     policy: {
       autoStartListening: true,
       allowInterruption: true,
-      interruptionTailIgnoreMs: 600,
+      interruptionTailIgnoreMs: 200,
       falseInterruptionSilenceMs: 400,
       falseInterruptionTimeoutMs: 2_000,
       interruptionCooldownMs: 800,
@@ -360,7 +341,7 @@ startBtn.addEventListener('click', async () => {
   audioBtn.disabled = true;
   const pipeline = selectedPipeline;
   session = buildSession(pipeline);
-  await session.start(OPENING_MESSAGE);
+  await session.start();
 });
 
 finishBtn.addEventListener('click', () => void session?.finish());

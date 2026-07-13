@@ -492,10 +492,12 @@ export interface VoiceSessionPolicy {
   falseInterruptionSilenceMs?: number;
   /** Maximum time to keep playback tentatively paused without confirming speech. */
   falseInterruptionTimeoutMs?: number;
-  /** Ignore microphone energy right after a tentative pause while speaker echo decays. */
+  /** Ignore microphone energy right after a tentative pause while speaker echo decays. Defaults to 200 ms. */
   interruptionTailIgnoreMs?: number;
   /** Ignore new barge-in candidates shortly after resuming a false interruption. */
   interruptionCooldownMs?: number;
+  /** Maximum time to wait for a quiet microphone baseline after assistant playback. Defaults to 300 ms. */
+  postPlaybackVadRearmMs?: number;
 }
 
 export interface VoiceSessionConfig {

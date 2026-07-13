@@ -700,6 +700,107 @@ describe('VoiceSession full_duplex', () => {
     expect(runtime.audioOutput.stopped).toBeGreaterThan(0);
   });
 
+  it('confirms a strong 200 ms interruption without waiting for ASR text', async () => {
+    const time = clock(0);
+    const runtime = createMockRuntime({ output: { autoComplete: false } });
+    const { session } = makeSession({
+      mode: 'full_duplex',
+      runtime,
+      now: time.now,
+      interruptionDetection: {
+        minSpeechMs: 200,
+        silenceTimeoutMs: 450,
+        volumeThreshold: 0.018,
+      },
+      policy: { allowInterruption: true },
+    });
+    await session.start();
+    void session.submitUserText('hello');
+    await nextState(session, 'assistant_speaking');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    calibratePlaybackEcho(runtime, time, 350);
+    for (const at of [400, 450, 500, 550]) {
+      time.set(at);
+      runtime.audioOutput.emitVolume(0.1);
+      runtime.audioInput.emitVolume(0.5);
+    }
+
+    expect(session.state).toBe('user_speaking');
+    expect(runtime.audioOutput.stopped).toBeGreaterThan(0);
+    expect(runtime.audioOutput.paused).toBe(0);
+  });
+
+  it('accepts a single CJK character as a confirmed interruption', async () => {
+    const time = clock(0);
+    const runtime = createMockRuntime({ output: { autoComplete: false } });
+    const { provider, ctl } = controllableASR();
+    const { session } = makeSession({
+      mode: 'full_duplex',
+      runtime,
+      now: time.now,
+      providers: { asr: provider } as any,
+      interruptionDetection: {
+        minSpeechMs: 500,
+        silenceTimeoutMs: 450,
+        volumeThreshold: 0.018,
+      },
+      policy: { allowInterruption: true, interruptionTailIgnoreMs: 200 },
+    });
+    await session.start();
+    void session.submitUserText('hello');
+    await nextState(session, 'assistant_speaking');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    calibratePlaybackEcho(runtime, time, 350);
+    for (const at of [400, 450, 500, 550]) {
+      time.set(at);
+      runtime.audioOutput.emitVolume(0.1);
+      runtime.audioInput.emitVolume(0.5);
+    }
+    expect(runtime.audioOutput.paused).toBe(1);
+
+    time.set(800);
+    ctl.emitPartial({ text: '停' });
+    expect(session.state).toBe('user_speaking');
+    expect(runtime.audioOutput.stopped).toBeGreaterThan(0);
+  });
+
+  it('accepts a short English word as a confirmed interruption', async () => {
+    const time = clock(0);
+    const runtime = createMockRuntime({ output: { autoComplete: false } });
+    const { provider, ctl } = controllableASR();
+    const { session } = makeSession({
+      mode: 'full_duplex',
+      runtime,
+      now: time.now,
+      providers: { asr: provider } as any,
+      interruptionDetection: {
+        minSpeechMs: 500,
+        silenceTimeoutMs: 450,
+        volumeThreshold: 0.018,
+      },
+      policy: { allowInterruption: true, interruptionTailIgnoreMs: 200 },
+    });
+    await session.start();
+    void session.submitUserText('hello');
+    await nextState(session, 'assistant_speaking');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    calibratePlaybackEcho(runtime, time, 350);
+    for (const at of [400, 450, 500, 550]) {
+      time.set(at);
+      runtime.audioOutput.emitVolume(0.1);
+      runtime.audioInput.emitVolume(0.5);
+    }
+    expect(runtime.audioOutput.paused).toBe(1);
+
+    time.set(800);
+    ctl.emitPartial({ text: 'no' });
+    expect(session.state).toBe('user_speaking');
+    expect(runtime.audioOutput.stopped).toBeGreaterThan(0);
+  });
+
   it('keeps the mic open while the assistant speaks', async () => {
     const runtime = createMockRuntime();
     const { session } = makeSession({
@@ -741,6 +842,347 @@ describe('VoiceSession full_duplex', () => {
     await session.endUserTurn();
     await speaking;
     expect(runtime.audioInput.started).toBe(true);
+  });
+
+  it('reopens capture while caption ASR and the audio reply are still pending', async () => {
+    const runtime = createMockRuntime();
+    let sessionCount = 0;
+    let releaseFirstAsr!: () => void;
+    const firstAsrGate = new Promise<void>((resolve) => {
+      releaseFirstAsr = resolve;
+    });
+    const asr: ASRProvider = {
+      name: 'slow-batch-asr',
+      capabilities: {
+        streaming: false,
+        batch: true,
+        partialResults: false,
+        languages: ['auto'],
+      },
+      async createSession() {
+        const index = sessionCount++;
+        let finalCb: ((result: ASRResult) => void) | undefined;
+        return {
+          sendAudio() {},
+          async stop() {
+            if (index === 0) {
+              await firstAsrGate;
+              finalCb?.({ text: 'first question' });
+            } else if (index === 1) {
+              finalCb?.({ text: 'continued question' });
+            }
+          },
+          async close() {},
+          onPartial() {
+            return () => {};
+          },
+          onFinal(cb) {
+            finalCb = cb;
+            return () => {
+              finalCb = undefined;
+            };
+          },
+          onError() {
+            return () => {};
+          },
+        };
+      },
+    };
+    let releaseReply!: (value: {
+      text: string;
+      audioBuffer: ArrayBuffer;
+      mimeType: string;
+    }) => void;
+    const replyGate = new Promise<{
+      text: string;
+      audioBuffer: ArrayBuffer;
+      mimeType: string;
+    }>((resolve) => {
+      releaseReply = resolve;
+    });
+    let audioLlmCalls = 0;
+    const audioLlm: AudioLLMProvider = {
+      name: 'slow-audio-llm',
+      async generate() {
+        audioLlmCalls += 1;
+        if (audioLlmCalls === 1) return replyGate;
+        return {
+          text: 'continued reply',
+          audioBuffer: new ArrayBuffer(8),
+          mimeType: 'audio/wav',
+        };
+      },
+    };
+    const { session, events } = makeSession({
+      mode: 'full_duplex',
+      pipeline: 'audio_llm',
+      runtime,
+      providers: { asr, audioLlm } as any,
+      turnDetection: {
+        strategy: 'volume',
+        minSpeechMs: 0,
+        silenceTimeoutMs: 0,
+        volumeThreshold: 0.1,
+      },
+    });
+    await session.start();
+    emitChunk(runtime);
+
+    const processing = nextState(session, 'processing');
+    const ending = session.endUserTurn();
+    await processing;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(session.state).toBe('processing');
+    expect(sessionCount).toBe(2);
+    expect(runtime.audioInput.started).toBe(true);
+
+    // Speaking during the old request cancels its reply and belongs to the
+    // recorder that was already opened during processing.
+    runtime.audioInput.emitVolume(0.5);
+    expect(session.state).toBe('user_speaking');
+
+    emitChunk(runtime);
+    const continuedReply = new Promise<void>((resolve) => {
+      const off = session.on('assistant_text', ({ text }) => {
+        if (text !== 'continued reply') return;
+        off();
+        resolve();
+      });
+    });
+    const secondEnding = session.endUserTurn();
+
+    releaseFirstAsr();
+    releaseReply({
+      text: 'stale reply',
+      audioBuffer: new ArrayBuffer(8),
+      mimeType: 'audio/wav',
+    });
+    await ending;
+    await secondEnding;
+    await continuedReply;
+
+    expect(
+      events.some(
+        ([name, payload]) =>
+          name === 'assistant_text' &&
+          (payload as { text: string }).text === 'stale reply',
+      ),
+    ).toBe(false);
+    expect(audioLlmCalls).toBe(2);
+    expect(
+      events.some(
+        ([name, payload]) =>
+          name === 'assistant_text' &&
+          (payload as { text: string }).text === 'continued reply',
+      ),
+    ).toBe(true);
+    await session.dispose();
+  });
+
+  it('uses the native audio reply even when caption ASR returns empty text', async () => {
+    const runtime = createMockRuntime();
+    let finalCb: ((result: ASRResult) => void) | undefined;
+    const asr: ASRProvider = {
+      name: 'empty-caption-asr',
+      capabilities: {
+        streaming: false,
+        batch: true,
+        partialResults: false,
+        languages: ['auto'],
+      },
+      async createSession() {
+        return {
+          sendAudio() {},
+          async stop() {
+            finalCb?.({ text: '' });
+          },
+          async close() {},
+          onPartial() {
+            return () => {};
+          },
+          onFinal(cb) {
+            finalCb = cb;
+            return () => {
+              finalCb = undefined;
+            };
+          },
+          onError() {
+            return () => {};
+          },
+        };
+      },
+    };
+    const audioLlm: AudioLLMProvider = {
+      name: 'audio-llm',
+      async generate() {
+        return {
+          text: 'I still understood the audio',
+          audioBuffer: new ArrayBuffer(8),
+          mimeType: 'audio/wav',
+        };
+      },
+    };
+    const { session, events } = makeSession({
+      mode: 'full_duplex',
+      pipeline: 'audio_llm',
+      runtime,
+      providers: { asr, audioLlm } as any,
+    });
+    await session.start();
+    emitChunk(runtime);
+    const assistantText = new Promise<void>((resolve) => {
+      session.once('assistant_text', () => resolve());
+    });
+    await session.endUserTurn();
+    await assistantText;
+
+    expect(
+      events.some(
+        ([name, payload]) =>
+          name === 'assistant_text' &&
+          (payload as { text: string }).text === 'I still understood the audio',
+      ),
+    ).toBe(true);
+    await session.dispose();
+  });
+
+  it('does not answer an empty short interruption caused by playback residual', async () => {
+    const time = clock(0);
+    const runtime = createMockRuntime({ output: { autoComplete: false } });
+    const asr: ASRProvider = {
+      name: 'empty-interruption-caption-asr',
+      capabilities: {
+        streaming: false,
+        batch: true,
+        partialResults: false,
+        languages: ['auto'],
+      },
+      async createSession() {
+        let finalCb: ((result: ASRResult) => void) | undefined;
+        return {
+          sendAudio() {},
+          async stop() {
+            finalCb?.({ text: '' });
+          },
+          async close() {},
+          onPartial() {
+            return () => {};
+          },
+          onFinal(cb) {
+            finalCb = cb;
+            return () => {
+              finalCb = undefined;
+            };
+          },
+          onError() {
+            return () => {};
+          },
+        };
+      },
+    };
+    let audioLlmCalls = 0;
+    const audioLlm: AudioLLMProvider = {
+      name: 'audio-llm',
+      async generate() {
+        audioLlmCalls += 1;
+        return {
+          text: 'duplicate reply',
+          audioBuffer: new ArrayBuffer(8),
+          mimeType: 'audio/wav',
+        };
+      },
+    };
+    const { session, events } = makeSession({
+      mode: 'full_duplex',
+      pipeline: 'audio_llm',
+      runtime,
+      now: time.now,
+      providers: { asr, audioLlm } as any,
+      interruptionDetection: {
+        minSpeechMs: 200,
+        silenceTimeoutMs: 450,
+        volumeThreshold: 0.018,
+      },
+      policy: { allowInterruption: true },
+    });
+    const speaking = nextState(session, 'assistant_speaking');
+    void session.start('Welcome');
+    await speaking;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    calibratePlaybackEcho(runtime, time, 350);
+    for (const at of [400, 450, 500, 550]) {
+      time.set(at);
+      runtime.audioOutput.emitVolume(0.1);
+      runtime.audioInput.emitVolume(0.5);
+    }
+    expect(session.state).toBe('user_speaking');
+    emitChunk(runtime);
+
+    const listening = nextState(session, 'listening');
+    time.set(600);
+    runtime.audioInput.emitVolume(0);
+    time.set(1_050);
+    runtime.audioInput.emitVolume(0);
+    await listening;
+
+    expect(audioLlmCalls).toBe(0);
+    expect(
+      events.filter(([name]) => name === 'assistant_text'),
+    ).toHaveLength(1);
+    await session.dispose();
+  });
+
+  it('rearms VAD after playback before accepting a new user turn', async () => {
+    const time = clock(0);
+    const runtime = createMockRuntime({ output: { autoComplete: false } });
+    let audioLlmCalls = 0;
+    const audioLlm: AudioLLMProvider = {
+      name: 'audio-llm',
+      async generate() {
+        audioLlmCalls += 1;
+        return {
+          text: 'duplicate reply',
+          audioBuffer: new ArrayBuffer(8),
+          mimeType: 'audio/wav',
+        };
+      },
+    };
+    const { session, events } = makeSession({
+      mode: 'full_duplex',
+      pipeline: 'audio_llm',
+      runtime,
+      now: time.now,
+      providers: { audioLlm } as any,
+      turnDetection: {
+        strategy: 'volume',
+        minSpeechMs: 200,
+        silenceTimeoutMs: 0,
+        volumeThreshold: 0.02,
+      },
+      policy: { postPlaybackVadRearmMs: 300 },
+    });
+    const speaking = nextState(session, 'assistant_speaking');
+    void session.start('Welcome');
+    await speaking;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const listening = nextState(session, 'listening');
+    runtime.audioOutput.fireEnd();
+    await listening;
+
+    // A lingering 300 ms playback tail used to look like a fresh user turn.
+    for (const at of [50, 100, 150, 200, 250, 300]) {
+      time.set(at);
+      runtime.audioInput.emitVolume(0.08);
+    }
+    time.set(350);
+    runtime.audioInput.emitVolume(0);
+
+    expect(session.state).toBe('listening');
+    expect(audioLlmCalls).toBe(0);
+    expect(events.some(([name]) => name === 'user_audio_end')).toBe(false);
+    await session.dispose();
   });
 
   it('preserves the first WebM header for ASR while filtering assistant audio', async () => {
@@ -860,6 +1302,11 @@ describe('VoiceSession full_duplex', () => {
       turnDetection: {
         strategy: 'volume',
         minSpeechMs: 0,
+        silenceTimeoutMs: 0,
+        volumeThreshold: 0.1,
+      },
+      interruptionDetection: {
+        minSpeechMs: 500,
         silenceTimeoutMs: 0,
         volumeThreshold: 0.1,
       },

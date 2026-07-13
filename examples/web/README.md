@@ -13,9 +13,6 @@ bun run examples/web/serve.ts
 # open http://localhost:5173
 ```
 
-`serve.ts` serves `dist/opening.mp3` for the cached welcome clip. If that file is
-missing, the demo falls back to live TTS (requires `OPENROUTER_API_KEY`).
-
 `serve.ts` bundles `src/main.ts` with Bun's bundler and serves it — no Vite or
 webpack. **Local dev always bundles from `packages/*/src`** (`development`
 export + explicit aliases in `serve.ts`), so you never need to rebuild `dist/`
@@ -31,12 +28,15 @@ from the assistant audio, and core searches 0–300 ms of acoustic delay before
 subtracting the learned speaker-to-microphone echo baseline. A 4-of-12 voiced
 frame gate then rejects isolated knocks without requiring uninterrupted speech.
 That first signal is only a candidate: playback is paused rather than destroyed.
-If ASR hears distinct user speech after the loudspeaker tail has decayed, core
-commits the interruption; if it disappears, playback resumes from the same
-position. Volume alone never confirms an interruption after the pause — only
-non-echo ASR text can. Streaming ASR partials are also ignored during assistant
-speech unless there is already a candidate and at least two words or visible
-characters that are not a substring of the assistant reply.
+If ASR hears distinct user speech or strong foreground energy continues after
+the loudspeaker tail has decayed, core commits the interruption; if it
+disappears, playback resumes from the same position. The demo also has a
+200 ms fast path for strong foreground speech, so short commands can stop
+playback before their audio ends. Streaming ASR partials are ignored during
+assistant speech unless there is already a candidate and the text is meaningful
+and not a substring of the assistant reply; one-character CJK commands such as
+“停” and short English words such as “no”, “stop”, and “wait” are considered
+meaningful.
 
 Run the deterministic real-waveform loopback matrix (requires `ffmpeg`):
 
@@ -47,7 +47,7 @@ bun run examples/web/acoustic-loopback.ts assistant.mp3 user.mp3
 ```
 
 The matrix covers 0–300 ms loopback delay, 0.2–1.2× echo gain, a desk knock,
-an AEC glitch that must pause then resume, an early welcome-message interruption,
+an AEC glitch that must pause then resume, an early assistant-speech interruption,
 and a later interruption. It performs no API calls and does not require speaker
 or microphone access.
 
@@ -119,10 +119,10 @@ microphone and VAD remain real-time, then the completed WebM turn is sent when
 silence is detected. The microphone remains open during TTS so barge-in still
 works.
 
-For low perceived latency, the deployment build pre-generates the fixed opening
-TTS and the proxy memory-caches repeated speech, the LLM uses OpenRouter's `:nitro` throughput routing with reasoning
-disabled, VAD closes after 600 ms of silence, and batch ASR drops buffered
-assistant playback after every uninterrupted reply.
+For low perceived latency, the proxy memory-caches repeated speech, the LLM uses
+OpenRouter's `:nitro` throughput routing with reasoning disabled, normal turns
+close after 1 second of silence, and batch ASR drops buffered assistant playback
+after every uninterrupted reply.
 
 ## Showcase deployment
 

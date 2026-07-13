@@ -11,6 +11,7 @@ describe('canTransition / isTerminal', () => {
     expect(canTransition('idle', 'starting')).toBe(true);
     expect(canTransition('listening', 'user_speaking')).toBe(true);
     expect(canTransition('processing', 'assistant_speaking')).toBe(true);
+    expect(canTransition('processing', 'user_speaking')).toBe(true);
     expect(canTransition('scoring', 'finished')).toBe(true);
     expect(canTransition('paused', 'listening')).toBe(true);
     expect(canTransition('error', 'idle')).toBe(true);

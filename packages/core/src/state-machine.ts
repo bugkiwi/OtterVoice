@@ -30,6 +30,7 @@ const TRANSITIONS: Record<VoiceSessionState, readonly VoiceSessionState[]> = {
   user_speaking: ['processing', 'listening', 'paused', 'finished', 'error'],
   processing: [
     'assistant_speaking',
+    'user_speaking',
     'scoring',
     'listening',
     'finished',

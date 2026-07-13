@@ -19,6 +19,28 @@ import type {
   VoiceUsageSnapshot,
 } from './types';
 
+interface TurnCapture {
+  id: string;
+  asrSession: ASRSession;
+  inputCleanups: Array<() => void>;
+  asrCleanups: Array<() => void>;
+  audioChunks: ArrayBuffer[];
+  asrContainerHeaderForwarded: boolean;
+  ended: boolean;
+  finalResult?: ASRResult;
+  processingScheduled: boolean;
+  interruptedAssistant: boolean;
+  verifiedSpeechText: boolean;
+  interruptionVoicedFrames: number;
+  generation?: number;
+  audioReply?: Promise<AudioLLMGenerateOutput>;
+  nextCaptureReady?: Promise<void>;
+  stopPromise?: Promise<void>;
+  cancelled: boolean;
+  cancelPromise: Promise<void>;
+  cancel(): void;
+}
+
 /**
  * Voice conversation session with automatic turn-taking and optional
  * full-duplex barge-in.
@@ -37,14 +59,14 @@ export class VoiceSession {
   private readonly interruptionDetector: TurnDetector;
   private readonly playbackEchoFilter = new PlaybackEchoFilter();
   private readonly bargeInSpeechGate: BargeInSpeechGate;
+  private readonly shortInterruptionGate: BargeInSpeechGate;
   private readonly loudInterruptionGate: BargeInSpeechGate;
   private readonly generateId: () => string;
   private readonly now: () => number;
 
   private asrSession: ASRSession | undefined;
-  private listenCleanups: Array<() => void> = [];
+  private activeCapture: TurnCapture | undefined;
   private activeUserTurnId: string | undefined;
-  private turnHandled = false;
   private userSpeaking = false;
   private assistantPlaybackActive = false;
   /** Incremented to cancel an in-flight {@link speakAssistant}. */
@@ -53,10 +75,8 @@ export class VoiceSession {
   private turnGeneration = 0;
   private disposed = false;
   private finishing = false;
-  private turnAudioChunks: ArrayBuffer[] = [];
-  private asrContainerHeaderForwarded = false;
-  private pendingAudioReply: Promise<AudioLLMGenerateOutput> | undefined;
-  private turnEndEmitted = false;
+  private processingChain: Promise<void> = Promise.resolve();
+  private readonly pendingCaptures = new Set<TurnCapture>();
   private interruptionTurnActive = false;
   private outputVolumeCleanup: (() => void) | undefined;
   private outputEventCleanups: Array<() => void> = [];
@@ -64,6 +84,8 @@ export class VoiceSession {
   private tentativeInterruptionSilenceSince: number | undefined;
   private activeAssistantText: string | undefined;
   private interruptionCooldownUntil: number | undefined;
+  private postPlaybackVadRearmStartedAt: number | undefined;
+  private postPlaybackSilentFrames = 0;
   private inputCaptureSuspended = false;
 
   constructor(private readonly config: VoiceSessionConfig) {
@@ -82,10 +104,23 @@ export class VoiceSession {
       0.055,
       this.interruptionDetector.options.volumeThreshold * 3,
     );
+    // The normal residual gate needs four voiced 50 ms frames. When callers
+    // explicitly choose an equally short interruption duration, let a strong
+    // foreground signal confirm on that first gate instead of starting a
+    // second confirmation window after the word has already ended.
+    const shortSpeechFrames = Math.max(
+      3,
+      Math.ceil(this.interruptionDetector.options.minSpeechMs / 50),
+    );
+    this.shortInterruptionGate = new BargeInSpeechGate({
+      volumeThreshold: loudThreshold,
+      windowFrames: Math.max(shortSpeechFrames + 2, 6),
+      requiredVoicedFrames: shortSpeechFrames,
+    });
     this.loudInterruptionGate = new BargeInSpeechGate({
       volumeThreshold: loudThreshold,
-      windowFrames: 10,
-      requiredVoicedFrames: 6,
+      windowFrames: 6,
+      requiredVoicedFrames: 3,
     });
     this.outputVolumeCleanup = config.runtime.audioOutput.onVolume?.((level, at) => {
       this.playbackEchoFilter.pushOutput(level, at ?? this.now());
@@ -170,24 +205,24 @@ export class VoiceSession {
 
   /** Open the microphone and wire ASR for the next user turn. */
   async startListening(): Promise<void> {
+    await this.startListeningInternal(false);
+  }
+
+  private async startListeningInternal(preserveState: boolean): Promise<void> {
     if (this.disposed || this.state === 'finished' || this.state === 'error') {
       return;
     }
     this.cleanupListening();
     this.activeUserTurnId = this.generateId();
-    this.turnHandled = false;
     this.userSpeaking = false;
     this.detector.reset();
     this.interruptionDetector.reset();
     this.playbackEchoFilter.reset();
     this.interruptionTurnActive = false;
     this.bargeInSpeechGate.reset();
+    this.shortInterruptionGate.reset();
     this.clearTentativeInterruption();
-    this.turnAudioChunks = [];
-    this.asrContainerHeaderForwarded = false;
     this.inputCaptureSuspended = false;
-    this.pendingAudioReply = undefined;
-    this.turnEndEmitted = false;
 
     // Create and fully wire the ASR + audio listeners *before* announcing the
     // `listening` state, so a chunk that arrives the instant we are listening
@@ -205,32 +240,59 @@ export class VoiceSession {
       this.fail(err, 'asr_connection_failed');
       return;
     }
+    let resolveCancel!: () => void;
+    const cancelPromise = new Promise<void>((resolve) => {
+      resolveCancel = resolve;
+    });
+    const capture: TurnCapture = {
+      id: this.activeUserTurnId,
+      asrSession: session,
+      inputCleanups: [],
+      asrCleanups: [],
+      audioChunks: [],
+      asrContainerHeaderForwarded: false,
+      ended: false,
+      processingScheduled: false,
+      interruptedAssistant: false,
+      verifiedSpeechText: false,
+      interruptionVoicedFrames: 0,
+      cancelled: false,
+      cancelPromise,
+      cancel() {
+        if (capture.cancelled) return;
+        capture.cancelled = true;
+        resolveCancel();
+      },
+    };
+    this.activeCapture = capture;
     this.asrSession = session;
 
-    this.listenCleanups.push(
-      session.onPartial((r) => this.onAsrPartial(r)),
+    capture.asrCleanups.push(
+      session.onPartial((r) => this.onAsrPartial(r, capture)),
       session.onFinal((r) => {
-        void this.onAsrFinal(r);
+        this.onAsrFinal(r, capture);
       }),
-      session.onError((e) => this.fail(e)),
+      session.onError((e) => {
+        if (this.activeCapture === capture && !capture.ended) this.fail(e);
+      }),
     );
 
     const { audioInput } = this.config.runtime;
-    this.listenCleanups.push(
+    capture.inputCleanups.push(
       audioInput.onChunk((chunk) => {
         if (this.config.pipeline === 'audio_llm' && chunk.data.byteLength > 0) {
-          this.turnAudioChunks.push(chunk.data.slice(0));
+          capture.audioChunks.push(chunk.data.slice(0));
         }
         const isWebmHeader =
-          !this.asrContainerHeaderForwarded &&
+          !capture.asrContainerHeaderForwarded &&
           this.isWebmEncoding(chunk.encoding);
-        if (isWebmHeader) this.asrContainerHeaderForwarded = true;
+        if (isWebmHeader) capture.asrContainerHeaderForwarded = true;
         // A MediaRecorder WebM stream only contains its container header in
         // the first chunk. Preserve that one chunk for batch ASR even while
         // assistant playback is being filtered; later assistant chunks remain
         // suppressed so the model does not transcribe loudspeaker echo.
         if (!this.shouldForwardAsrAudio() && !isWebmHeader) return;
-        void Promise.resolve(this.asrSession?.sendAudio(chunk.data)).catch((e) =>
+        void Promise.resolve(capture.asrSession.sendAudio(chunk.data)).catch((e) =>
           this.fail(e),
         );
         if (chunk.durationMs) this.usage.addAsrAudioMs(chunk.durationMs);
@@ -238,7 +300,7 @@ export class VoiceSession {
       audioInput.onError((e) => this.fail(e)),
     );
     if (audioInput.onVolume) {
-      this.listenCleanups.push(
+      capture.inputCleanups.push(
         audioInput.onVolume((level) => this.onVolume(level)),
       );
     }
@@ -249,7 +311,9 @@ export class VoiceSession {
         encoding: 'pcm_s16le',
         chunkMs: 100,
       });
-      if (this.state !== 'listening') this.transition('listening');
+      if (!preserveState && this.state !== 'listening') {
+        this.transition('listening');
+      }
     } catch (err) {
       this.fail(err, 'microphone_unavailable');
     }
@@ -260,36 +324,17 @@ export class VoiceSession {
    * button). Flushes the ASR session so its final result drives the loop.
    */
   async endUserTurn(): Promise<void> {
+    const capture = this.activeCapture;
     if (
-      (this.state !== 'listening' && this.state !== 'user_speaking') ||
-      this.turnEndEmitted
+      !capture ||
+      (this.state !== 'listening' &&
+        this.state !== 'user_speaking' &&
+        this.state !== 'processing') ||
+      capture.ended
     ) {
       return;
     }
-    try {
-      this.turnEndEmitted = true;
-      this.emit('user_audio_end', { turnId: this.currentUserTurnId(), at: this.now() });
-
-      // MediaRecorder only finalizes a WebM container when stopped. Wait for
-      // its last dataavailable chunk before decoding or sending the turn.
-      await this.config.runtime.audioInput.stop();
-      if (
-        this.config.pipeline === 'audio_llm' &&
-        !this.pendingAudioReply &&
-        this.turnAudioChunks.length > 0
-      ) {
-        // Start the speech-to-speech request before waiting for caption ASR.
-        // The two providers now run in parallel instead of serially.
-        this.pendingAudioReply = this.generateAudioReply();
-        // Caption ASR may finish after audio preparation rejects. Mark the
-        // concurrent promise as observed now; its error is still handled when
-        // handleUserFinalTranscript awaits the same promise.
-        void this.pendingAudioReply.catch(() => {});
-      }
-      await this.asrSession?.stop();
-    } catch (err) {
-      this.fail(err);
-    }
+    await this.finalizeCapture(capture);
   }
 
   /**
@@ -298,15 +343,16 @@ export class VoiceSession {
    */
   async submitUserText(text: string): Promise<void> {
     if (this.disposed) return;
-    this.turnHandled = true;
     await this.handleUserFinalTranscript(text);
   }
 
   async pause(): Promise<void> {
     if (!this.machine.can('paused')) return;
     this.transition('paused');
+    this.cancelPendingResponses();
     this.cleanupListening();
     await this.safeStopAudioInput();
+    await this.safeCloseAsr();
     await this.safeStopAudioOutput();
   }
 
@@ -324,6 +370,7 @@ export class VoiceSession {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    this.cancelPendingResponses();
     this.cleanupListening();
     await this.safeCloseAsr();
     await this.safeStopAudioInput();
@@ -371,7 +418,7 @@ export class VoiceSession {
         this.config.mode === 'full_duplex' &&
         this.state === 'assistant_speaking'
       ) {
-        await this.finishAssistantCapture();
+        await this.finishAssistantCapture(false);
         this.transition('listening');
       }
       return;
@@ -403,7 +450,8 @@ export class VoiceSession {
 
   // -- internal: ASR / turn detection ------------------------------------
 
-  private onAsrPartial(result: ASRResult): void {
+  private onAsrPartial(result: ASRResult, capture: TurnCapture): void {
+    if (this.activeCapture !== capture || capture.ended) return;
     if (this.state === 'assistant_speaking') {
       if (
         this.tentativeInterruptionStartedAt === undefined ||
@@ -413,22 +461,20 @@ export class VoiceSession {
       }
       this.confirmInterruption(this.now());
     }
-    if (!this.userSpeaking && this.state === 'listening') {
-      this.userSpeaking = true;
-      this.transition('user_speaking');
-    }
+    if (result.text.trim().length > 0) capture.verifiedSpeechText = true;
+    this.beginUserSpeech();
     this.emit('asr_partial', {
       text: result.text,
-      turnId: this.currentUserTurnId(),
+      turnId: capture.id,
       ...(result.confidence !== undefined
         ? { confidence: result.confidence }
         : {}),
     });
   }
 
-  private async onAsrFinal(result: ASRResult): Promise<void> {
-    if (this.turnHandled) return;
-    if (this.state === 'assistant_speaking') {
+  private onAsrFinal(result: ASRResult, capture: TurnCapture): void {
+    if (capture.finalResult) return;
+    if (this.activeCapture === capture && this.state === 'assistant_speaking') {
       if (
         this.tentativeInterruptionStartedAt === undefined ||
         !this.shouldConfirmInterruptionFromAsr(result.text, this.now())
@@ -437,18 +483,11 @@ export class VoiceSession {
       }
       this.confirmInterruption(this.now());
     }
-    this.turnHandled = true;
-    const durationMs = this.resultDurationMs(result);
-    this.emit('asr_final', {
-      text: result.text,
-      turnId: this.currentUserTurnId(),
-      ...(result.confidence !== undefined
-        ? { confidence: result.confidence }
-        : {}),
-      ...(durationMs !== undefined ? { durationMs } : {}),
-    });
-    if (durationMs !== undefined) this.usage.addUserSpeechMs(durationMs);
-    await this.handleUserFinalTranscript(result.text);
+    if (result.text.trim().length > 0) capture.verifiedSpeechText = true;
+    capture.finalResult = result;
+    if (this.activeCapture !== capture || capture.ended) return;
+    this.beginUserSpeech();
+    void this.finalizeCapture(capture);
   }
 
   private onVolume(level: number): void {
@@ -471,32 +510,144 @@ export class VoiceSession {
         return;
       }
       const residual = this.playbackEchoFilter.filter(level, now);
-      if (
-        this.playbackEchoFilter.isReady(now) &&
-        this.bargeInSpeechGate.push(residual)
-      ) {
+      if (!this.playbackEchoFilter.isReady(now)) return;
+      const shortInterruption = this.shortInterruptionGate.push(residual);
+      if (this.bargeInSpeechGate.push(residual)) {
         this.bargeInSpeechGate.reset();
-        this.beginTentativeInterruption(now);
+        if (shortInterruption) {
+          this.confirmInterruption(now);
+        } else {
+          this.beginTentativeInterruption(now);
+        }
       }
       return;
     }
 
+    if (this.shouldWaitForPostPlaybackVadRearm(level, now)) return;
+
     const activeDetector = this.interruptionTurnActive
       ? this.interruptionDetector
       : this.detector;
+    if (
+      this.interruptionTurnActive &&
+      level >= activeDetector.options.volumeThreshold &&
+      this.activeCapture
+    ) {
+      this.activeCapture.interruptionVoicedFrames += 1;
+    }
     const event = activeDetector.pushVolume(level, now);
     if (!event) return;
     if (event === 'speech_start') {
-      if (!this.userSpeaking && this.state === 'listening') {
-        this.userSpeaking = true;
-        this.transition('user_speaking');
-      }
+      this.beginUserSpeech();
       return;
     }
     // speech_end | max_turn → flush ASR for endpointing.
     this.interruptionTurnActive = false;
     this.bargeInSpeechGate.reset();
+    this.shortInterruptionGate.reset();
     void this.endUserTurn();
+  }
+
+  private beginUserSpeech(): void {
+    if (this.userSpeaking) return;
+    if (this.state !== 'listening' && this.state !== 'processing') return;
+    if (this.state === 'processing') {
+      this.cancelPendingResponses();
+      this.turnGeneration += 1;
+    }
+    this.userSpeaking = true;
+    this.transition('user_speaking');
+  }
+
+  private cancelPendingResponses(): void {
+    for (const capture of this.pendingCaptures) capture.cancel();
+  }
+
+  private async finalizeCapture(capture: TurnCapture): Promise<void> {
+    if (capture.ended || this.activeCapture !== capture) return;
+    if (this.state === 'processing') this.beginUserSpeech();
+    capture.ended = true;
+    this.emit('user_audio_end', { turnId: capture.id, at: this.now() });
+
+    try {
+      // Finalize the current WebM before handing its bytes to either model.
+      // The next recorder is opened immediately afterwards, while caption ASR
+      // and the reply request for this turn continue in the background.
+      await this.config.runtime.audioInput.stop();
+    } catch (err) {
+      this.fail(err);
+      return;
+    }
+
+    for (const off of capture.inputCleanups) off();
+    capture.inputCleanups = [];
+    if (this.activeCapture === capture) {
+      this.activeCapture = undefined;
+      this.asrSession = undefined;
+    }
+    this.inputCaptureSuspended = false;
+
+    const hadEarlierPendingTurn = this.pendingCaptures.size > 0;
+    capture.generation = ++this.turnGeneration;
+    this.pendingCaptures.add(capture);
+    if (
+      this.config.pipeline === 'audio_llm' &&
+      capture.audioChunks.length > 0 &&
+      !hadEarlierPendingTurn &&
+      this.hasReliableInterruptedSpeech(capture)
+    ) {
+      capture.audioReply = this.generateAudioReply(capture.audioChunks);
+      void capture.audioReply.catch(() => {});
+    }
+
+    if (this.state !== 'processing') this.transition('processing');
+
+    const shouldKeepListening =
+      this.config.mode === 'full_duplex' &&
+      this.config.policy?.autoStartListening !== false;
+    const nextCaptureReady = shouldKeepListening
+      ? this.startListeningInternal(true)
+      : Promise.resolve();
+    capture.nextCaptureReady = nextCaptureReady;
+    const stopPromise = Promise.resolve(capture.asrSession.stop());
+    capture.stopPromise = stopPromise;
+    this.scheduleCaptureProcessing(capture);
+
+    await nextCaptureReady;
+    await stopPromise.catch(() => {});
+  }
+
+  private scheduleCaptureProcessing(capture: TurnCapture): void {
+    if (capture.processingScheduled) return;
+    capture.processingScheduled = true;
+    this.processingChain = this.processingChain.then(async () => {
+      try {
+        await capture.stopPromise;
+        await capture.nextCaptureReady;
+        await this.processFinalizedCapture(
+          capture,
+          capture.finalResult ?? { text: '' },
+        );
+      } catch (err) {
+        if (
+          !capture.cancelled &&
+          capture.generation === this.turnGeneration &&
+          this.isActive()
+        ) {
+          this.fail(err, 'asr_connection_failed');
+        }
+      } finally {
+        for (const off of capture.asrCleanups) off();
+        capture.asrCleanups = [];
+        try {
+          await capture.asrSession.close();
+        } catch {
+          /* best-effort */
+        }
+        this.pendingCaptures.delete(capture);
+      }
+    });
+    void this.processingChain.catch(() => {});
   }
 
   private beginTentativeInterruption(now: number): void {
@@ -555,6 +706,8 @@ export class VoiceSession {
   }
 
   private confirmInterruption(now: number): void {
+    this.clearPostPlaybackVadRearm();
+    if (this.activeCapture) this.activeCapture.interruptedAssistant = true;
     this.clearTentativeInterruption();
     this.interruptionTurnActive = true;
     this.interruptionDetector.forceSpeechStart(now);
@@ -568,6 +721,7 @@ export class VoiceSession {
     const resume = this.config.runtime.audioOutput.resume;
     this.clearTentativeInterruption();
     this.bargeInSpeechGate.reset();
+    this.shortInterruptionGate.reset();
     this.interruptionCooldownUntil =
       now + (this.config.policy?.interruptionCooldownMs ?? 800);
     this.playbackEchoFilter.start(now);
@@ -591,10 +745,12 @@ export class VoiceSession {
   private clearTentativeInterruption(): void {
     this.tentativeInterruptionStartedAt = undefined;
     this.tentativeInterruptionSilenceSince = undefined;
+    this.shortInterruptionGate.reset();
     this.loudInterruptionGate.reset();
   }
 
   private async prepareAssistantPlayback(): Promise<void> {
+    this.shortInterruptionGate.reset();
     this.loudInterruptionGate.reset();
     if (await this.suspendInputCapture()) return;
     await this.asrSession?.resetAudio?.();
@@ -623,13 +779,53 @@ export class VoiceSession {
     return true;
   }
 
-  private async finishAssistantCapture(): Promise<void> {
+  private async finishAssistantCapture(playedAudio = true): Promise<void> {
     if (this.supportsCaptureSuspension()) {
       await this.resumeInputCapture();
-      return;
+    } else {
+      await this.asrSession?.resetAudio?.();
+      this.resetTurnAudio();
     }
-    await this.asrSession?.resetAudio?.();
-    this.resetTurnAudio();
+    if (playedAudio) this.armPostPlaybackVadRearm();
+    else this.clearPostPlaybackVadRearm();
+  }
+
+  private armPostPlaybackVadRearm(): void {
+    this.postPlaybackVadRearmStartedAt = this.now();
+    this.postPlaybackSilentFrames = 0;
+    this.detector.reset();
+  }
+
+  private clearPostPlaybackVadRearm(): void {
+    this.postPlaybackVadRearmStartedAt = undefined;
+    this.postPlaybackSilentFrames = 0;
+  }
+
+  private shouldWaitForPostPlaybackVadRearm(level: number, now: number): boolean {
+    const startedAt = this.postPlaybackVadRearmStartedAt;
+    if (startedAt === undefined) return false;
+    if (level < this.detector.options.volumeThreshold) {
+      this.postPlaybackSilentFrames += 1;
+    } else {
+      this.postPlaybackSilentFrames = 0;
+    }
+    const maxWaitMs = this.config.policy?.postPlaybackVadRearmMs ?? 300;
+    if (this.postPlaybackSilentFrames >= 2 || now - startedAt >= maxWaitMs) {
+      this.clearPostPlaybackVadRearm();
+      this.detector.reset();
+    }
+    // Consume the frame that establishes the new baseline. The next sample is
+    // the first one eligible to start a user turn.
+    return true;
+  }
+
+  private hasReliableInterruptedSpeech(capture: TurnCapture): boolean {
+    if (!capture.interruptedAssistant) return true;
+    if (capture.verifiedSpeechText) return true;
+    // Six post-interruption voiced frames are about 300 ms at the web
+    // runtime's 50 ms cadence. This keeps long native-audio questions working
+    // when caption ASR is empty without turning a short echo tail into a turn.
+    return capture.interruptionVoicedFrames >= 6;
   }
 
   private shouldForwardAsrAudio(): boolean {
@@ -642,7 +838,7 @@ export class VoiceSession {
   }
 
   private interruptionTailIgnoreMs(): number {
-    return this.config.policy?.interruptionTailIgnoreMs ?? 600;
+    return this.config.policy?.interruptionTailIgnoreMs ?? 200;
   }
 
   private normalizeSpeechText(text: string): string {
@@ -666,17 +862,22 @@ export class VoiceSession {
   }
 
   private isMeaningfulInterruptionText(rawText: string): boolean {
-    const text = rawText.trim();
+    const text = this.normalizeSpeechText(rawText);
     if (!text) return false;
-    const words = text.split(/\s+/u).filter(Boolean);
-    if (words.length >= 2) return true;
-    // Languages commonly written without spaces need two visible characters.
-    return !text.includes(' ') && Array.from(text).length >= 2;
+    // A single CJK character can be a complete interruption command (for
+    // example “停”). For alphabetic languages, keep a two-character floor so
+    // one-letter ASR noise does not stop playback.
+    if (/\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}|\p{Script=Hangul}/u.test(text)) {
+      return true;
+    }
+    return Array.from(text).length >= 2;
   }
 
   private async handleUserFinalTranscript(rawText: string): Promise<void> {
+    this.cancelPendingResponses();
     const turnGen = ++this.turnGeneration;
     const text = rawText.trim();
+    const turnId = this.currentUserTurnId();
     this.cleanupListening();
     await this.safeStopAudioInput();
     await this.safeCloseAsr();
@@ -690,9 +891,9 @@ export class VoiceSession {
       return;
     }
 
-    this.transition('processing');
+    if (this.state !== 'processing') this.transition('processing');
     this.transcript.add({
-      id: this.currentUserTurnId(),
+      id: turnId,
       role: 'user',
       text,
     });
@@ -703,9 +904,20 @@ export class VoiceSession {
       return;
     }
 
+    const keepListening =
+      this.config.mode === 'full_duplex' &&
+      this.config.policy?.autoStartListening !== false;
+    const nextCaptureReady = keepListening
+      ? this.startListeningInternal(true)
+      : Promise.resolve();
+
     if (this.config.pipeline === 'audio_llm') {
+      const replyPromise = this.generateAudioReply([]);
+      void replyPromise.catch(() => {});
+      await nextCaptureReady;
       try {
-        const reply = await (this.pendingAudioReply ?? this.generateAudioReply());
+        const reply = await replyPromise;
+        if (turnGen !== this.turnGeneration || !this.isActive()) return;
         this.usage.addLlmUsage(reply.usage);
         await this.speakAudioAssistant(reply);
       } catch (err) {
@@ -713,14 +925,17 @@ export class VoiceSession {
         return;
       }
     } else {
+      const replyPromise = this.generateReply(text);
+      void replyPromise.catch(() => {});
+      await nextCaptureReady;
       let reply: string;
       try {
-        reply = await this.generateReply(text);
+        reply = await replyPromise;
       } catch (err) {
         this.fail(err, 'llm_failed');
         return;
       }
-      if (!this.isActive()) return;
+      if (turnGen !== this.turnGeneration || !this.isActive()) return;
 
       try {
         await this.speakAssistant(reply);
@@ -744,6 +959,136 @@ export class VoiceSession {
     }
   }
 
+  private async processFinalizedCapture(
+    capture: TurnCapture,
+    result: ASRResult,
+  ): Promise<void> {
+    const text = result.text.trim();
+    const durationMs = this.resultDurationMs(result);
+    this.emit('asr_final', {
+      text: result.text,
+      turnId: capture.id,
+      ...(result.confidence !== undefined
+        ? { confidence: result.confidence }
+        : {}),
+      ...(durationMs !== undefined ? { durationMs } : {}),
+    });
+    if (durationMs !== undefined) this.usage.addUserSpeechMs(durationMs);
+    if (text.length > 0) {
+      this.transcript.add({ id: capture.id, role: 'user', text });
+      this.emitTurnAdded();
+    }
+
+    const generation = capture.generation;
+    if (
+      generation === undefined ||
+      capture.cancelled ||
+      generation !== this.turnGeneration ||
+      !this.isActive()
+    ) {
+      return;
+    }
+
+    if (
+      text.length === 0 &&
+      (this.config.pipeline !== 'audio_llm' ||
+        !this.hasReliableInterruptedSpeech(capture))
+    ) {
+      await this.ensureListeningAfterTurn();
+      return;
+    }
+    if (this.isSessionExpired()) {
+      await this.finishInternal('max_session_duration');
+      return;
+    }
+
+    if (this.config.pipeline === 'audio_llm') {
+      const replyPromise =
+        capture.audioReply ?? this.generateAudioReply(capture.audioChunks);
+      const outcome = await this.waitForCaptureReply(capture, replyPromise);
+      if (outcome.kind === 'cancelled') return;
+      if (outcome.kind === 'error') {
+        if (generation === this.turnGeneration && this.isActive()) {
+          this.fail(outcome.error, 'llm_failed');
+        }
+        return;
+      }
+      if (
+        capture.cancelled ||
+        generation !== this.turnGeneration ||
+        !this.isActive()
+      ) {
+        return;
+      }
+      this.usage.addLlmUsage(outcome.value.usage);
+      await this.speakAudioAssistant(outcome.value);
+    } else {
+      const outcome = await this.waitForCaptureReply(
+        capture,
+        this.generateReply(text),
+      );
+      if (outcome.kind === 'cancelled') return;
+      if (outcome.kind === 'error') {
+        if (generation === this.turnGeneration && this.isActive()) {
+          this.fail(outcome.error, 'llm_failed');
+        }
+        return;
+      }
+      if (
+        capture.cancelled ||
+        generation !== this.turnGeneration ||
+        !this.isActive()
+      ) {
+        return;
+      }
+      try {
+        await this.speakAssistant(outcome.value);
+      } catch (err) {
+        this.fail(err, 'tts_failed');
+        return;
+      }
+    }
+
+    if (
+      capture.cancelled ||
+      generation !== this.turnGeneration ||
+      !this.isActive()
+    ) {
+      return;
+    }
+    if (this.shouldFinishAfterTurn()) {
+      await this.finishInternal('agent_finished');
+      return;
+    }
+    await this.ensureListeningAfterTurn();
+  }
+
+  private async waitForCaptureReply<T>(
+    capture: TurnCapture,
+    promise: Promise<T>,
+  ): Promise<
+    | { kind: 'reply'; value: T }
+    | { kind: 'error'; error: unknown }
+    | { kind: 'cancelled' }
+  > {
+    return Promise.race([
+      promise.then(
+        (value) => ({ kind: 'reply' as const, value }),
+        (error: unknown) => ({ kind: 'error' as const, error }),
+      ),
+      capture.cancelPromise.then(() => ({ kind: 'cancelled' as const })),
+    ]);
+  }
+
+  private async ensureListeningAfterTurn(): Promise<void> {
+    if (this.config.policy?.autoStartListening === false) return;
+    if (this.asrSession) {
+      if (this.state === 'processing') this.transition('listening');
+      return;
+    }
+    await this.startListening();
+  }
+
   private async generateReply(lastUserText: string): Promise<string> {
     if (this.config.agent) {
       return this.config.agent.generateNextAssistantMessage({
@@ -759,7 +1104,9 @@ export class VoiceSession {
     return result.text;
   }
 
-  private async generateAudioReply(): Promise<AudioLLMGenerateOutput> {
+  private async generateAudioReply(
+    audioChunks: readonly ArrayBuffer[],
+  ): Promise<AudioLLMGenerateOutput> {
     const provider = this.config.providers.audioLlm;
     if (!provider) {
       throw new VoiceError({
@@ -768,10 +1115,10 @@ export class VoiceSession {
         retryable: false,
       });
     }
-    const total = this.turnAudioChunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+    const total = audioChunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
     const joined = new Uint8Array(total);
     let offset = 0;
-    for (const chunk of this.turnAudioChunks) {
+    for (const chunk of audioChunks) {
       joined.set(new Uint8Array(chunk), offset);
       offset += chunk.byteLength;
     }
@@ -827,8 +1174,10 @@ export class VoiceSession {
   }
 
   private resetTurnAudio(): void {
-    const containerHeader = this.turnAudioChunks[0];
-    this.turnAudioChunks = containerHeader ? [containerHeader] : [];
+    const capture = this.activeCapture;
+    if (!capture) return;
+    const containerHeader = capture.audioChunks[0];
+    capture.audioChunks = containerHeader ? [containerHeader] : [];
   }
 
   private shouldFinishAfterTurn(): boolean {
@@ -850,6 +1199,7 @@ export class VoiceSession {
     if (this.finishing || this.state === 'finished') return;
     if (!this.machine.can('finished')) return;
     this.finishing = true;
+    this.cancelPendingResponses();
     this.cleanupListening();
     await this.safeStopAudioInput();
     await this.safeCloseAsr();
@@ -867,6 +1217,7 @@ export class VoiceSession {
   ): void {
     const normalized = normalizeError(error, fallbackCode);
     this.emit('error', normalized);
+    this.cancelPendingResponses();
     this.cleanupListening();
     void this.safeStopAudioInput();
     void this.safeCloseAsr();
@@ -874,8 +1225,12 @@ export class VoiceSession {
   }
 
   private cleanupListening(): void {
-    for (const off of this.listenCleanups) off();
-    this.listenCleanups = [];
+    const capture = this.activeCapture;
+    if (!capture) return;
+    for (const off of capture.inputCleanups) off();
+    for (const off of capture.asrCleanups) off();
+    capture.inputCleanups = [];
+    capture.asrCleanups = [];
   }
 
   private async safeStopAudioInput(): Promise<void> {
@@ -910,8 +1265,8 @@ export class VoiceSession {
     this.clearTentativeInterruption();
     this.activeAssistantText = undefined;
     this.speakGeneration += 1;
+    this.cancelPendingResponses();
     this.turnGeneration += 1;
-    this.turnHandled = false;
     if (this.assistantPlaybackActive) {
       void this.safeStopAudioOutput();
     }
@@ -920,9 +1275,17 @@ export class VoiceSession {
   }
 
   private async safeCloseAsr(): Promise<void> {
+    const capture = this.activeCapture;
     const session = this.asrSession;
+    this.activeCapture = undefined;
     this.asrSession = undefined;
     if (!session) return;
+    if (capture) {
+      for (const off of capture.inputCleanups) off();
+      for (const off of capture.asrCleanups) off();
+      capture.inputCleanups = [];
+      capture.asrCleanups = [];
+    }
     try {
       await session.close();
     } catch {
