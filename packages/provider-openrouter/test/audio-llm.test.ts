@@ -12,9 +12,10 @@ describe('createOpenRouterAudioLLM', () => {
     // does — individual fragments are not independently valid base64.
     const fullAudio = new Uint8Array([0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 5, 6]);
     const fullB64 = bytesToBase64(fullAudio);
-    const mid = Math.floor(fullB64.length / 2);
+    const mid = 5;
     const part1 = fullB64.slice(0, mid);
     const part2 = fullB64.slice(mid);
+    const streamedAudio: number[] = [];
 
     let body: any;
     const provider = createOpenRouterAudioLLM({
@@ -41,6 +42,14 @@ describe('createOpenRouterAudioLLM', () => {
       audio: new Uint8Array([9]).buffer,
       format: 'webm',
       messages: [{ role: 'assistant', content: '早上好' }],
+      onAudioChunk(chunk) {
+        expect(chunk).toMatchObject({
+          encoding: 'pcm_s16le',
+          sampleRate: 24_000,
+          channels: 1,
+        });
+        streamedAudio.push(...new Uint8Array(chunk.data));
+      },
     });
 
     expect(body.model).toBe('openai/gpt-audio-mini');
@@ -54,6 +63,7 @@ describe('createOpenRouterAudioLLM', () => {
     expect(output.mimeType).toBe('audio/wav');
     expect(new TextDecoder().decode(output.audioBuffer.slice(0, 4))).toBe('RIFF');
     expect(new Uint8Array(output.audioBuffer).slice(44)).toEqual(fullAudio);
+    expect(streamedAudio).toEqual([...fullAudio]);
     expect(output.usage).toMatchObject({ inputTokens: 9, outputTokens: 4 });
   });
 

@@ -233,6 +233,14 @@ export interface LLMProvider {
 
 export type AudioLLMInputFormat = 'webm' | 'wav' | 'mp3' | 'opus';
 
+export interface AudioLLMAudioChunk {
+  /** Raw interleaved PCM bytes for immediate playback. */
+  data: ArrayBuffer;
+  encoding: 'pcm_s16le';
+  sampleRate: number;
+  channels: number;
+}
+
 export interface AudioLLMGenerateInput {
   /** Complete audio for the current VAD-delimited user turn. */
   audio: ArrayBuffer;
@@ -243,6 +251,10 @@ export interface AudioLLMGenerateInput {
   temperature?: number;
   maxTokens?: number;
   metadata?: Record<string, unknown>;
+  /** Receives decoded output audio while the model response is still streaming. */
+  onAudioChunk?: (chunk: AudioLLMAudioChunk) => void | Promise<void>;
+  /** Receives the model's spoken transcript while output audio is streaming. */
+  onTranscriptDelta?: (text: string) => void | Promise<void>;
 }
 
 export interface AudioLLMGenerateOutput {
@@ -385,10 +397,26 @@ export interface AudioPlaybackInput {
   volume?: number;
 }
 
+export interface PcmAudioStreamOptions {
+  encoding: 'pcm_s16le';
+  sampleRate: number;
+  channels: number;
+  volume?: number;
+}
+
+export interface AudioOutputStream {
+  /** Queue another contiguous PCM block for playback. */
+  write(data: ArrayBuffer): Promise<void>;
+  /** Signal end-of-stream and resolve after all queued audio has played. */
+  close(): Promise<void>;
+}
+
 export interface AudioOutputAdapter {
   /** Prime browser autoplay permission from a direct user gesture. */
   unlock?(): Promise<void>;
   play(input: AudioPlaybackInput): Promise<void>;
+  /** Incremental raw-PCM playback for low-latency speech streaming. */
+  startPcmStream?(options: PcmAudioStreamOptions): Promise<AudioOutputStream>;
   stop(): Promise<void>;
   pause?(): Promise<void>;
   resume?(): Promise<void>;

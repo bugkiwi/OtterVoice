@@ -1,5 +1,11 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { WebAudioOutput, type AudioElementLike } from '../src/audio-output';
+import {
+  WebAudioOutput,
+  type AudioElementLike,
+  type PcmAudioBufferLike,
+  type PcmAudioBufferSourceLike,
+  type PcmAudioContextLike,
+} from '../src/audio-output';
 import type { NormalizedVoiceError } from '@ottervoice/core';
 
 class FakeAudio implements AudioElementLike {
@@ -22,6 +28,68 @@ class FakeAudio implements AudioElementLike {
   }
   dispatch(t: string) {
     this.listeners[t]?.forEach((l) => l());
+  }
+}
+
+class FakePcmBuffer implements PcmAudioBufferLike {
+  readonly channels: Float32Array[];
+
+  constructor(channelCount: number, length: number) {
+    this.channels = Array.from(
+      { length: channelCount },
+      () => new Float32Array(length),
+    );
+  }
+
+  getChannelData(channel: number): Float32Array {
+    return this.channels[channel]!;
+  }
+}
+
+class FakePcmSource implements PcmAudioBufferSourceLike {
+  buffer: PcmAudioBufferLike | null = null;
+  startAt: number | undefined;
+  stopped = false;
+  private ended: (() => void) | undefined;
+
+  connect() {}
+  start(when?: number) {
+    this.startAt = when;
+  }
+  stop() {
+    this.stopped = true;
+    this.fireEnded();
+  }
+  addEventListener(_type: 'ended', listener: () => void) {
+    this.ended = listener;
+  }
+  fireEnded() {
+    const ended = this.ended;
+    this.ended = undefined;
+    ended?.();
+  }
+}
+
+class FakePcmContext implements PcmAudioContextLike {
+  currentTime = 0;
+  destination = {};
+  resumeCalls = 0;
+  suspendCalls = 0;
+  readonly sources: FakePcmSource[] = [];
+
+  async resume() {
+    this.resumeCalls += 1;
+  }
+  async suspend() {
+    this.suspendCalls += 1;
+  }
+  createBuffer(channelCount: number, length: number) {
+    return new FakePcmBuffer(channelCount, length);
+  }
+  createBufferSource() {
+    const source = new FakePcmSource();
+    this.sources.push(source);
+    return source;
   }
 }
 
@@ -226,5 +294,67 @@ describe('WebAudioOutput.stop', () => {
     offE();
     offErr();
     expect(typeof offS).toBe('function');
+  });
+});
+
+describe('WebAudioOutput.startPcmStream', () => {
+  it('schedules PCM16 chunks contiguously and finishes after queued audio', async () => {
+    const context = new FakePcmContext();
+    const output = new WebAudioOutput({
+      createAudio: () => new FakeAudio(),
+      createPcmAudioContext: () => context,
+    });
+    const events: string[] = [];
+    output.onStart(() => events.push('start'));
+    output.onEnd(() => events.push('end'));
+    const stream = await output.startPcmStream({
+      encoding: 'pcm_s16le',
+      sampleRate: 1_000,
+      channels: 1,
+    });
+
+    const first = new Int16Array([16_384, -16_384, 8_192, -8_192]);
+    const second = new Int16Array([4_096, -4_096]);
+    await stream.write(first.buffer.slice(0));
+    await stream.write(second.buffer.slice(0));
+
+    expect(events).toEqual(['start']);
+    expect(context.sources).toHaveLength(2);
+    expect(context.sources[1]?.startAt).toBeCloseTo(
+      (context.sources[0]?.startAt ?? 0) + 0.004,
+      6,
+    );
+    const samples = (context.sources[0]?.buffer as FakePcmBuffer).channels[0];
+    expect(samples?.[0]).toBeCloseTo(0.5, 4);
+    expect(samples?.[1]).toBeCloseTo(-0.5, 4);
+
+    const closing = stream.close();
+    context.sources[0]?.fireEnded();
+    context.sources[1]?.fireEnded();
+    await closing;
+    expect(events).toEqual(['start', 'end']);
+  });
+
+  it('pauses, resumes, and cancels queued PCM playback', async () => {
+    const context = new FakePcmContext();
+    const output = new WebAudioOutput({
+      createAudio: () => new FakeAudio(),
+      createPcmAudioContext: () => context,
+    });
+    const stream = await output.startPcmStream({
+      encoding: 'pcm_s16le',
+      sampleRate: 24_000,
+      channels: 1,
+    });
+    await stream.write(new Int16Array([1, 2, 3, 4]).buffer.slice(0));
+    await output.pause();
+    await output.resume();
+    expect(context.suspendCalls).toBe(1);
+    expect(context.resumeCalls).toBeGreaterThanOrEqual(2);
+
+    const closing = stream.close();
+    await output.stop();
+    await closing;
+    expect(context.sources[0]?.stopped).toBe(true);
   });
 });

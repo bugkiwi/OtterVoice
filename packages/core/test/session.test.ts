@@ -1047,6 +1047,121 @@ describe('VoiceSession full_duplex', () => {
     await session.dispose();
   });
 
+  it('plays native PCM chunks before the SSE response and caption ASR finish', async () => {
+    const runtime = createMockRuntime();
+    const streamedChunks: number[][] = [];
+    const startPcmStream = mock(async () => ({
+      async write(data: ArrayBuffer) {
+        streamedChunks.push([...new Uint8Array(data)]);
+      },
+      async close() {},
+    }));
+    runtime.audioOutput.startPcmStream = startPcmStream;
+
+    let releaseAsr!: () => void;
+    const asrGate = new Promise<void>((resolve) => {
+      releaseAsr = resolve;
+    });
+    const asr: ASRProvider = {
+      name: 'slow-caption-asr',
+      capabilities: {
+        streaming: false,
+        batch: true,
+        partialResults: false,
+        languages: ['auto'],
+      },
+      async createSession() {
+        let finalCb: ((result: ASRResult) => void) | undefined;
+        return {
+          sendAudio() {},
+          async stop() {
+            await asrGate;
+            finalCb?.({ text: 'stream this reply' });
+          },
+          async close() {},
+          onPartial() {
+            return () => {};
+          },
+          onFinal(cb) {
+            finalCb = cb;
+            return () => {
+              finalCb = undefined;
+            };
+          },
+          onError() {
+            return () => {};
+          },
+        };
+      },
+    };
+
+    let releaseReply!: () => void;
+    const replyGate = new Promise<void>((resolve) => {
+      releaseReply = resolve;
+    });
+    let announceFirstChunk!: () => void;
+    const firstChunk = new Promise<void>((resolve) => {
+      announceFirstChunk = resolve;
+    });
+    const audioLlm: AudioLLMProvider = {
+      name: 'streaming-audio-llm',
+      async generate(input) {
+        await input.onAudioChunk?.({
+          data: new Uint8Array([1, 2, 3, 4]).buffer,
+          encoding: 'pcm_s16le',
+          sampleRate: 24_000,
+          channels: 1,
+        });
+        await input.onTranscriptDelta?.('streamed ');
+        announceFirstChunk();
+        await replyGate;
+        await input.onAudioChunk?.({
+          data: new Uint8Array([5, 6]).buffer,
+          encoding: 'pcm_s16le',
+          sampleRate: 24_000,
+          channels: 1,
+        });
+        await input.onTranscriptDelta?.('reply');
+        return {
+          text: 'streamed reply',
+          audioBuffer: new ArrayBuffer(50),
+          mimeType: 'audio/wav',
+        };
+      },
+    };
+    const { session, events } = makeSession({
+      mode: 'full_duplex',
+      pipeline: 'audio_llm',
+      runtime,
+      providers: { asr, audioLlm } as any,
+    });
+    await session.start();
+    emitChunk(runtime);
+    const ending = session.endUserTurn();
+    await firstChunk;
+
+    expect(session.state).toBe('assistant_speaking');
+    expect(streamedChunks).toEqual([[1, 2, 3, 4]]);
+    expect(events.some(([name]) => name === 'assistant_text')).toBe(false);
+    expect(runtime.audioOutput.played).toHaveLength(0);
+
+    releaseAsr();
+    releaseReply();
+    await ending;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(streamedChunks).toEqual([[1, 2, 3, 4], [5, 6]]);
+    expect(startPcmStream).toHaveBeenCalledTimes(1);
+    expect(
+      events.some(
+        ([name, payload]) =>
+          name === 'assistant_text' &&
+          (payload as { text: string }).text === 'streamed reply',
+      ),
+    ).toBe(true);
+    await session.dispose();
+  });
+
   it('does not answer an empty short interruption caused by playback residual', async () => {
     const time = clock(0);
     const runtime = createMockRuntime({ output: { autoComplete: false } });

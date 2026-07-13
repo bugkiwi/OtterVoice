@@ -57,6 +57,54 @@ function base64ToBytes(value: string): Uint8Array {
   return output;
 }
 
+class IncrementalPcm16Decoder {
+  private base64Carry = '';
+  private byteCarry: number | undefined;
+
+  push(value: string): Uint8Array {
+    this.base64Carry += value.replace(/\s/g, '');
+    const completeChars = this.base64Carry.length - (this.base64Carry.length % 4);
+    if (completeChars === 0) return new Uint8Array(0);
+    const encoded = this.base64Carry.slice(0, completeChars);
+    this.base64Carry = this.base64Carry.slice(completeChars);
+    return this.alignSamples(base64ToBytes(encoded), false);
+  }
+
+  finish(): Uint8Array {
+    let encoded = this.base64Carry;
+    this.base64Carry = '';
+    if (encoded.length % 4 !== 0) {
+      encoded = encoded.padEnd(encoded.length + (4 - (encoded.length % 4)), '=');
+    }
+    const bytes = encoded.length > 0
+      ? base64ToBytes(encoded)
+      : new Uint8Array(0);
+    return this.alignSamples(bytes, true);
+  }
+
+  private alignSamples(bytes: Uint8Array, final: boolean): Uint8Array {
+    const prefix = this.byteCarry;
+    const combined = new Uint8Array(bytes.byteLength + (prefix === undefined ? 0 : 1));
+    if (prefix !== undefined) combined[0] = prefix;
+    combined.set(bytes, prefix === undefined ? 0 : 1);
+    this.byteCarry = undefined;
+
+    const completeBytes = combined.byteLength - (combined.byteLength % 2);
+    if (completeBytes < combined.byteLength && !final) {
+      this.byteCarry = combined[combined.byteLength - 1];
+    }
+    // A dangling byte cannot form a PCM16 sample and is intentionally dropped
+    // only at the terminal boundary.
+    return combined.slice(0, completeBytes);
+  }
+}
+
+function detachedBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 function extractStreamAudioDelta(json: Record<string, unknown>):
   | { data?: string; transcript?: string }
   | undefined {
@@ -168,6 +216,9 @@ export function createOpenRouterAudioLLM(
       }
 
       const audioB64Parts: string[] = [];
+      const incrementalDecoder = input.onAudioChunk
+        ? new IncrementalPcm16Decoder()
+        : undefined;
       let text = '';
       let usage;
       let rawUsage: Record<string, unknown> | undefined;
@@ -184,11 +235,33 @@ export function createOpenRouterAudioLLM(
         if (audio?.data) {
           firstAudioAtMs ??= performance.now() - startedAt;
           audioB64Parts.push(audio.data);
+          const pcm = incrementalDecoder?.push(audio.data);
+          if (pcm && pcm.byteLength > 0) {
+            await input.onAudioChunk?.({
+              data: detachedBuffer(pcm),
+              encoding: 'pcm_s16le',
+              sampleRate: 24_000,
+              channels: 1,
+            });
+          }
         }
-        if (audio?.transcript) text += audio.transcript;
+        if (audio?.transcript) {
+          text += audio.transcript;
+          await input.onTranscriptDelta?.(audio.transcript);
+        }
         const chunkUsage = (json as { usage?: Record<string, unknown> }).usage;
         if (chunkUsage) rawUsage = chunkUsage;
         usage = mapUsage(chunkUsage as never) ?? usage;
+      }
+
+      const finalPcm = incrementalDecoder?.finish();
+      if (finalPcm && finalPcm.byteLength > 0) {
+        await input.onAudioChunk?.({
+          data: detachedBuffer(finalPcm),
+          encoding: 'pcm_s16le',
+          sampleRate: 24_000,
+          channels: 1,
+        });
       }
 
       const audioBytes = base64ToBytes(audioB64Parts.join(''));

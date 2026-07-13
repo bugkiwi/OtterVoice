@@ -57,8 +57,7 @@ or microphone access.
   assistant reply, interruption/cancellation, and the required state-machine
   transitions.
 - `@ottervoice/runtime-web`: continuous microphone capture, Web Audio RMS volume
-  samples for VAD, and playback that can be stopped without leaving `play()`
-  pending.
+  samples for VAD, gapless PCM chunk scheduling, and playback cancellation.
 - `@ottervoice/provider-openrouter`: chat completion, batch speech-to-text, and
   text-to-speech adapters for OpenRouter's three API endpoints.
 - `examples/web`: the server-side credential proxy, VAD thresholds,
@@ -76,8 +75,9 @@ root `.env` and only proxies three allow-listed OpenRouter routes.
 
 Browser MediaRecorder produces WebM/Opus, while GPT Audio accepts WAV/MP3.
 `@ottervoice/runtime-web` decodes the completed WebM turn and encodes a mono
-PCM16 WAV before the audio-LLM request. The model's streamed PCM16 reply is
-wrapped as WAV for browser playback.
+PCM16 WAV before the audio-LLM request. Each output `delta.audio` PCM16 chunk is
+decoded and scheduled immediately on a Web Audio timeline; the complete stream
+is still wrapped as WAV for fallback playback and the SSE debug button.
 
 ## Price evaluation (2026-07-13)
 

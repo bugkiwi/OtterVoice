@@ -5,7 +5,11 @@ import {
   type GetUserMedia,
   type MediaRecorderCtor,
 } from './audio-input';
-import { WebAudioOutput, type AudioElementLike } from './audio-output';
+import {
+  WebAudioOutput,
+  type AudioElementLike,
+  type PcmAudioContextLike,
+} from './audio-output';
 import { measureBrowserAudioEnvelope } from './audio-conversion';
 
 export * from './audio-input';
@@ -22,6 +26,7 @@ export interface WebRuntimeOptions {
   timesliceMs?: number;
   volumePollMs?: number;
   audioContext?: AudioContextCtor;
+  createPcmAudioContext?: () => PcmAudioContextLike;
   now?: () => number;
 }
 
@@ -67,10 +72,19 @@ export function createWebRuntime(options: WebRuntimeOptions = {}): WebRuntime {
   if (options.now !== undefined) inputOptions.now = options.now;
 
   const outputOptions: ConstructorParameters<typeof WebAudioOutput>[0] = { createAudio };
-  const hasAudioContext = Boolean(
-    (globalThis as unknown as { AudioContext?: unknown }).AudioContext,
-  );
+  const audioGlobals = globalThis as unknown as {
+    AudioContext?: new () => PcmAudioContextLike;
+    webkitAudioContext?: new () => PcmAudioContextLike;
+  };
+  const PcmAudioContextCtor =
+    audioGlobals.AudioContext ?? audioGlobals.webkitAudioContext;
+  const hasAudioContext = Boolean(PcmAudioContextCtor);
   if (hasAudioContext) outputOptions.measureAudio = measureBrowserAudioEnvelope;
+  const createPcmAudioContext = options.createPcmAudioContext ??
+    (PcmAudioContextCtor ? () => new PcmAudioContextCtor() : undefined);
+  if (createPcmAudioContext) {
+    outputOptions.createPcmAudioContext = createPcmAudioContext;
+  }
   if (options.now !== undefined) outputOptions.now = options.now;
   if (createObjectURL !== undefined) outputOptions.createObjectURL = createObjectURL;
   if (revokeObjectURL !== undefined) outputOptions.revokeObjectURL = revokeObjectURL;

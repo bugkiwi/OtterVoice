@@ -7,7 +7,9 @@ import { UsageMeter } from './usage-meter';
 import { BargeInSpeechGate, PlaybackEchoFilter } from './playback-echo-filter';
 import { createIdGenerator, defaultNow } from './internal/ids';
 import type {
+  AudioLLMAudioChunk,
   AudioLLMGenerateOutput,
+  AudioOutputStream,
   ASRResult,
   ASRSession,
   LLMMessage,
@@ -18,6 +20,12 @@ import type {
   VoiceTurn,
   VoiceUsageSnapshot,
 } from './types';
+
+interface StreamingAssistantPlayback {
+  output: AudioOutputStream;
+  turnId: string;
+  generation: number;
+}
 
 interface TurnCapture {
   id: string;
@@ -34,6 +42,9 @@ interface TurnCapture {
   interruptionVoicedFrames: number;
   generation?: number;
   audioReply?: Promise<AudioLLMGenerateOutput>;
+  streamingPlayback?: StreamingAssistantPlayback;
+  streamingPlaybackDisabled: boolean;
+  streamingTranscript: string;
   nextCaptureReady?: Promise<void>;
   stopPromise?: Promise<void>;
   cancelled: boolean;
@@ -256,6 +267,8 @@ export class VoiceSession {
       interruptedAssistant: false,
       verifiedSpeechText: false,
       interruptionVoicedFrames: 0,
+      streamingPlaybackDisabled: false,
+      streamingTranscript: '',
       cancelled: false,
       cancelPromise,
       cancel() {
@@ -596,7 +609,7 @@ export class VoiceSession {
       !hadEarlierPendingTurn &&
       this.hasReliableInterruptedSpeech(capture)
     ) {
-      capture.audioReply = this.generateAudioReply(capture.audioChunks);
+      capture.audioReply = this.generateAudioReply(capture.audioChunks, capture);
       void capture.audioReply.catch(() => {});
     }
 
@@ -1004,7 +1017,7 @@ export class VoiceSession {
 
     if (this.config.pipeline === 'audio_llm') {
       const replyPromise =
-        capture.audioReply ?? this.generateAudioReply(capture.audioChunks);
+        capture.audioReply ?? this.generateAudioReply(capture.audioChunks, capture);
       const outcome = await this.waitForCaptureReply(capture, replyPromise);
       if (outcome.kind === 'cancelled') return;
       if (outcome.kind === 'error') {
@@ -1021,7 +1034,11 @@ export class VoiceSession {
         return;
       }
       this.usage.addLlmUsage(outcome.value.usage);
-      await this.speakAudioAssistant(outcome.value);
+      if (
+        !(await this.finishStreamingAudioAssistant(capture, outcome.value))
+      ) {
+        await this.speakAudioAssistant(outcome.value);
+      }
     } else {
       const outcome = await this.waitForCaptureReply(
         capture,
@@ -1106,6 +1123,7 @@ export class VoiceSession {
 
   private async generateAudioReply(
     audioChunks: readonly ArrayBuffer[],
+    capture?: TurnCapture,
   ): Promise<AudioLLMGenerateOutput> {
     const provider = this.config.providers.audioLlm;
     if (!provider) {
@@ -1133,7 +1151,133 @@ export class VoiceSession {
         ? { maxTokens: this.config.audioLlmMaxTokens }
         : {}),
       temperature: 0.45,
+      ...(capture && this.config.runtime.audioOutput.startPcmStream
+        ? {
+            onAudioChunk: (chunk: AudioLLMAudioChunk) =>
+              this.onAudioReplyChunk(capture, chunk),
+            onTranscriptDelta: (text: string) => {
+              capture.streamingTranscript += text;
+              if (
+                capture.streamingPlayback &&
+                capture.streamingPlayback.generation === this.speakGeneration
+              ) {
+                this.activeAssistantText = capture.streamingTranscript;
+              }
+            },
+          }
+        : {}),
     });
+  }
+
+  private async onAudioReplyChunk(
+    capture: TurnCapture,
+    chunk: AudioLLMAudioChunk,
+  ): Promise<void> {
+    const startPcmStream = this.config.runtime.audioOutput.startPcmStream;
+    if (
+      !startPcmStream ||
+      capture.streamingPlaybackDisabled ||
+      capture.cancelled ||
+      capture.generation !== this.turnGeneration ||
+      !this.isActive()
+    ) {
+      return;
+    }
+
+    try {
+      if (!capture.streamingPlayback) {
+        // The provider request is intentionally started before the next mic
+        // capture is assigned. Yield once so an unusually fast/mock first
+        // chunk still waits for that capture to be ready before playback.
+        await Promise.resolve();
+        await capture.nextCaptureReady;
+        if (
+          capture.cancelled ||
+          capture.generation !== this.turnGeneration ||
+          !this.isActive()
+        ) {
+          return;
+        }
+        const generation = ++this.speakGeneration;
+        const turnId = this.generateId();
+        this.activeAssistantText = capture.streamingTranscript;
+        await this.prepareAssistantPlayback();
+        if (
+          generation !== this.speakGeneration ||
+          capture.cancelled ||
+          capture.generation !== this.turnGeneration ||
+          !this.isActive()
+        ) {
+          return;
+        }
+        if (this.state !== 'assistant_speaking') {
+          this.transition('assistant_speaking');
+        }
+        const output = await startPcmStream.call(
+          this.config.runtime.audioOutput,
+          {
+            encoding: chunk.encoding,
+            sampleRate: chunk.sampleRate,
+            channels: chunk.channels,
+          },
+        );
+        capture.streamingPlayback = { output, turnId, generation };
+        this.emit('assistant_audio_start', { turnId });
+        this.assistantPlaybackActive = true;
+      }
+      await capture.streamingPlayback.output.write(chunk.data);
+    } catch {
+      capture.streamingPlaybackDisabled = true;
+      capture.streamingPlayback = undefined;
+      await this.safeStopAudioOutput();
+      if (this.state === 'assistant_speaking' && this.isActive()) {
+        await this.finishAssistantCapture(false);
+        this.transition('processing');
+      }
+    }
+  }
+
+  private async finishStreamingAudioAssistant(
+    capture: TurnCapture,
+    reply: AudioLLMGenerateOutput,
+  ): Promise<boolean> {
+    const playback = capture.streamingPlayback;
+    if (!playback) return false;
+    const text = reply.text || capture.streamingTranscript;
+    if (
+      playback.generation !== this.speakGeneration ||
+      capture.cancelled ||
+      capture.generation !== this.turnGeneration ||
+      !this.isActive()
+    ) {
+      return true;
+    }
+
+    this.transcript.add({ id: playback.turnId, role: 'assistant', text });
+    this.emitTurnAdded();
+    this.emit('assistant_text', { text, turnId: playback.turnId });
+    this.usage.addAssistantSpeechChars(text.length);
+    this.activeAssistantText = text;
+    try {
+      await playback.output.close();
+    } finally {
+      this.assistantPlaybackActive = false;
+    }
+    if (
+      playback.generation !== this.speakGeneration ||
+      capture.cancelled ||
+      capture.generation !== this.turnGeneration ||
+      !this.isActive()
+    ) {
+      return true;
+    }
+    this.emit('assistant_audio_end', { turnId: playback.turnId });
+    this.activeAssistantText = undefined;
+    if (this.config.mode === 'full_duplex' && this.state === 'assistant_speaking') {
+      await this.finishAssistantCapture();
+      this.transition('listening');
+    }
+    return true;
   }
 
   private async speakAudioAssistant(reply: AudioLLMGenerateOutput): Promise<void> {
@@ -1250,6 +1394,7 @@ export class VoiceSession {
     } catch {
       /* best-effort */
     } finally {
+      this.assistantPlaybackActive = false;
       this.playbackEchoFilter.stop();
     }
   }
