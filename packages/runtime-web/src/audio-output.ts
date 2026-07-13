@@ -33,7 +33,7 @@ export class WebAudioOutput implements AudioOutputAdapter {
   private readonly startCbs = new Set<() => void>();
   private readonly endCbs = new Set<() => void>();
   private readonly errorCbs = new Set<(error: NormalizedVoiceError) => void>();
-  private readonly volumeCbs = new Set<(level: number) => void>();
+  private readonly volumeCbs = new Set<(level: number, at?: number) => void>();
   private current: AudioElementLike | undefined;
   private playDone: (() => void) | undefined;
   private volumeTimer: ReturnType<typeof setInterval> | undefined;

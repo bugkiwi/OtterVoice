@@ -76,6 +76,8 @@ export class WebAudioInput implements AudioInputAdapter {
   private readonly volumePollMs: number;
   private stream: MediaStreamLike | undefined;
   private recorder: MediaRecorderLike | undefined;
+  private recorderStopped: Promise<void> | undefined;
+  private readonly pendingData = new Set<Promise<void>>();
   private audioContext: AudioContextLike | undefined;
   private volumeTimer: ReturnType<typeof setInterval> | undefined;
 
@@ -114,12 +116,28 @@ export class WebAudioInput implements AudioInputAdapter {
     const recorder = this.options.mimeType
       ? new this.options.mediaRecorder(stream, { mimeType: this.options.mimeType })
       : new this.options.mediaRecorder(stream);
+    let resolveRecorderStopped!: () => void;
+    this.recorderStopped = new Promise<void>((resolve) => {
+      resolveRecorderStopped = resolve;
+    });
 
     recorder.addEventListener('dataavailable', (event: { data?: BlobLike }) => {
-      void this.handleData(event.data);
+      const task = this.handleData(event.data).catch((err) => {
+        this.emitError(
+          createVoiceError('microphone_unavailable', 'failed to read recorded audio', {
+            raw: err,
+          }),
+        );
+      });
+      this.pendingData.add(task);
+      void task.finally(() => this.pendingData.delete(task));
+    });
+    recorder.addEventListener('stop', () => {
+      resolveRecorderStopped();
     });
     recorder.addEventListener('error', () => {
       this.emitError(createVoiceError('microphone_unavailable', 'recorder error'));
+      resolveRecorderStopped();
     });
     recorder.start(this.timesliceMs);
     this.recorder = recorder;
@@ -168,19 +186,35 @@ export class WebAudioInput implements AudioInputAdapter {
       await this.audioContext.close();
       this.audioContext = undefined;
     }
-    this.recorder?.stop();
+    const recorder = this.recorder;
+    const recorderStopped = this.recorderStopped;
     this.recorder = undefined;
+    this.recorderStopped = undefined;
+    recorder?.stop();
     if (this.stream) {
       for (const track of this.stream.getTracks()) track.stop();
       this.stream = undefined;
     }
+    // MediaRecorder emits its last dataavailable event before stop. Wait for
+    // both that event and Blob.arrayBuffer() so callers receive a complete,
+    // decodable container before they submit or decode the captured turn.
+    await recorderStopped;
+    await Promise.all([...this.pendingData]);
   }
 
   async pause(): Promise<void> {
-    this.recorder?.pause();
+    await this.suspendCapture();
   }
 
   async resume(): Promise<void> {
+    await this.resumeCapture();
+  }
+
+  async suspendCapture(): Promise<void> {
+    this.recorder?.pause();
+  }
+
+  async resumeCapture(): Promise<void> {
     this.recorder?.resume();
   }
 

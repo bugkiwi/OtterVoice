@@ -367,6 +367,10 @@ export interface AudioInputAdapter {
   requestPermission(): Promise<boolean>;
   start(options: AudioInputOptions): Promise<void>;
   stop(): Promise<void>;
+  /** Pause encoded chunk capture while leaving volume/VAD monitoring active. */
+  suspendCapture?(): Promise<void>;
+  /** Resume encoded chunk capture after {@link suspendCapture}. */
+  resumeCapture?(): Promise<void>;
   pause?(): Promise<void>;
   resume?(): Promise<void>;
   onChunk(cb: (chunk: AudioChunk) => void): () => void;

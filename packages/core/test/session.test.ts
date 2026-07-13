@@ -263,6 +263,47 @@ describe('VoiceSession turn loop', () => {
     ).toBe(true);
   });
 
+  it('finalizes audio input before generating a native audio reply', async () => {
+    const runtime = createMockRuntime();
+    const { provider } = controllableASR({ finalOnStop: 'hello there' });
+    const originalStop = runtime.audioInput.stop.bind(runtime.audioInput);
+    runtime.audioInput.stop = async () => {
+      runtime.audioInput.emitChunk({
+        data: new Uint8Array([5, 6, 7]).buffer,
+        timestamp: 2,
+      });
+      await originalStop();
+    };
+    let generatedAudio: Uint8Array | undefined;
+    const audioLlm: AudioLLMProvider = {
+      name: 'audio-llm',
+      async generate(input) {
+        expect(runtime.audioInput.started).toBe(false);
+        generatedAudio = new Uint8Array(input.audio);
+        return {
+          text: '语音模型回复',
+          audioBuffer: new ArrayBuffer(8),
+          mimeType: 'audio/wav',
+        };
+      },
+    };
+    const { session } = makeSession({
+      pipeline: 'audio_llm',
+      runtime,
+      providers: { asr: provider, audioLlm } as any,
+    });
+    await session.start();
+    runtime.audioInput.emitChunk({
+      data: new Uint8Array([1, 2, 3, 4]).buffer,
+      timestamp: 1,
+    });
+    const speaking = nextState(session, 'assistant_speaking');
+    await session.endUserTurn();
+    await speaking;
+
+    expect(generatedAudio).toEqual(new Uint8Array([1, 2, 3, 4, 5, 6, 7]));
+  });
+
   it('runs a full mocked turn and accumulates usage', async () => {
     const { session, runtime, events } = makeSession();
     await session.start('Tell me about your day.');
@@ -702,6 +743,97 @@ describe('VoiceSession full_duplex', () => {
     expect(runtime.audioInput.started).toBe(true);
   });
 
+  it('preserves the first WebM header for ASR while filtering assistant audio', async () => {
+    const runtime = createMockRuntime({ output: { autoComplete: false } });
+    let finalCb: ((result: ASRResult) => void) | undefined;
+    const sessions: number[][][] = [];
+    const asr: ASRProvider = {
+      name: 'header-aware-asr',
+      capabilities: {
+        streaming: false,
+        batch: true,
+        partialResults: false,
+        languages: ['auto'],
+      },
+      async createSession() {
+        const sent: number[][] = [];
+        sessions.push(sent);
+        return {
+          sendAudio(audio) {
+            sent.push([...new Uint8Array(audio)]);
+          },
+          resetAudio() {
+            const header = sent[0];
+            sent.length = 0;
+            if (header) sent.push(header);
+          },
+          async stop() {
+            finalCb?.({ text: 'done' });
+          },
+          async close() {},
+          onPartial() {
+            return () => {};
+          },
+          onFinal(cb) {
+            finalCb = cb;
+            return () => {
+              finalCb = undefined;
+            };
+          },
+          onError() {
+            return () => {};
+          },
+        };
+      },
+    };
+    const { session } = makeSession({
+      mode: 'full_duplex',
+      runtime,
+      providers: { asr } as any,
+    });
+    const assistantAudioStarted = new Promise<void>((resolve) => {
+      session.once('assistant_audio_start', () => resolve());
+    });
+    void session.start('Welcome');
+    await assistantAudioStarted;
+    expect(session.state).toBe('assistant_speaking');
+
+    runtime.audioInput.emitChunk({
+      data: new Uint8Array([1]).buffer,
+      timestamp: 1,
+      encoding: 'audio/webm;codecs=opus',
+    });
+    runtime.audioInput.emitChunk({
+      data: new Uint8Array([2]).buffer,
+      timestamp: 2,
+      encoding: 'audio/webm;codecs=opus',
+    });
+    expect(sessions.at(-1)).toEqual([[1]]);
+    await session.dispose();
+  });
+
+  it('suspends encoded capture during assistant playback and resumes for listening', async () => {
+    const runtime = createMockRuntime({ output: { autoComplete: false } });
+    const suspendCapture = mock(async () => {});
+    const resumeCapture = mock(async () => {});
+    runtime.audioInput.suspendCapture = suspendCapture;
+    runtime.audioInput.resumeCapture = resumeCapture;
+    const { session } = makeSession({ mode: 'full_duplex', runtime });
+    const assistantAudioStarted = new Promise<void>((resolve) => {
+      session.once('assistant_audio_start', () => resolve());
+    });
+    void session.start('Welcome');
+    await assistantAudioStarted;
+    expect(suspendCapture).toHaveBeenCalledTimes(1);
+    expect(resumeCapture).not.toHaveBeenCalled();
+
+    const listening = nextState(session, 'listening');
+    runtime.audioOutput.fireEnd();
+    await listening;
+    expect(resumeCapture).toHaveBeenCalledTimes(1);
+    await session.dispose();
+  });
+
   it('returns to listening when full-duplex has no TTS provider', async () => {
     const { session } = makeSession({
       mode: 'full_duplex',
@@ -920,6 +1052,7 @@ describe('VoiceSession volume-driven turn detection', () => {
     input.emitVolume(0.5); // speech_start → user_speaking
     expect(session.state).toBe('user_speaking');
     input.emitVolume(0.0); // speech_end → endUserTurn flushes ASR
+    await Promise.resolve();
     expect(ctl.stop).toHaveBeenCalled();
   });
 

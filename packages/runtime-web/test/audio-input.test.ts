@@ -30,6 +30,7 @@ class FakeRecorder implements MediaRecorderLike {
   }
   stop() {
     this.stopped = true;
+    this.dispatch('stop');
   }
   pause() {
     this.paused = true;
@@ -174,8 +175,8 @@ describe('WebAudioInput lifecycle', () => {
     await input.stop(); // nothing started — safe
 
     await input.start();
-    await input.pause();
-    await input.resume();
+    await input.suspendCapture();
+    await input.resumeCapture();
     expect(recorder.paused).toBe(true);
     expect(recorder.resumed).toBe(true);
     await input.stop();
@@ -204,6 +205,42 @@ describe('WebAudioInput lifecycle', () => {
     recorder.dispatch('dataavailable', { data: blob([1]) });
     await tick();
     expect(chunks).toHaveLength(0);
+  });
+
+  it('waits for the final recorder chunk before stop resolves', async () => {
+    const { stream } = fakeStream();
+    let releaseFinalChunk!: () => void;
+    const finalBlob: BlobLike = {
+      size: 3,
+      arrayBuffer: () =>
+        new Promise<ArrayBuffer>((resolve) => {
+          releaseFinalChunk = () => resolve(new Uint8Array([4, 5, 6]).buffer);
+        }),
+    };
+    const input = new WebAudioInput({
+      getUserMedia: async () => stream,
+      mediaRecorder: class extends FakeRecorder {
+        override stop() {
+          this.stopped = true;
+          this.dispatch('dataavailable', { data: finalBlob });
+          this.dispatch('stop');
+        }
+      },
+    });
+    const chunks: AudioChunk[] = [];
+    input.onChunk((chunk) => chunks.push(chunk));
+    await input.start();
+
+    let stopResolved = false;
+    const stopping = input.stop().then(() => {
+      stopResolved = true;
+    });
+    await tick();
+    expect(stopResolved).toBe(false);
+
+    releaseFinalChunk();
+    await stopping;
+    expect(new Uint8Array(chunks[0]!.data)).toEqual(new Uint8Array([4, 5, 6]));
   });
 });
 

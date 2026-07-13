@@ -21,7 +21,9 @@ class FakeRecorder implements MediaRecorderLike {
   start(t?: number) {
     this.started = t;
   }
-  stop() {}
+  stop() {
+    this.dispatch('stop');
+  }
   pause() {}
   resume() {}
   addEventListener(t: string, l: (e: any) => void) {
