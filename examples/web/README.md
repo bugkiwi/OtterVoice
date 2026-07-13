@@ -127,3 +127,15 @@ reusable example. The docs site bundles this example as its primary live demo.
 - `docs/site/build.ts`: showcase bundle plus a best-effort prebuilt opening voice
 
 Use `docs/site` as the Vercel project's Root Directory.
+
+With the Vercel project connected to GitHub, set its Production Branch to
+`main`, then deploy a committed, clean worktree from the repository root:
+
+```bash
+bun run deploy:git
+```
+
+This verifies the monorepo and showcase locally before pushing `main`. Vercel's
+GitHub integration performs the deployment, so no Vercel credential is needed
+by the script. Use `bun run deploy:git -- --dry-run` to run the same checks
+without pushing.

@@ -163,6 +163,28 @@ bun run build       # build @ottervoice/core to dist (ESM + d.ts)
 bun run demo        # run the node-cli demo
 ```
 
+## Deploying the showcase through GitHub
+
+The production showcase is deployed by Vercel's GitHub integration. Configure
+the Vercel project once with:
+
+- Git repository: this repository
+- Root Directory: `docs/site`
+- Production Branch: `main`
+- Environment variable: `OPENROUTER_API_KEY`
+
+Then commit changes locally and run:
+
+```bash
+bun run deploy:git
+```
+
+The command requires a clean `main` worktree, runs typechecking, tests, the SDK
+build, and the site build, then pushes the exact commit to `origin/main`. The
+GitHub push triggers Vercel; the script itself does not call the Vercel CLI or
+require a Vercel token. To validate everything without pushing, use
+`bun run deploy:git -- --dry-run`.
+
 ## Roadmap
 
 - [x] `@ottervoice/core` — session, state machine, router, mocks

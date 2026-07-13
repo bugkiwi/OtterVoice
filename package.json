@@ -11,9 +11,12 @@
   ],
   "scripts": {
     "build": "tsc -b",
+    "build:site": "bun run --cwd docs/site build",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
     "typecheck": "tsc -b",
+    "verify:deploy": "bun run typecheck && bun test && bun run build && bun run build:site",
+    "deploy:git": "bash scripts/deploy-via-git.sh",
     "demo": "bun run examples/node-cli/index.ts"
   },
   "devDependencies": {
