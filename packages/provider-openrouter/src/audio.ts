@@ -51,6 +51,58 @@ function joinChunks(chunks: readonly ArrayBuffer[]): Uint8Array {
   return joined;
 }
 
+function detectContainerFormat(
+  bytes: Uint8Array,
+): Extract<AudioEncoding, 'webm' | 'wav' | 'mp3' | 'opus'> | undefined {
+  if (
+    bytes.length >= 4 &&
+    bytes[0] === 0x1a &&
+    bytes[1] === 0x45 &&
+    bytes[2] === 0xdf &&
+    bytes[3] === 0xa3
+  ) {
+    return 'webm';
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x41 &&
+    bytes[10] === 0x56 &&
+    bytes[11] === 0x45
+  ) {
+    return 'wav';
+  }
+  if (
+    bytes.length >= 4 &&
+    bytes[0] === 0x4f &&
+    bytes[1] === 0x67 &&
+    bytes[2] === 0x67 &&
+    bytes[3] === 0x53
+  ) {
+    return 'opus';
+  }
+  if (
+    bytes.length >= 3 &&
+    bytes[0] === 0x49 &&
+    bytes[1] === 0x44 &&
+    bytes[2] === 0x33
+  ) {
+    return 'mp3';
+  }
+  if (
+    bytes.length >= 2 &&
+    bytes[0] === 0xff &&
+    (bytes[1]! & 0xe0) === 0xe0
+  ) {
+    return 'mp3';
+  }
+  return undefined;
+}
+
 function pcm16ToWavBytes(pcm: Uint8Array, sampleRate: number, channels: number): Uint8Array {
   const headerBytes = 44;
   const wav = new Uint8Array(headerBytes + pcm.byteLength);
@@ -135,6 +187,14 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
 
       const toUpload = (source: readonly ArrayBuffer[]) => {
         const joined = joinChunks(source);
+        // VoiceSession requests PCM16 as its cross-platform preference, but a
+        // Web MediaRecorder emits its actual WebM container on each turn. Trust
+        // a recognizable container header before falling back to the requested
+        // PCM encoding so browser audio is never wrapped in a bogus WAV file.
+        const containerFormat = detectContainerFormat(joined);
+        if (containerFormat) {
+          return { bytes: joined, uploadFormat: containerFormat };
+        }
         if (sessionOptions.encoding === 'pcm_s16le') {
           return {
             bytes: pcm16ToWavBytes(
@@ -211,7 +271,17 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
           generation += 1;
           // Preserve the first WebM chunk because it contains the container
           // header; discard assistant playback/silence accumulated after it.
-          const containerHeader = sessionOptions.encoding === 'pcm_s16le' ? undefined : chunks[0];
+          // VoiceSession asks for PCM16 cross-platform, while Web
+          // MediaRecorder still sends WebM, so inspect the actual bytes before
+          // falling back to the requested encoding.
+          const firstChunk = chunks[0];
+          const hasContainerHeader = firstChunk
+            ? detectContainerFormat(new Uint8Array(firstChunk)) !== undefined
+            : false;
+          const containerHeader =
+            hasContainerHeader || sessionOptions.encoding !== 'pcm_s16le'
+              ? firstChunk
+              : undefined;
           chunks.length = 0;
           if (containerHeader) chunks.push(containerHeader);
           lastPartialAt = now();

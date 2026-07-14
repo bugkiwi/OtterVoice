@@ -67,6 +67,7 @@ function DemoScreen() {
   const sessionRef = useRef<VoiceSession | null>(null);
   const cleanupsRef = useRef<Array<() => void>>([]);
   const userAudioEndedAt = useRef<number | undefined>(undefined);
+  const liveAssistantTurnIdRef = useRef<string | undefined>(undefined);
   const [language, setLanguage] = useState<AppLanguage>(() =>
     languageFromLocales(getLocales()),
   );
@@ -102,6 +103,7 @@ function DemoScreen() {
     setTurns([]);
     setPartial('');
     setLiveTurnId(undefined);
+    liveAssistantTurnIdRef.current = undefined;
     setLatencyMs(undefined);
     await releaseSession();
     const granted = await runtime.audioInput.requestPermission();
@@ -148,6 +150,16 @@ function DemoScreen() {
     cleanupsRef.current = [
       session.on('statechange', ({ to }) => {
         setState(to);
+        if (to === 'user_speaking') {
+          const staleTurnId = liveAssistantTurnIdRef.current;
+          if (staleTurnId) {
+            setTurns((current) => current.filter((turn) => turn.id !== staleTurnId));
+            setLiveTurnId((current) => (
+              current === staleTurnId ? undefined : current
+            ));
+            liveAssistantTurnIdRef.current = undefined;
+          }
+        }
         if (to === 'listening' || to === 'user_speaking') setPartial('');
       }),
       session.on('asr_partial', ({ text, turnId }) => {
@@ -167,12 +179,26 @@ function DemoScreen() {
         setTurns((current) => upsertTurn(current, { id: turnId, role: 'user', text }));
       }),
       session.on('assistant_text_delta', ({ text, turnId }) => {
+        const staleTurnId = liveAssistantTurnIdRef.current;
+        liveAssistantTurnIdRef.current = turnId;
         setLiveTurnId(turnId);
-        setTurns((current) => upsertTurn(current, { id: turnId, role: 'assistant', text }));
+        setTurns((current) => upsertTurn(
+          staleTurnId && staleTurnId !== turnId
+            ? current.filter((turn) => turn.id !== staleTurnId)
+            : current,
+          { id: turnId, role: 'assistant', text },
+        ));
       }),
       session.on('assistant_text', ({ text, turnId }) => {
+        const staleTurnId = liveAssistantTurnIdRef.current;
+        if (staleTurnId === turnId) liveAssistantTurnIdRef.current = undefined;
         setLiveTurnId((current) => (current === turnId ? undefined : current));
-        setTurns((current) => upsertTurn(current, { id: turnId, role: 'assistant', text }));
+        setTurns((current) => upsertTurn(
+          staleTurnId && staleTurnId !== turnId
+            ? current.filter((turn) => turn.id !== staleTurnId)
+            : current,
+          { id: turnId, role: 'assistant', text },
+        ));
       }),
       session.on('user_audio_end', () => {
         userAudioEndedAt.current = performance.now();
@@ -182,6 +208,14 @@ function DemoScreen() {
         if (endedAt !== undefined) setLatencyMs(performance.now() - endedAt);
       }),
       session.on('error', (event) => {
+        const staleTurnId = liveAssistantTurnIdRef.current;
+        if (staleTurnId) {
+          setTurns((current) => current.filter((turn) => turn.id !== staleTurnId));
+          setLiveTurnId((current) => (
+            current === staleTurnId ? undefined : current
+          ));
+          liveAssistantTurnIdRef.current = undefined;
+        }
         setError(event.message);
         setState('error');
       }),

@@ -4,8 +4,9 @@ Full-duplex browser demo with real microphone capture/playback and two live
 pipelines that can be switched in the UI. The demo server currently selects
 OpenRouter adapters, while the session and UI remain provider-independent:
 
-- **Audio LLM (default):** `openai/gpt-audio-mini` consumes the recorded turn
-  and generates speech directly. Qwen ASR runs in parallel only for captions.
+- **Audio LLM (default):** Qwen ASR streams provisional captions and confirms
+  one final turn; only then does `openai/gpt-audio-mini` receive the recorded
+  audio and generate speech directly.
 - **Cascade (retained):** Qwen ASR → DeepSeek V4 Flash → Kokoro 82M.
 
 ```bash
@@ -29,6 +30,9 @@ every 100 ms, the demo requests a rolling ASR snapshot every 500 ms, and
 `asr_partial` updates the existing user turn by `turnId`. `asr_final` replaces
 the provisional text at the turn boundary. A native streaming ASR adapter can
 replace the rolling snapshot provider without changing the UI event handlers.
+Partial results never start an LLM request. If speech resumes before final ASR
+confirms the turn, the pending capture is cancelled without spending an Audio
+LLM request.
 
 Barge-in is playback-aware: `runtime-web` derives a synchronized RMS envelope
 from the assistant audio, and core searches 0–300 ms of acoustic delay before
@@ -113,8 +117,11 @@ of non-silent ASR audio. Three live runs produced these averages:
 | Pipeline | Cost / turn | Full audio ready | Relative |
 | --- | ---: | ---: | ---: |
 | ASR → LLM → TTS | $0.0002343 | 5,213 ms | 1.00× cost / speed |
-| Audio LLM + parallel caption ASR | $0.0004842 | 2,179 ms | 2.07× cost / 2.39× faster |
+| Audio LLM + eager parallel caption ASR (historical) | $0.0004842 | 2,179 ms | 2.07× cost / 2.39× faster |
 
+The Audio LLM row records the former eager-request path and is retained only as
+a historical baseline. The current cost-safe path waits for final ASR before
+generation, so re-run the benchmark before using its latency in planning.
 This is a workload sample, not a universal quote: conversation history, reply
 length, provider load, and silence change both token usage and latency. The
 browser also displays per-mode rolling latency measured from VAD turn end to

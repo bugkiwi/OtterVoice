@@ -744,7 +744,15 @@ describe('VoiceSession full_duplex', () => {
   it('confirms a strong 200 ms interruption without waiting for ASR text', async () => {
     const time = clock(0);
     const runtime = createMockRuntime({ output: { autoComplete: false } });
-    const { session } = makeSession({
+    const suspendCapture = mock(async () => {});
+    let stateWhenPreRollResumed: string | undefined;
+    let session!: VoiceSession;
+    const resumeCapture = mock(async (_options?: { includePreRoll?: boolean }) => {
+      stateWhenPreRollResumed = session.state;
+    });
+    runtime.audioInput.suspendCapture = suspendCapture;
+    runtime.audioInput.resumeCapture = resumeCapture;
+    ({ session } = makeSession({
       mode: 'full_duplex',
       runtime,
       now: time.now,
@@ -754,7 +762,7 @@ describe('VoiceSession full_duplex', () => {
         volumeThreshold: 0.018,
       },
       policy: { allowInterruption: true },
-    });
+    }));
     await session.start();
     void session.submitUserText('hello');
     await nextState(session, 'assistant_speaking');
@@ -770,6 +778,9 @@ describe('VoiceSession full_duplex', () => {
     expect(session.state).toBe('user_speaking');
     expect(runtime.audioOutput.stopped).toBeGreaterThan(0);
     expect(runtime.audioOutput.paused).toBe(0);
+    await Promise.resolve();
+    expect(resumeCapture).toHaveBeenCalledWith({ includePreRoll: true });
+    expect(stateWhenPreRollResumed).toBe('user_speaking');
   });
 
   it('accepts a single CJK character as a confirmed interruption', async () => {
@@ -885,7 +896,7 @@ describe('VoiceSession full_duplex', () => {
     expect(runtime.audioInput.started).toBe(true);
   });
 
-  it('reopens capture while caption ASR and the audio reply are still pending', async () => {
+  it('does not request an audio reply when speech resumes before caption ASR final', async () => {
     const runtime = createMockRuntime();
     let sessionCount = 0;
     let releaseFirstAsr!: () => void;
@@ -929,24 +940,11 @@ describe('VoiceSession full_duplex', () => {
         };
       },
     };
-    let releaseReply!: (value: {
-      text: string;
-      audioBuffer: ArrayBuffer;
-      mimeType: string;
-    }) => void;
-    const replyGate = new Promise<{
-      text: string;
-      audioBuffer: ArrayBuffer;
-      mimeType: string;
-    }>((resolve) => {
-      releaseReply = resolve;
-    });
     let audioLlmCalls = 0;
     const audioLlm: AudioLLMProvider = {
       name: 'slow-audio-llm',
       async generate() {
         audioLlmCalls += 1;
-        if (audioLlmCalls === 1) return replyGate;
         return {
           text: 'continued reply',
           audioBuffer: new ArrayBuffer(8),
@@ -977,9 +975,10 @@ describe('VoiceSession full_duplex', () => {
     expect(session.state).toBe('processing');
     expect(sessionCount).toBe(2);
     expect(runtime.audioInput.started).toBe(true);
+    expect(audioLlmCalls).toBe(0);
 
-    // Speaking during the old request cancels its reply and belongs to the
-    // recorder that was already opened during processing.
+    // Speaking while the old turn is still awaiting final ASR cancels it and
+    // belongs to the recorder that was already opened during processing.
     runtime.audioInput.emitVolume(0.5);
     expect(session.state).toBe('user_speaking');
 
@@ -994,11 +993,6 @@ describe('VoiceSession full_duplex', () => {
     const secondEnding = session.endUserTurn();
 
     releaseFirstAsr();
-    releaseReply({
-      text: 'stale reply',
-      audioBuffer: new ArrayBuffer(8),
-      mimeType: 'audio/wav',
-    });
     await ending;
     await secondEnding;
     await continuedReply;
@@ -1010,7 +1004,7 @@ describe('VoiceSession full_duplex', () => {
           (payload as { text: string }).text === 'stale reply',
       ),
     ).toBe(false);
-    expect(audioLlmCalls).toBe(2);
+    expect(audioLlmCalls).toBe(1);
     expect(
       events.some(
         ([name, payload]) =>
@@ -1088,7 +1082,107 @@ describe('VoiceSession full_duplex', () => {
     await session.dispose();
   });
 
-  it('plays native PCM chunks before the SSE response and caption ASR finish', async () => {
+  it('treats ASR partials as UI-only and requests one audio reply after final', async () => {
+    const runtime = createMockRuntime();
+    const { provider: asr, ctl } = controllableASR({
+      finalOnStop: 'complete question',
+    });
+    let audioLlmCalls = 0;
+    const audioLlm: AudioLLMProvider = {
+      name: 'counted-audio-llm',
+      async generate() {
+        audioLlmCalls += 1;
+        return {
+          text: 'one answer',
+          audioBuffer: new ArrayBuffer(8),
+          mimeType: 'audio/wav',
+        };
+      },
+    };
+    const { session } = makeSession({
+      mode: 'full_duplex',
+      pipeline: 'audio_llm',
+      runtime,
+      providers: { asr, audioLlm } as any,
+    });
+    await session.start();
+    emitChunk(runtime);
+
+    ctl.emitPartial({ text: 'complete' });
+    ctl.emitPartial({ text: 'complete question' });
+    await Promise.resolve();
+    expect(audioLlmCalls).toBe(0);
+
+    const answered = new Promise<void>((resolve) => {
+      const off = session.on('assistant_text', ({ text }) => {
+        if (text !== 'one answer') return;
+        off();
+        resolve();
+      });
+    });
+    await session.endUserTurn();
+    await answered;
+
+    expect(audioLlmCalls).toBe(1);
+    await session.dispose();
+  });
+
+  it('aborts a final-confirmed provider request when a newer turn supersedes it', async () => {
+    const runtime = createMockRuntime();
+    const { provider: asr } = controllableASR({ finalOnStop: 'first question' });
+    let started!: () => void;
+    const requestStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    let requestSignal: AbortSignal | undefined;
+    let emitLateTranscriptDelta:
+      | ((text: string) => void | Promise<void>)
+      | undefined;
+    const audioLlm: AudioLLMProvider = {
+      name: 'abortable-audio-llm',
+      generate(input) {
+        requestSignal = input.signal;
+        emitLateTranscriptDelta = input.onTranscriptDelta;
+        started();
+        return new Promise((_, reject) => {
+          input.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        });
+      },
+    };
+    const { session, events } = makeSession({
+      mode: 'full_duplex',
+      pipeline: 'audio_llm',
+      runtime,
+      providers: { asr, audioLlm } as any,
+      turnDetection: {
+        strategy: 'volume',
+        minSpeechMs: 0,
+        silenceTimeoutMs: 0,
+        volumeThreshold: 0.1,
+      },
+    });
+    await session.start();
+    emitChunk(runtime);
+    await session.endUserTurn();
+    await requestStarted;
+
+    expect(requestSignal?.aborted).toBe(false);
+    runtime.audioInput.emitVolume(0.5);
+    expect(session.state).toBe('user_speaking');
+    expect(requestSignal?.aborted).toBe(true);
+    await emitLateTranscriptDelta?.('late stale answer');
+    expect(
+      events.some(
+        ([name, payload]) =>
+          name === 'assistant_text_delta' &&
+          (payload as { text: string }).text.includes('late stale answer'),
+      ),
+    ).toBe(false);
+
+    await session.dispose();
+  });
+
+  it('waits for caption ASR final before requesting and streaming an audio reply', async () => {
     const runtime = createMockRuntime();
     const streamedChunks: number[][] = [];
     const startPcmStream = mock(async () => ({
@@ -1147,6 +1241,7 @@ describe('VoiceSession full_duplex', () => {
     const audioLlm: AudioLLMProvider = {
       name: 'streaming-audio-llm',
       async generate(input) {
+        audioLlmStarted = true;
         await input.onAudioChunk?.({
           data: new Uint8Array([1, 2, 3, 4]).buffer,
           encoding: 'pcm_s16le',
@@ -1170,6 +1265,7 @@ describe('VoiceSession full_duplex', () => {
         };
       },
     };
+    let audioLlmStarted = false;
     const { session, events } = makeSession({
       mode: 'full_duplex',
       pipeline: 'audio_llm',
@@ -1179,6 +1275,12 @@ describe('VoiceSession full_duplex', () => {
     await session.start();
     emitChunk(runtime);
     const ending = session.endUserTurn();
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(audioLlmStarted).toBe(false);
+    expect(startPcmStream).toHaveBeenCalledTimes(0);
+
+    releaseAsr();
     await firstChunk;
 
     expect(session.state).toBe('assistant_speaking');
@@ -1190,7 +1292,6 @@ describe('VoiceSession full_duplex', () => {
     expect(events.some(([name]) => name === 'assistant_text')).toBe(false);
     expect(runtime.audioOutput.played).toHaveLength(0);
 
-    releaseAsr();
     releaseReply();
     await ending;
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -1427,7 +1528,7 @@ describe('VoiceSession full_duplex', () => {
   it('suspends encoded capture during assistant playback and resumes for listening', async () => {
     const runtime = createMockRuntime({ output: { autoComplete: false } });
     const suspendCapture = mock(async () => {});
-    const resumeCapture = mock(async () => {});
+    const resumeCapture = mock(async (_options?: { includePreRoll?: boolean }) => {});
     runtime.audioInput.suspendCapture = suspendCapture;
     runtime.audioInput.resumeCapture = resumeCapture;
     const { session } = makeSession({ mode: 'full_duplex', runtime });
@@ -1443,6 +1544,7 @@ describe('VoiceSession full_duplex', () => {
     runtime.audioOutput.fireEnd();
     await listening;
     expect(resumeCapture).toHaveBeenCalledTimes(1);
+    expect(resumeCapture).toHaveBeenCalledWith({ includePreRoll: false });
     await session.dispose();
   });
 

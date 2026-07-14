@@ -214,6 +214,8 @@ export interface LLMGenerateInput {
   maxTokens?: number;
   responseFormat?: 'text' | 'json';
   metadata?: Record<string, unknown>;
+  /** Cancels an in-flight provider request when this turn is superseded. */
+  signal?: AbortSignal;
 }
 
 export interface LLMGenerateOutput {
@@ -260,6 +262,8 @@ export interface AudioLLMGenerateInput {
   temperature?: number;
   maxTokens?: number;
   metadata?: Record<string, unknown>;
+  /** Cancels an in-flight provider request when this turn is superseded. */
+  signal?: AbortSignal;
   /** Receives decoded output audio while the model response is still streaming. */
   onAudioChunk?: (chunk: AudioLLMAudioChunk) => void | Promise<void>;
   /** Receives the model's spoken transcript while output audio is streaming. */
@@ -395,10 +399,16 @@ export interface AudioInputAdapter {
   requestPermission(): Promise<boolean>;
   start(options: AudioInputOptions): Promise<void>;
   stop(): Promise<void>;
-  /** Pause encoded chunk capture while leaving volume/VAD monitoring active. */
+  /**
+   * Suspend encoded chunk delivery while leaving volume/VAD monitoring active.
+   * A runtime may retain a bounded barge-in pre-roll internally.
+   */
   suspendCapture?(): Promise<void>;
-  /** Resume encoded chunk capture after {@link suspendCapture}. */
-  resumeCapture?(): Promise<void>;
+  /**
+   * Resume encoded chunk capture after {@link suspendCapture}. Runtimes with a
+   * barge-in pre-roll buffer may include it when `includePreRoll` is true.
+   */
+  resumeCapture?(options?: { includePreRoll?: boolean }): Promise<void>;
   pause?(): Promise<void>;
   resume?(): Promise<void>;
   onChunk(cb: (chunk: AudioChunk) => void): () => void;
@@ -562,7 +572,7 @@ export interface VoiceSessionConfig {
     asr: ASRProvider;
     llm: LLMProvider;
     tts?: TTSProvider;
-    /** Required when `pipeline` is `audio_llm`; ASR still runs in parallel for captions. */
+    /** Required when `pipeline` is `audio_llm`; ASR partials provide captions and final confirms the turn before generation. */
     audioLlm?: AudioLLMProvider;
     pronunciation?: PronunciationProvider;
   };

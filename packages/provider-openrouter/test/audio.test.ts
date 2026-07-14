@@ -113,6 +113,67 @@ describe('createOpenRouterASR', () => {
     });
   });
 
+  it('detects WebM from the browser even when the core requests PCM16', async () => {
+    const bodies: any[] = [];
+    const provider = createOpenRouterASR({
+      apiKey: 'secret',
+      model: 'qwen/asr',
+      format: 'webm',
+      partialIntervalMs: 0,
+      fetch: async (_url, init) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        return Response.json({ text: bodies.length === 1 ? '浏览' : '浏览器字幕' });
+      },
+    });
+    const session = await provider.createSession({
+      language: 'zh',
+      sampleRate: 16_000,
+      channels: 1,
+      encoding: 'pcm_s16le',
+    });
+    const timeline: string[] = [];
+    session.onPartial(({ text }) => timeline.push(`partial:${text}`));
+    session.onFinal(({ text }) => timeline.push(`final:${text}`));
+
+    // This is the actual mismatch at the VoiceSession/WebRuntime boundary:
+    // the requested encoding is PCM16, while MediaRecorder emits WebM bytes.
+    await session.sendAudio(new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0x01]).buffer);
+    await session.stop();
+
+    expect(timeline).toEqual(['partial:浏览', 'final:浏览器字幕']);
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0].input_audio).toEqual({ data: 'GkXfowE=', format: 'webm' });
+    expect(bodies[0].input_audio.data.startsWith('UklGR')).toBe(false);
+  });
+
+  it('preserves a real WebM header across reset when PCM16 was requested', async () => {
+    let body: any;
+    const session = await createOpenRouterASR({
+      apiKey: 'secret',
+      model: 'qwen/asr',
+      format: 'webm',
+      fetch: async (_url, init) => {
+        body = JSON.parse(String(init?.body));
+        return Response.json({ text: '插话字幕' });
+      },
+    }).createSession({
+      sampleRate: 16_000,
+      channels: 1,
+      encoding: 'pcm_s16le',
+    });
+
+    session.sendAudio(new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]).buffer);
+    session.sendAudio(new Uint8Array([0xaa]).buffer);
+    await session.resetAudio?.();
+    session.sendAudio(new Uint8Array([0xbb]).buffer);
+    await session.stop();
+
+    expect(body.input_audio).toEqual({
+      data: bytesToBase64(new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0xbb])),
+      format: 'webm',
+    });
+  });
+
   it('drops buffered assistant audio while preserving the WebM header', async () => {
     let body: any;
     const session = await createOpenRouterASR({

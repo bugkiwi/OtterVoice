@@ -64,6 +64,7 @@ export function createOpenRouterLLM(options: OpenRouterOptions): LLMProvider {
       method: 'POST',
       headers: buildHeaders(token, options),
       body: JSON.stringify(body),
+      signal: input.signal,
     });
   }
 

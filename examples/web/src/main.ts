@@ -39,12 +39,6 @@ const translations = {
   zh: {
     metaDescription: 'OtterVoice — 面向 Web 与 React Native 的全双工实时语音对话 SDK。',
     navDemo: '在线体验', navNative: 'React Native', navDocs: '技术文档',
-    heroEyebrow: 'Open voice infrastructure · TypeScript first',
-    heroLine1: '让语音对话，', heroLine2: '像呼吸一样自然。',
-    heroCopy: 'OtterVoice 把持续收音、停顿提交、语音直进直出和自然打断收敛为一套跨 Web 与 React Native 的全双工会话内核。',
-    heroPrimary: '直接体验', heroSecondary: '运行移动端 Demo',
-    signal1Title: 'Full duplex', signal1Copy: '边播边听，开口即可打断',
-    signal2Copy: '同一状态机与会话策略', signal3Copy: '音频分片返回即排队播放',
     demoEyebrow: 'Example 01 · Web full duplex', demoTitle: '现在，直接开口。',
     demoCopy: '麦克风会持续监听。停顿即提交，AI 说话时也可直接插话打断；屏幕同步保留完整文字记录。',
     pipelineFootnote: '低延迟语音网关 · Provider 可替换 · 密钥仅保留在服务端',
@@ -77,12 +71,6 @@ const translations = {
   en: {
     metaDescription: 'OtterVoice — a full-duplex real-time voice SDK for Web and React Native.',
     navDemo: 'Live demo', navNative: 'React Native', navDocs: 'Docs',
-    heroEyebrow: 'Open voice infrastructure · TypeScript first',
-    heroLine1: 'Voice that feels', heroLine2: 'as natural as breathing.',
-    heroCopy: 'OtterVoice brings continuous listening, pause-to-submit, speech-to-speech models and natural barge-in into one full-duplex session core for Web and React Native.',
-    heroPrimary: 'Try it live', heroSecondary: 'Run the mobile demo',
-    signal1Title: 'Full duplex', signal1Copy: 'Listen while playing; interrupt by speaking',
-    signal2Copy: 'One state machine and session policy', signal3Copy: 'Queue audio chunks as soon as they arrive',
     demoEyebrow: 'Example 01 · Web full duplex', demoTitle: 'Now, just speak.',
     demoCopy: 'The microphone keeps listening. A pause submits your turn; speak over the assistant to interrupt while the full transcript stays on screen.',
     pipelineFootnote: 'Low-latency voice gateway · replaceable provider · secrets stay server-side',
@@ -143,15 +131,17 @@ const runtimeText = {
   zh: {
     you: '你', otter: 'Otter', playing: '播放中…', playFailed: '播放失败', playSse: '▶ SSE 音频',
     playTitle: '播放 OpenRouter SSE 组装后的原始音频（独立于会话播放）', chunks: '片', pending: '待测',
+    asrWaiting: '等待实时字幕…', asrListening: '正在识别…',
     latencyEmpty: '完成一轮对话后显示“停顿 → 开始播放”的实测延迟',
-    pipelineAudio: '<code>GPT Audio Mini</code> 语音直进直出 · <code>Qwen3 ASR</code> 仅并行生成字幕',
+    pipelineAudio: '<code>Qwen3 ASR</code> 实时字幕与终句确认 → <code>GPT Audio Mini</code> 语音回复',
     pipelineCascade: '<code>Qwen3 ASR</code> → <code>DeepSeek V4 Flash</code> → <code>Kokoro 82M</code>',
   },
   en: {
     you: 'You', otter: 'Otter', playing: 'Playing…', playFailed: 'Playback failed', playSse: '▶ SSE audio',
     playTitle: 'Play the original audio assembled from OpenRouter SSE chunks', chunks: 'chunks', pending: 'pending',
+    asrWaiting: 'Waiting for live captions…', asrListening: 'Transcribing…',
     latencyEmpty: 'Measured pause → first audio playback latency appears after one turn',
-    pipelineAudio: '<code>GPT Audio Mini</code> speech-to-speech · <code>Qwen3 ASR</code> captions in parallel',
+    pipelineAudio: '<code>Qwen3 ASR</code> live captions + final confirmation → <code>GPT Audio Mini</code> voice reply',
     pipelineCascade: '<code>Qwen3 ASR</code> → <code>DeepSeek V4 Flash</code> → <code>Kokoro 82M</code>',
   },
 } as const;
@@ -184,6 +174,18 @@ function playSseAudio(capture: SseAudioCapture, button: HTMLButtonElement) {
 }
 
 const turnElements = new Map<string, HTMLDivElement>();
+let liveAssistantTurnId: string | undefined;
+
+function removeTurn(turnId: string) {
+  turnElements.get(turnId)?.remove();
+  turnElements.delete(turnId);
+}
+
+function removeLiveAssistantTurn() {
+  if (!liveAssistantTurnId) return;
+  removeTurn(liveAssistantTurnId);
+  liveAssistantTurnId = undefined;
+}
 
 function addTurn(
   role: 'user' | 'assistant',
@@ -247,6 +249,17 @@ function renderState(state: string) {
   stateEl.textContent = state.replaceAll('_', ' ');
   stateEl.dataset.state = state;
   stateCopyEl.textContent = stateCopy[language][state] ?? state;
+}
+
+type CaptionState = 'waiting' | 'listening' | 'live' | 'final';
+
+function renderAsrCaption(state: CaptionState, text?: string) {
+  partialEl.dataset.captionState = state;
+  partialEl.textContent = text ?? (
+    state === 'listening'
+      ? runtimeText[language].asrListening
+      : runtimeText[language].asrWaiting
+  );
 }
 
 const proxyOptions = {
@@ -329,6 +342,7 @@ const runtime = createWebRuntime({
   // Feed WebM timeslices to ASR while the user is still speaking.
   timesliceMs: 100,
   volumePollMs: 50,
+  bargeInPreRollMs: 500,
   mimeType: 'audio/webm;codecs=opus',
 });
 runtime.audioInput.onVolume((level) => {
@@ -421,18 +435,24 @@ function buildSession(pipeline: Pipeline) {
 
   session.on('statechange', (event) => {
     renderState(event.to);
-    if (event.to === 'listening' || event.to === 'user_speaking') {
-      partialEl.textContent = '';
+    if (event.to === 'user_speaking') {
+      // A newer utterance supersedes an answer that only streamed partially.
+      // Finalized assistant rows remain in the transcript.
+      removeLiveAssistantTurn();
+      renderAsrCaption('listening');
     }
   });
   session.on('asr_partial', (event) => {
-    partialEl.textContent = event.text;
+    renderAsrCaption('live', event.text);
     if (event.text.trim().length > 0) {
       addTurn('user', event.text, { turnId: event.turnId, live: true });
     }
   });
   session.on('asr_final', (event) => {
-    partialEl.textContent = '';
+    renderAsrCaption(
+      event.text.trim().length > 0 ? 'final' : 'waiting',
+      event.text || undefined,
+    );
     if (event.text.trim().length > 0) {
       addTurn('user', event.text, { turnId: event.turnId });
     }
@@ -441,9 +461,18 @@ function buildSession(pipeline: Pipeline) {
     userAudioEndedAt = event.at;
   });
   session.on('assistant_text_delta', (event) => {
+    if (liveAssistantTurnId && liveAssistantTurnId !== event.turnId) {
+      removeLiveAssistantTurn();
+    }
+    liveAssistantTurnId = event.turnId;
     addTurn('assistant', event.text, { turnId: event.turnId, live: true });
   });
   session.on('assistant_text', (event) => {
+    if (liveAssistantTurnId && liveAssistantTurnId !== event.turnId) {
+      removeLiveAssistantTurn();
+    } else if (liveAssistantTurnId === event.turnId) {
+      liveAssistantTurnId = undefined;
+    }
     const sseAudio = pipeline === 'audio_llm' ? lastSseAudio : undefined;
     addTurn('assistant', event.text, {
       turnId: event.turnId,
@@ -459,6 +488,7 @@ function buildSession(pipeline: Pipeline) {
     userAudioEndedAt = undefined;
   });
   session.on('error', (event) => {
+    removeLiveAssistantTurn();
     renderState('error');
     addTurn('assistant', `${event.code}: ${event.message}`);
     startBtn.disabled = false;
@@ -467,12 +497,13 @@ function buildSession(pipeline: Pipeline) {
     audioBtn.disabled = false;
   });
   session.on('finished', () => {
+    removeLiveAssistantTurn();
     renderState('finished');
     startBtn.disabled = false;
     finishBtn.disabled = true;
     cascadeBtn.disabled = false;
     audioBtn.disabled = false;
-    partialEl.textContent = '';
+    renderAsrCaption('waiting');
     meterEl.style.setProperty('--level', '0');
   });
   return session;
@@ -494,6 +525,8 @@ startBtn.addEventListener('click', async () => {
   finishBtn.disabled = false;
   logEl.innerHTML = '';
   turnElements.clear();
+  liveAssistantTurnId = undefined;
+  renderAsrCaption('waiting');
   lastSseAudio = undefined;
   debugAudioPlayer?.pause();
   await session?.dispose();
@@ -552,6 +585,10 @@ function applyLanguage(next: AppLanguage) {
 
   renderPipeline();
   renderState(stateEl.dataset.state ?? 'idle');
+  const captionState = partialEl.dataset.captionState as CaptionState | undefined;
+  if (captionState === 'waiting' || captionState === 'listening') {
+    renderAsrCaption(captionState);
+  }
   if (lastLatency) renderLatency(lastLatency.pipeline, lastLatency.value);
   else latencyEl.textContent = runtimeText[next].latencyEmpty;
 }

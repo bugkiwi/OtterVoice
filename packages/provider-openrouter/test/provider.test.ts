@@ -27,16 +27,19 @@ describe('createOpenRouterLLM.generate', () => {
       );
     });
     const llm = createOpenRouterLLM({ apiKey: 'sk-test', model: 'g/flash', fetch: fetchImpl });
+    const controller = new AbortController();
 
     const out = await llm.generate({
       system: 'be brief',
       messages: [{ role: 'user', content: 'hi' }],
+      signal: controller.signal,
     });
 
     expect(out.text).toBe('Hello!');
     expect(out.usage).toEqual({ inputTokens: 4, outputTokens: 2, totalTokens: 6 });
     expect(captured?.url).toBe('https://openrouter.ai/api/v1/chat/completions');
     expect((captured?.init.headers as Record<string, string>).authorization).toBe('Bearer sk-test');
+    expect(captured?.init.signal).toBe(controller.signal);
   });
 
   it('omits usage when the API returns none', async () => {

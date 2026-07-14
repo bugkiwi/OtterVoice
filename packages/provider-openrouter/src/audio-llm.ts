@@ -205,6 +205,7 @@ export function createOpenRouterAudioLLM(
         method: 'POST',
         headers: buildHeaders(token, options),
         body: JSON.stringify(body),
+        signal: input.signal,
       });
       if (!res.ok || !res.body) {
         throw new VoiceError(

@@ -8,8 +8,8 @@
 
 ```text
 原生 PCM 麦克风
-  ├─→ 流式 / 滚动 ASR → asr_partial → asr_final
-  └─→ Audio LLM → assistant_text_delta + PCM 分片播放
+  └─→ 流式 / 滚动 ASR → asr_partial（仅字幕）→ asr_final
+                                                └─→ Audio LLM → assistant_text_delta + PCM 分片播放
 ```
 
 Demo 当前在服务端选择 OpenRouter 适配器，但 UI、`VoiceSession` 和 Runtime 不依赖它。可以替换 ASR、LLM、TTS 或 Audio LLM Provider，而无需修改会话交互代码。客户端只看到通用 `/api/voice` 网关，不包含 Provider 长期密钥或具体上游地址。
@@ -68,7 +68,7 @@ bun run build:preview
 
 ## English
 
-This Expo SDK 57 example demonstrates full-duplex Audio LLM sessions with continuous 16 kHz mono PCM capture. Input captions update on `asr_partial`; assistant captions update on `assistant_text_delta`; PCM playback starts as chunks arrive.
+This Expo SDK 57 example demonstrates full-duplex Audio LLM sessions with continuous 16 kHz mono PCM capture. Input captions update on `asr_partial`, but generation starts only after `asr_final` confirms the turn. Assistant captions update on `assistant_text_delta`; PCM playback starts as chunks arrive.
 
 The demo currently selects an OpenRouter adapter on the server, but its UI, `VoiceSession`, and runtime are provider-independent. Replace the ASR, LLM, TTS, or Audio LLM adapters in [`src/providers.ts`](src/providers.ts) without changing session interaction code. The client sees only a generic `/api/voice` gateway and contains no long-lived provider key or upstream URL.
 

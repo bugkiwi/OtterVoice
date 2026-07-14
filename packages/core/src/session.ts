@@ -43,7 +43,7 @@ interface TurnCapture {
   verifiedSpeechText: boolean;
   interruptionVoicedFrames: number;
   generation?: number;
-  audioReply?: Promise<AudioLLMGenerateOutput>;
+  replyAbort?: AbortController;
   streamingPlayback?: StreamingAssistantPlayback;
   streamingPlaybackDisabled: boolean;
   streamingTranscript: string;
@@ -280,6 +280,7 @@ export class VoiceSession {
       cancel() {
         if (capture.cancelled) return;
         capture.cancelled = true;
+        capture.replyAbort?.abort();
         resolveCancel();
       },
     };
@@ -606,8 +607,8 @@ export class VoiceSession {
 
     try {
       // Finalize the current WebM before handing its bytes to either model.
-      // The next recorder is opened immediately afterwards, while caption ASR
-      // and the reply request for this turn continue in the background.
+      // The next recorder opens immediately while caption ASR confirms the
+      // turn. A reply request is intentionally deferred until that final.
       await this.config.runtime.audioInput.stop();
     } catch (err) {
       this.fail(err);
@@ -622,18 +623,8 @@ export class VoiceSession {
     }
     this.inputCaptureSuspended = false;
 
-    const hadEarlierPendingTurn = this.pendingCaptures.size > 0;
     capture.generation = ++this.turnGeneration;
     this.pendingCaptures.add(capture);
-    if (
-      this.config.pipeline === 'audio_llm' &&
-      capture.audioChunks.length > 0 &&
-      !hadEarlierPendingTurn &&
-      this.hasReliableInterruptedSpeech(capture)
-    ) {
-      capture.audioReply = this.generateAudioReply(capture.audioChunks, capture);
-      void capture.audioReply.catch(() => {});
-    }
 
     if (this.state !== 'processing') this.transition('processing');
 
@@ -696,7 +687,7 @@ export class VoiceSession {
     this.tentativeInterruptionSilenceSince = undefined;
     this.loudInterruptionGate.reset();
     this.playbackEchoFilter.stop();
-    void this.resumeInputCapture().catch((error) => {
+    void this.resumeInputCapture(true).catch((error) => {
       this.fail(error, 'microphone_unavailable');
     });
     void audioOutput.pause().catch(() => {
@@ -746,10 +737,13 @@ export class VoiceSession {
     this.clearTentativeInterruption();
     this.interruptionTurnActive = true;
     this.interruptionDetector.forceSpeechStart(now);
-    void this.resumeInputCapture().catch((error) => {
+    // Announce the user turn before a runtime synchronously flushes its
+    // barge-in pre-roll. Otherwise shouldForwardAsrAudio() still sees
+    // assistant_speaking and drops those opening syllables from captions.
+    this.interruptAssistant();
+    void this.resumeInputCapture(true).catch((error) => {
       this.fail(error, 'microphone_unavailable');
     });
-    this.interruptAssistant();
   }
 
   private resumeFalseInterruption(now: number): void {
@@ -770,6 +764,8 @@ export class VoiceSession {
     void (async () => {
       try {
         await this.suspendInputCapture();
+        await this.asrSession?.resetAudio?.();
+        this.resetTurnAudio();
         await resume.call(this.config.runtime.audioOutput);
       } catch {
         this.clearTentativeInterruption();
@@ -789,6 +785,7 @@ export class VoiceSession {
     this.loudInterruptionGate.reset();
     if (await this.suspendInputCapture()) {
       await this.asrSession?.resetAudio?.();
+      this.resetTurnAudio();
       return;
     }
     await this.asrSession?.resetAudio?.();
@@ -808,12 +805,12 @@ export class VoiceSession {
     return true;
   }
 
-  private async resumeInputCapture(): Promise<boolean> {
+  private async resumeInputCapture(includePreRoll = false): Promise<boolean> {
     const { audioInput } = this.config.runtime;
     if (!audioInput.suspendCapture || !audioInput.resumeCapture) return false;
     if (!this.inputCaptureSuspended) return true;
     this.inputCaptureSuspended = false;
-    await audioInput.resumeCapture();
+    await audioInput.resumeCapture({ includePreRoll });
     return true;
   }
 
@@ -1050,8 +1047,17 @@ export class VoiceSession {
     }
 
     if (this.config.pipeline === 'audio_llm') {
-      const replyPromise =
-        capture.audioReply ?? this.generateAudioReply(capture.audioChunks, capture);
+      // Partial captions are presentation-only. Start the paid Audio LLM
+      // request only after caption ASR has finalized this still-current turn.
+      // If the user resumes during a natural pause, beginUserSpeech cancels
+      // this capture before execution reaches this point, preventing a stale
+      // answer request rather than merely suppressing its playback.
+      capture.replyAbort = new AbortController();
+      const replyPromise = this.generateAudioReply(
+        capture.audioChunks,
+        capture,
+        capture.replyAbort.signal,
+      );
       const outcome = await this.waitForCaptureReply(capture, replyPromise);
       if (outcome.kind === 'cancelled') return;
       if (outcome.kind === 'error') {
@@ -1079,9 +1085,10 @@ export class VoiceSession {
     } else {
       const assistantTurnId =
         capture.streamingAssistantTurnId ??= this.generateId();
+      capture.replyAbort = new AbortController();
       const outcome = await this.waitForCaptureReply(
         capture,
-        this.generateReply(text, assistantTurnId),
+        this.generateReply(text, assistantTurnId, capture.replyAbort.signal),
       );
       if (outcome.kind === 'cancelled') return;
       if (outcome.kind === 'error') {
@@ -1145,20 +1152,26 @@ export class VoiceSession {
     await this.startListening();
   }
 
-  private async generateReply(lastUserText: string, turnId: string): Promise<string> {
+  private async generateReply(
+    lastUserText: string,
+    turnId: string,
+    signal?: AbortSignal,
+  ): Promise<string> {
     if (this.config.agent) {
       return this.config.agent.generateNextAssistantMessage({
         turns: this.transcript.all(),
         lastUserText,
       });
     }
-    const input: { system?: string; messages: LLMMessage[] } = {
+    const input: { system?: string; messages: LLMMessage[]; signal?: AbortSignal } = {
       messages: this.transcript.toMessages(),
+      ...(signal ? { signal } : {}),
     };
     const provider = this.config.providers.llm;
     if (provider.stream) {
       let text = '';
       for await (const chunk of provider.stream(input)) {
+        if (signal?.aborted) break;
         if (chunk.type === 'text_delta' && chunk.text) {
           text += chunk.text;
           this.emit('assistant_text_delta', {
@@ -1182,6 +1195,7 @@ export class VoiceSession {
   private async generateAudioReply(
     audioChunks: readonly ArrayBuffer[],
     capture?: TurnCapture,
+    signal?: AbortSignal,
   ): Promise<AudioLLMGenerateOutput> {
     const provider = this.config.providers.audioLlm;
     if (!provider) {
@@ -1209,9 +1223,17 @@ export class VoiceSession {
         ? { maxTokens: this.config.audioLlmMaxTokens }
         : {}),
       temperature: 0.45,
+      ...(signal ? { signal } : {}),
       ...(capture
         ? {
             onTranscriptDelta: (text: string) => {
+              if (
+                capture.cancelled ||
+                capture.generation !== this.turnGeneration ||
+                !this.isActive()
+              ) {
+                return;
+              }
               capture.streamingTranscript += text;
               const turnId =
                 capture.streamingAssistantTurnId ??= this.generateId();
@@ -1392,7 +1414,8 @@ export class VoiceSession {
   private resetTurnAudio(): void {
     const capture = this.activeCapture;
     if (!capture) return;
-    const containerHeader = capture.audioChunks[0];
+    const containerHeader =
+      capture.audioFormat === 'webm' ? capture.audioChunks[0] : undefined;
     capture.audioChunks = containerHeader ? [containerHeader] : [];
   }
 

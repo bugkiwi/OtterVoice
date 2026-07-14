@@ -177,11 +177,102 @@ describe('WebAudioInput lifecycle', () => {
     await input.start();
     await input.suspendCapture();
     await input.resumeCapture();
-    expect(recorder.paused).toBe(true);
-    expect(recorder.resumed).toBe(true);
+    expect(recorder.paused).toBe(false);
+    expect(recorder.resumed).toBe(false);
     await input.stop();
     expect(recorder.stopped).toBe(true);
     expect(stopped).toHaveLength(1);
+  });
+
+  it('retains a bounded encoded pre-roll for a confirmed barge-in', async () => {
+    const { stream } = fakeStream();
+    let recorder!: FakeRecorder;
+    const input = new WebAudioInput({
+      getUserMedia: async () => stream,
+      mediaRecorder: class extends FakeRecorder {
+        constructor(s: MediaStreamLike, o?: { mimeType?: string }) {
+          super(s, o);
+          recorder = this;
+        }
+      },
+      mimeType: 'audio/webm',
+      timesliceMs: 100,
+      bargeInPreRollMs: 200,
+    });
+    const chunks: number[][] = [];
+    input.onChunk((chunk) => chunks.push([...new Uint8Array(chunk.data)]));
+    await input.start();
+    await input.suspendCapture();
+
+    // Capture begins while playback is filtered. Keep the WebM header plus
+    // only the newest 200 ms, which contains the user's opening syllables.
+    recorder.dispatch('dataavailable', { data: blob([0x1a, 0x45, 0xdf, 0xa3]) });
+    recorder.dispatch('dataavailable', { data: blob([1]) });
+    recorder.dispatch('dataavailable', { data: blob([2]) });
+    recorder.dispatch('dataavailable', { data: blob([3]) });
+    await tick();
+    expect(chunks).toEqual([]);
+
+    await input.resumeCapture({ includePreRoll: true });
+    expect(chunks).toEqual([[0x1a, 0x45, 0xdf, 0xa3], [2], [3]]);
+    await input.stop();
+  });
+
+  it('discards filtered playback audio when no barge-in was confirmed', async () => {
+    const { stream } = fakeStream();
+    let recorder!: FakeRecorder;
+    const input = new WebAudioInput({
+      getUserMedia: async () => stream,
+      mediaRecorder: class extends FakeRecorder {
+        constructor(s: MediaStreamLike, o?: { mimeType?: string }) {
+          super(s, o);
+          recorder = this;
+        }
+      },
+      mimeType: 'audio/webm',
+    });
+    const chunks: number[][] = [];
+    input.onChunk((chunk) => chunks.push([...new Uint8Array(chunk.data)]));
+    await input.start();
+    recorder.dispatch('dataavailable', { data: blob([0x1a, 0x45, 0xdf, 0xa3]) });
+    await tick();
+
+    await input.suspendCapture();
+    recorder.dispatch('dataavailable', { data: blob([8]) });
+    await tick();
+    await input.resumeCapture();
+    recorder.dispatch('dataavailable', { data: blob([9]) });
+    await tick();
+
+    expect(chunks).toEqual([[0x1a, 0x45, 0xdf, 0xa3], [9]]);
+    await input.stop();
+  });
+
+  it('keeps an initial WebM header even when filtered pre-roll is discarded', async () => {
+    const { stream } = fakeStream();
+    let recorder!: FakeRecorder;
+    const input = new WebAudioInput({
+      getUserMedia: async () => stream,
+      mediaRecorder: class extends FakeRecorder {
+        constructor(s: MediaStreamLike, o?: { mimeType?: string }) {
+          super(s, o);
+          recorder = this;
+        }
+      },
+      mimeType: 'audio/webm',
+    });
+    const chunks: number[][] = [];
+    input.onChunk((chunk) => chunks.push([...new Uint8Array(chunk.data)]));
+    await input.start();
+    await input.suspendCapture();
+
+    recorder.dispatch('dataavailable', { data: blob([0x1a, 0x45, 0xdf, 0xa3]) });
+    recorder.dispatch('dataavailable', { data: blob([8]) });
+    await tick();
+    await input.resumeCapture();
+
+    expect(chunks).toEqual([[0x1a, 0x45, 0xdf, 0xa3]]);
+    await input.stop();
   });
 
   it('supports unsubscribing chunk and error listeners', async () => {

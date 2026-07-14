@@ -83,6 +83,7 @@ describe('createWebRuntime', () => {
       mimeType: 'audio/webm',
       timesliceMs: 200,
       volumePollMs: 10,
+      bargeInPreRollMs: 400,
       audioContext: FakeAudioContext,
       now: () => 1234,
     });

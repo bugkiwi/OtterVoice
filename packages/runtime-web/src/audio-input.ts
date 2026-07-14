@@ -52,6 +52,8 @@ export interface WebAudioInputOptions {
   timesliceMs?: number;
   /** Poll microphone RMS level every N ms for VAD. Default 50. */
   volumePollMs?: number;
+  /** Encoded audio retained while playback is filtered for barge-in. Default 500 ms. */
+  bargeInPreRollMs?: number;
   /** Override AudioContext (defaults to the browser global). */
   audioContext?: AudioContextCtor;
   now?: () => number;
@@ -74,17 +76,26 @@ export class WebAudioInput implements AudioInputAdapter {
   private readonly now: () => number;
   private readonly timesliceMs: number;
   private readonly volumePollMs: number;
+  private readonly bargeInPreRollChunks: number;
   private stream: MediaStreamLike | undefined;
   private recorder: MediaRecorderLike | undefined;
   private recorderStopped: Promise<void> | undefined;
   private readonly pendingData = new Set<Promise<void>>();
   private audioContext: AudioContextLike | undefined;
   private volumeTimer: ReturnType<typeof setInterval> | undefined;
+  private captureSuspended = false;
+  private hasDeliveredChunk = false;
+  private suspendedContainerHeader: AudioChunk | undefined;
+  private suspendedPreRoll: AudioChunk[] = [];
 
   constructor(private readonly options: WebAudioInputOptions) {
     this.now = options.now ?? Date.now;
     this.timesliceMs = options.timesliceMs ?? 100;
     this.volumePollMs = options.volumePollMs ?? 50;
+    this.bargeInPreRollChunks = Math.max(
+      1,
+      Math.ceil((options.bargeInPreRollMs ?? 500) / this.timesliceMs),
+    );
   }
 
   async requestPermission(): Promise<boolean> {
@@ -98,6 +109,10 @@ export class WebAudioInput implements AudioInputAdapter {
   }
 
   async start(options: AudioInputOptions = {}): Promise<void> {
+    this.captureSuspended = false;
+    this.hasDeliveredChunk = false;
+    this.suspendedContainerHeader = undefined;
+    this.suspendedPreRoll = [];
     let stream: MediaStreamLike;
     try {
       stream = await this.options.getUserMedia({
@@ -174,7 +189,22 @@ export class WebAudioInput implements AudioInputAdapter {
     const data = await blob.arrayBuffer();
     const chunk: AudioChunk = { data, timestamp: this.now() };
     if (this.options.mimeType !== undefined) chunk.encoding = this.options.mimeType;
-    for (const cb of [...this.chunkCbs]) cb(chunk);
+    if (this.captureSuspended) {
+      // MediaRecorder.pause() drops the beginning of a barge-in because VAD
+      // needs several foreground frames before it can confirm the user. Keep
+      // recording, but withhold a bounded tail until the core decides whether
+      // this was real speech or loudspeaker echo.
+      if (!this.hasDeliveredChunk && !this.suspendedContainerHeader) {
+        this.suspendedContainerHeader = chunk;
+        return;
+      }
+      this.suspendedPreRoll.push(chunk);
+      if (this.suspendedPreRoll.length > this.bargeInPreRollChunks) {
+        this.suspendedPreRoll.shift();
+      }
+      return;
+    }
+    this.emitChunk(chunk);
   }
 
   async stop(): Promise<void> {
@@ -200,6 +230,9 @@ export class WebAudioInput implements AudioInputAdapter {
     // decodable container before they submit or decode the captured turn.
     await recorderStopped;
     await Promise.all([...this.pendingData]);
+    this.captureSuspended = false;
+    this.suspendedContainerHeader = undefined;
+    this.suspendedPreRoll = [];
   }
 
   async pause(): Promise<void> {
@@ -211,11 +244,31 @@ export class WebAudioInput implements AudioInputAdapter {
   }
 
   async suspendCapture(): Promise<void> {
-    this.recorder?.pause();
+    // Soft-suspend delivery rather than MediaRecorder itself. RMS monitoring
+    // and a short encoded pre-roll stay alive so confirmed barge-in speech
+    // includes its opening syllables.
+    this.captureSuspended = true;
+    this.suspendedContainerHeader = undefined;
+    this.suspendedPreRoll = [];
   }
 
-  async resumeCapture(): Promise<void> {
-    this.recorder?.resume();
+  async resumeCapture(options: { includePreRoll?: boolean } = {}): Promise<void> {
+    // The first MediaRecorder chunk owns the WebM container header and must
+    // survive even a non-barge-in resume. Only the rolling audio tail is
+    // conditional; without the header, every later chunk is undecodable.
+    const buffered = [
+      ...(this.suspendedContainerHeader ? [this.suspendedContainerHeader] : []),
+      ...(options.includePreRoll ? this.suspendedPreRoll : []),
+    ];
+    this.captureSuspended = false;
+    this.suspendedContainerHeader = undefined;
+    this.suspendedPreRoll = [];
+    for (const chunk of buffered) this.emitChunk(chunk);
+  }
+
+  private emitChunk(chunk: AudioChunk): void {
+    this.hasDeliveredChunk = true;
+    for (const cb of [...this.chunkCbs]) cb(chunk);
   }
 
   private emitError(error: NormalizedVoiceError): void {

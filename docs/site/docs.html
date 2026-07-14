@@ -312,14 +312,14 @@ await session.start();</code></pre>
             <h3>两种流水线</h3>
             <ul>
               <li><code>asr_llm_tts</code>：ASR 产生文本，LLM 流式生成文本，TTS 播放最终回复。</li>
-              <li><code>audio_llm</code>：完整用户音频进入 Audio LLM；ASR 并行生成字幕；回复文本和 PCM 可边生成边输出。</li>
+              <li><code>audio_llm</code>：ASR partial 只更新字幕；ASR final 确认当前轮次后，完整用户音频才进入 Audio LLM，回复文本和 PCM 随后流式输出。</li>
             </ul>
           </div>
           <div class="lang lang-en" lang="en">
             <h3>Two pipelines</h3>
             <ul>
               <li><code>asr_llm_tts</code>: ASR produces text, the LLM streams text, and TTS plays the completed reply.</li>
-              <li><code>audio_llm</code>: completed user audio enters an Audio LLM while ASR captions run in parallel; reply text and PCM can stream immediately.</li>
+              <li><code>audio_llm</code>: ASR partials update captions only. After ASR final confirms the current turn, completed audio enters the Audio LLM and reply text/PCM stream out.</li>
             </ul>
           </div>
         </section>
@@ -429,8 +429,8 @@ session.on('assistant_text', ({ turnId, text }) =&gt; {
 
         <section class="doc-section" id="web">
           <div class="section-heading"><span class="section-number">06</span><h2><span class="lang-zh">Web 接入</span><span class="lang-en">Web runtime</span></h2></div>
-          <div class="lang lang-zh"><p>Web Runtime 使用 <code>getUserMedia</code>、<code>MediaRecorder</code> 和 Web Audio。Demo 每 100 ms 产生 WebM/Opus 分片，每 500 ms 请求一次滚动 partial；原生流式 ASR 可直接消费这些分片。</p></div>
-          <div class="lang lang-en" lang="en"><p>The Web runtime uses <code>getUserMedia</code>, <code>MediaRecorder</code>, and Web Audio. The demo emits WebM/Opus every 100 ms and requests rolling partials every 500 ms; native streaming ASR can consume the same chunks.</p></div>
+          <div class="lang lang-zh"><p>Web Runtime 使用 <code>getUserMedia</code>、<code>MediaRecorder</code> 和 Web Audio。Demo 每 100 ms 产生 WebM/Opus 分片，每 500 ms 请求一次滚动 partial；原生流式 ASR 可直接消费这些分片。助手播放期间保留最近 500 ms 的编码预录，仅在确认真实插话时提交，从而保住开头音节并过滤普通扬声器尾音。</p></div>
+          <div class="lang lang-en" lang="en"><p>The Web runtime uses <code>getUserMedia</code>, <code>MediaRecorder</code>, and Web Audio. The demo emits WebM/Opus every 100 ms and requests rolling partials every 500 ms; native streaming ASR can consume the same chunks. During assistant playback, the runtime retains a 500 ms encoded pre-roll and releases it only for a confirmed barge-in, preserving opening syllables while discarding ordinary speaker tail.</p></div>
           <div class="code-block">
             <div class="code-label"><span>Web runtime</span><button class="copy-button" type="button" data-copy>复制</button></div>
             <pre><code>import { createWebRuntime } from '@ottervoice/runtime-web';
@@ -439,6 +439,7 @@ const runtime = createWebRuntime({
   mimeType: 'audio/webm;codecs=opus',
   timesliceMs: 100,
   volumePollMs: 50,
+  bargeInPreRollMs: 500,
 });</code></pre>
           </div>
           <div class="lang lang-zh"><h3>浏览器要求</h3><ul><li>页面必须运行在 HTTPS 或 localhost。</li><li>通过用户手势请求麦克风权限并尝试解锁播放。</li><li>autoplay 解锁失败不应阻断输入与 ASR。</li><li>结束页面时调用 <code>dispose()</code> 释放 track、AudioContext 和播放器。</li></ul></div>

@@ -25,6 +25,7 @@ export interface WebRuntimeOptions {
   mimeType?: string;
   timesliceMs?: number;
   volumePollMs?: number;
+  bargeInPreRollMs?: number;
   audioContext?: AudioContextCtor;
   createPcmAudioContext?: () => PcmAudioContextLike;
   now?: () => number;
@@ -68,6 +69,9 @@ export function createWebRuntime(options: WebRuntimeOptions = {}): WebRuntime {
   if (options.mimeType !== undefined) inputOptions.mimeType = options.mimeType;
   if (options.timesliceMs !== undefined) inputOptions.timesliceMs = options.timesliceMs;
   if (options.volumePollMs !== undefined) inputOptions.volumePollMs = options.volumePollMs;
+  if (options.bargeInPreRollMs !== undefined) {
+    inputOptions.bargeInPreRollMs = options.bargeInPreRollMs;
+  }
   if (options.audioContext !== undefined) inputOptions.audioContext = options.audioContext;
   if (options.now !== undefined) inputOptions.now = options.now;
 

@@ -18,6 +18,7 @@ describe('createOpenRouterAudioLLM', () => {
     const streamedAudio: number[] = [];
 
     let body: any;
+    let requestSignal: AbortSignal | null | undefined;
     const provider = createOpenRouterAudioLLM({
       apiKey: 'test',
       model: 'openai/gpt-audio-mini',
@@ -27,6 +28,7 @@ describe('createOpenRouterAudioLLM', () => {
       }),
       fetch: async (_url, init) => {
         body = JSON.parse(String(init?.body));
+        requestSignal = init?.signal;
         return new Response(
           streamFromStrings([
             `data: {"choices":[{"delta":{"audio":{"data":${JSON.stringify(part1)},"transcript":"你"}}}]}\n`,
@@ -37,11 +39,13 @@ describe('createOpenRouterAudioLLM', () => {
         );
       },
     });
+    const controller = new AbortController();
 
     const output = await provider.generate({
       audio: new Uint8Array([9]).buffer,
       format: 'webm',
       messages: [{ role: 'assistant', content: '早上好' }],
+      signal: controller.signal,
       onAudioChunk(chunk) {
         expect(chunk).toMatchObject({
           encoding: 'pcm_s16le',
@@ -55,6 +59,7 @@ describe('createOpenRouterAudioLLM', () => {
     expect(body.model).toBe('openai/gpt-audio-mini');
     expect(body.modalities).toEqual(['text', 'audio']);
     expect(body.audio).toEqual({ voice: 'alloy', format: 'pcm16' });
+    expect(requestSignal).toBe(controller.signal);
     expect(body.messages.at(-1).content[1]).toEqual({
       type: 'input_audio',
       input_audio: { data: 'AQID', format: 'wav' },
