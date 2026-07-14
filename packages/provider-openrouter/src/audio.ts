@@ -22,8 +22,15 @@ export interface OpenRouterASROptions extends CredentialOptions, HeaderOptions {
   model: string;
   /** Browser MediaRecorder defaults to WebM. */
   format?: Extract<AudioEncoding, 'webm' | 'wav' | 'mp3' | 'opus'>;
+  /**
+   * Re-transcribe the accumulated live PCM at this interval to provide
+   * best-effort partial results before the turn ends. Omit for batch-only ASR.
+   */
+  partialIntervalMs?: number;
   language?: string;
   baseUrl?: string;
+  /** Test hook for partial-result scheduling. */
+  now?: () => number;
 }
 
 export interface OpenRouterTTSOptions extends CredentialOptions, HeaderOptions {
@@ -44,6 +51,33 @@ function joinChunks(chunks: readonly ArrayBuffer[]): Uint8Array {
   return joined;
 }
 
+function pcm16ToWavBytes(pcm: Uint8Array, sampleRate: number, channels: number): Uint8Array {
+  const headerBytes = 44;
+  const wav = new Uint8Array(headerBytes + pcm.byteLength);
+  const view = new DataView(wav.buffer);
+  const writeAscii = (offset: number, value: string) => {
+    for (let i = 0; i < value.length; i += 1) {
+      view.setUint8(offset + i, value.charCodeAt(i));
+    }
+  };
+  const blockAlign = channels * 2;
+  writeAscii(0, 'RIFF');
+  view.setUint32(4, 36 + pcm.byteLength, true);
+  writeAscii(8, 'WAVE');
+  writeAscii(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true);
+  writeAscii(36, 'data');
+  view.setUint32(40, pcm.byteLength, true);
+  wav.set(pcm, headerBytes);
+  return wav;
+}
+
 /** Browser- and Node-safe base64 without relying on Buffer. */
 export function bytesToBase64(bytes: Uint8Array): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -62,9 +96,10 @@ export function bytesToBase64(bytes: Uint8Array): string {
 }
 
 /**
- * Batch transcription through OpenRouter's `/audio/transcriptions` endpoint.
- * Audio chunks are collected during a VAD-delimited turn and sent when the
- * session is stopped.
+ * Transcription through OpenRouter's `/audio/transcriptions` endpoint.
+ * The default remains one request at turn end. Setting `partialIntervalMs`
+ * adds rolling, best-effort snapshots for low-latency partial text while the
+ * final request still covers the complete turn.
  */
 export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider {
   const fetchImpl = resolveFetch(options.fetch);
@@ -74,66 +109,123 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
   });
   const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, '');
   const format = options.format ?? 'webm';
+  const partialIntervalMs = options.partialIntervalMs;
+  const incremental = partialIntervalMs !== undefined;
+  const now = options.now ?? Date.now;
 
   return {
     name: PROVIDER,
     capabilities: {
-      streaming: false,
+      streaming: incremental,
       batch: true,
-      partialResults: false,
+      partialResults: incremental,
       endpointing: false,
       languages: ['auto'],
     },
     async createSession(sessionOptions) {
       const chunks: ArrayBuffer[] = [];
+      const partialCbs = new Set<(result: ASRResult) => void>();
       const finalCbs = new Set<(result: ASRResult) => void>();
       const errorCbs = new Set<(error: NormalizedVoiceError) => void>();
       let closed = false;
       let stopped = false;
+      let generation = 0;
+      let partialInFlight = false;
+      let lastPartialAt = now();
+
+      const toUpload = (source: readonly ArrayBuffer[]) => {
+        const joined = joinChunks(source);
+        if (sessionOptions.encoding === 'pcm_s16le') {
+          return {
+            bytes: pcm16ToWavBytes(
+              joined,
+              sessionOptions.sampleRate ?? 16_000,
+              sessionOptions.channels ?? 1,
+            ),
+            uploadFormat: 'wav' as const,
+          };
+        }
+        return { bytes: joined, uploadFormat: format };
+      };
+
+      const transcribe = async (source: readonly ArrayBuffer[]): Promise<ASRResult> => {
+        const { bytes, uploadFormat } = toUpload(source);
+        const { token } = await resolveCredential();
+        const res = await fetchImpl(`${baseUrl}/audio/transcriptions`, {
+          method: 'POST',
+          headers: buildHeaders(token, options),
+          body: JSON.stringify({
+            model: options.model,
+            input_audio: {
+              data: bytesToBase64(bytes),
+              format: uploadFormat,
+            },
+            language: sessionOptions.language ?? options.language,
+            temperature: 0,
+          }),
+        });
+        if (!res.ok) {
+          throw new VoiceError(
+            normalizeHttpError(res.status, await readBody(res), {
+              provider: PROVIDER,
+              failureCode: 'asr_connection_failed',
+            }),
+          );
+        }
+        const json = (await res.json()) as { text?: unknown };
+        return { text: typeof json.text === 'string' ? json.text : '', raw: json };
+      };
+
+      const requestPartial = async () => {
+        if (partialInFlight || closed || stopped || chunks.length === 0) return;
+        partialInFlight = true;
+        lastPartialAt = now();
+        const requestGeneration = generation;
+        const snapshot = chunks.map((chunk) => chunk.slice(0));
+        try {
+          const result = await transcribe(snapshot);
+          if (requestGeneration !== generation || closed || stopped || result.text.length === 0) {
+            return;
+          }
+          for (const cb of [...partialCbs]) cb(result);
+        } catch {
+          // A short rolling snapshot may be rejected by a batch ASR model.
+          // The complete final request remains authoritative and reports errors.
+        } finally {
+          partialInFlight = false;
+        }
+      };
 
       return {
         sendAudio(chunk) {
-          if (!closed && !stopped && chunk.byteLength > 0) chunks.push(chunk.slice(0));
+          if (closed || stopped || chunk.byteLength === 0) return;
+          chunks.push(chunk.slice(0));
+          if (
+            incremental &&
+            now() - lastPartialAt >= Math.max(0, partialIntervalMs)
+          ) {
+            return requestPartial();
+          }
         },
         resetAudio() {
+          generation += 1;
           // Preserve the first WebM chunk because it contains the container
           // header; discard assistant playback/silence accumulated after it.
-          const containerHeader = chunks[0];
+          const containerHeader = sessionOptions.encoding === 'pcm_s16le' ? undefined : chunks[0];
           chunks.length = 0;
           if (containerHeader) chunks.push(containerHeader);
+          lastPartialAt = now();
         },
         async stop() {
           if (closed || stopped) return;
           stopped = true;
+          generation += 1;
           if (chunks.length === 0) {
             for (const cb of [...finalCbs]) cb({ text: '' });
             return;
           }
           try {
-            const { token } = await resolveCredential();
-            const res = await fetchImpl(`${baseUrl}/audio/transcriptions`, {
-              method: 'POST',
-              headers: buildHeaders(token, options),
-              body: JSON.stringify({
-                model: options.model,
-                input_audio: {
-                  data: bytesToBase64(joinChunks(chunks)),
-                  format,
-                },
-                language: sessionOptions.language ?? options.language,
-                temperature: 0,
-              }),
-            });
-            if (!res.ok) {
-              throw new VoiceError(
-                normalizeHttpError(res.status, await readBody(res), {
-                  provider: PROVIDER,
-                  failureCode: 'asr_connection_failed',
-                }),
-              );
-            }
-            const json = (await res.json()) as { text?: unknown };
-            const result = { text: typeof json.text === 'string' ? json.text : '', raw: json };
+            const result = await transcribe(chunks);
             for (const cb of [...finalCbs]) cb(result);
           } catch (error) {
             const normalized =
@@ -151,10 +243,12 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
         },
         async close() {
           closed = true;
+          generation += 1;
           chunks.length = 0;
         },
-        onPartial() {
-          return () => {};
+        onPartial(cb) {
+          partialCbs.add(cb);
+          return () => partialCbs.delete(cb);
         },
         onFinal(cb) {
           finalCbs.add(cb);

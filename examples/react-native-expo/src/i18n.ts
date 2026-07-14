@@ -1,5 +1,13 @@
 export type AppLanguage = 'zh' | 'en';
 
+export function languageFromLocales(
+  locales: ReadonlyArray<{ languageCode?: string | null; languageTag?: string }>,
+): AppLanguage {
+  const primary = locales[0];
+  const language = primary?.languageCode ?? primary?.languageTag?.split('-')[0];
+  return language?.toLowerCase() === 'zh' ? 'zh' : 'en';
+}
+
 export const copy = {
   zh: {
     eyebrow: 'MOBILE LAB · AUDIO LLM',
@@ -9,7 +17,8 @@ export const copy = {
     finish: '结束会话',
     transcript: '实时对话',
     empty: '开始后，你和 Otter 的完整对话会出现在这里。',
-    endpoint: '线上通路',
+    gateway: '服务连接',
+    gatewayDescription: '通过服务端语音网关连接 · Provider 可替换',
     latency: '停顿 → 首个音频分片',
     you: '你',
     otter: 'Otter',
@@ -36,7 +45,8 @@ export const copy = {
     finish: 'End session',
     transcript: 'Live transcript',
     empty: 'Your complete conversation with Otter will appear here.',
-    endpoint: 'Production route',
+    gateway: 'Service connection',
+    gatewayDescription: 'Connected through a server-side voice gateway · provider replaceable',
     latency: 'Pause → first audio chunk',
     you: 'You',
     otter: 'Otter',

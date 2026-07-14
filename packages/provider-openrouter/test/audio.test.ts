@@ -45,6 +45,74 @@ describe('createOpenRouterASR', () => {
     expect(provider.capabilities).toMatchObject({ streaming: false, batch: true });
   });
 
+  it('emits rolling partials from live PCM and keeps the final authoritative', async () => {
+    const bodies: any[] = [];
+    let request = 0;
+    const provider = createOpenRouterASR({
+      apiKey: 'secret',
+      model: 'qwen/asr',
+      format: 'wav',
+      partialIntervalMs: 0,
+      fetch: async (_url, init) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        request += 1;
+        return Response.json({ text: request === 1 ? 'hel' : 'hello' });
+      },
+    });
+    const session = await provider.createSession({
+      language: 'en',
+      sampleRate: 16_000,
+      channels: 1,
+      encoding: 'pcm_s16le',
+    });
+    const partials: ASRResult[] = [];
+    const finals: ASRResult[] = [];
+    session.onPartial((result) => partials.push(result));
+    session.onFinal((result) => finals.push(result));
+
+    await session.sendAudio(new Int16Array([1_000, -1_000]).buffer);
+    await session.stop();
+
+    expect(provider.capabilities).toMatchObject({
+      streaming: true,
+      batch: true,
+      partialResults: true,
+    });
+    expect(partials.map((result) => result.text)).toEqual(['hel']);
+    expect(finals.map((result) => result.text)).toEqual(['hello']);
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0].input_audio.format).toBe('wav');
+    expect(bodies[0].input_audio.data.startsWith('UklGR')).toBe(true);
+  });
+
+  it('emits a partial from browser WebM timeslices before the final turn', async () => {
+    const bodies: any[] = [];
+    const provider = createOpenRouterASR({
+      apiKey: 'secret',
+      model: 'qwen/asr',
+      format: 'webm',
+      partialIntervalMs: 0,
+      fetch: async (_url, init) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        return Response.json({ text: bodies.length === 1 ? '实时' : '实时字幕' });
+      },
+    });
+    const session = await provider.createSession({ encoding: 'webm', language: 'zh' });
+    const timeline: string[] = [];
+    session.onPartial(({ text }) => timeline.push(`partial:${text}`));
+    session.onFinal(({ text }) => timeline.push(`final:${text}`));
+
+    // The first MediaRecorder timeslice contains the WebM container header.
+    await session.sendAudio(new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]).buffer);
+    await session.stop();
+
+    expect(timeline).toEqual(['partial:实时', 'final:实时字幕']);
+    expect(bodies[0]).toMatchObject({
+      input_audio: { data: 'GkXfow==', format: 'webm' },
+      language: 'zh',
+    });
+  });
+
   it('drops buffered assistant audio while preserving the WebM header', async () => {
     let body: any;
     const session = await createOpenRouterASR({

@@ -27,7 +27,9 @@ describe('encode/serialize/parse round-trip', () => {
 
   it('exposes every event type', () => {
     expect(PROTOCOL_MESSAGE_TYPES).toContain('error');
-    expect(PROTOCOL_MESSAGE_TYPES).toHaveLength(10);
+    expect(PROTOCOL_MESSAGE_TYPES).toContain('user_audio_end');
+    expect(PROTOCOL_MESSAGE_TYPES).toContain('assistant_text_delta');
+    expect(PROTOCOL_MESSAGE_TYPES).toHaveLength(12);
   });
 });
 

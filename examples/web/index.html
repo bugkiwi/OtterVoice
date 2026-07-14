@@ -266,7 +266,7 @@
           <div class="nav-links">
             <a href="#demo" data-i18n="navDemo">在线体验</a>
             <a href="#native" data-i18n="navNative">React Native</a>
-            <a href="#architecture" data-i18n="navDocs">项目说明</a>
+            <a href="/docs/" data-i18n="navDocs">技术文档</a>
             <a class="pill" href="https://github.com/bugkiwi/OtterVoice" target="_blank" rel="noreferrer">GitHub ↗</a>
           </div>
           <div class="language-switch" aria-label="Language">
@@ -305,7 +305,7 @@
         <div class="demo-card">
           <div class="demo-intro">
             <h3>Talk.<br /><em>Don’t tap.</em></h3>
-            <p class="pipeline"><span id="pipeline-copy"><code>GPT Audio Mini</code> 语音直进直出 · <code>Qwen3 ASR</code> 仅并行生成字幕</span><br /><span data-i18n="pipelineFootnote">OpenRouter 低延迟通路 · 密钥仅保留在服务端</span></p>
+            <p class="pipeline"><span id="pipeline-copy"><code>GPT Audio Mini</code> 语音直进直出 · <code>Qwen3 ASR</code> 仅并行生成字幕</span><br /><span data-i18n="pipelineFootnote">低延迟语音网关 · Provider 可替换 · 密钥仅保留在服务端</span></p>
           </div>
           <section class="console" data-i18n-aria="controlsAria" aria-label="Conversation controls">
             <div class="mode-switch" data-i18n-aria="modeAria" aria-label="语音处理模式">
@@ -354,7 +354,7 @@ bun run start          # Expo Go QR
 # installable demo packages
 bun run build:ios:simulator
 bun run build:android:preview</code></pre>
-              <div class="route">EXPO_PUBLIC_OTTERVOICE_API_URL=https://ottervoice.vercel.app/api/openrouter</div>
+              <div class="route">EXPO_PUBLIC_OTTERVOICE_API_URL=https://your-domain.example/api/voice</div>
             </div>
           </div>
         </div>
@@ -379,7 +379,7 @@ bun run build:android:preview</code></pre>
         </div>
         <div class="security-note">
           <div><h3 data-i18n="securityTitle">密钥不进入浏览器或 App。</h3><p data-i18n="securityCopy">示例统一请求 ottervoice.vercel.app 的同源代理，由服务端注入 OpenRouter 凭据；生产项目可以替换为自己的 token broker。</p></div>
-          <a class="pill" href="https://github.com/bugkiwi/OtterVoice#readme" target="_blank" rel="noreferrer" data-i18n="readDocs">阅读完整 README ↗</a>
+          <a class="pill" href="/docs/" data-i18n="readDocs">阅读技术文档 →</a>
         </div>
       </section>
     </main>

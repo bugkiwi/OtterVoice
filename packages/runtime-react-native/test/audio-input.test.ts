@@ -115,7 +115,7 @@ describe('ExpoAudioInput capture cycle', () => {
 });
 
 describe('ExpoAudioInput native PCM stream', () => {
-  it('keeps VAD active while capture is suspended and emits a complete WAV turn', async () => {
+  it('keeps VAD active while suspended and emits live PCM plus a complete WAV turn', async () => {
     let onBuffer: ((buffer: ExpoPcmInputBuffer) => void) | undefined;
     let started = false;
     let stopped = false;
@@ -165,14 +165,32 @@ describe('ExpoAudioInput native PCM stream', () => {
     expect(stopped).toBe(true);
     expect(levels).toHaveLength(3);
     expect(levels[2]).toBeCloseTo(0.5, 3);
-    expect(chunks).toHaveLength(1);
+    expect(chunks).toHaveLength(3);
     expect(chunks[0]).toMatchObject({
+      timestamp: 777,
+      encoding: 'pcm_s16le',
+      sampleRate: 16_000,
+      channels: 1,
+      durationMs: 0.125,
+      delivery: 'stream',
+    });
+    expect(new Int16Array(chunks[0]!.data)).toEqual(new Int16Array([1_000, -1_000]));
+    expect(chunks[1]).toMatchObject({
+      encoding: 'pcm_s16le',
+      delivery: 'stream',
+    });
+    expect(new Int16Array(chunks[1]!.data)).toEqual(
+      new Int16Array([16_384, -16_384]),
+    );
+    expect(chunks[2]).toMatchObject({
       timestamp: 777,
       encoding: 'audio/wav',
       sampleRate: 16_000,
+      channels: 1,
       durationMs: 0.125,
+      delivery: 'turn',
     });
-    const wav = new Uint8Array(chunks[0]!.data);
+    const wav = new Uint8Array(chunks[2]!.data);
     expect(new TextDecoder().decode(wav.slice(0, 4))).toBe('RIFF');
     expect(new Int16Array(wav.slice(44).buffer)).toEqual(
       new Int16Array([16_384, -16_384]),

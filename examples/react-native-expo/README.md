@@ -1,25 +1,20 @@
-# OtterVoice React Native / Expo demo
+# OtterVoice React Native / Expo Demo
 
-A runnable Expo SDK 57 full-duplex Audio LLM example. It follows the same path
-and conversation policy as `examples/web`:
+[中文](#中文) · [English](#english)
 
-```text
-native PCM microphone (16 kHz mono)
-  ├─→ Qwen3 ASR → transcript events
-  └─→ GPT Audio Mini SSE → PCM chunks → Expo AudioPlaylist
-                                      ↘ keep listening for barge-in
-```
+## 中文
 
-The app never contains an OpenRouter key. By default it calls the production
-proxy at:
+这是 Expo SDK 57 的全双工 Audio LLM 示例。应用使用 16 kHz mono PCM 持续采集音频：
 
 ```text
-https://ottervoice.vercel.app/api/openrouter
+原生 PCM 麦克风
+  ├─→ 流式 / 滚动 ASR → asr_partial → asr_final
+  └─→ Audio LLM → assistant_text_delta + PCM 分片播放
 ```
 
-## Scan and run with Expo Go
+Demo 当前在服务端选择 OpenRouter 适配器，但 UI、`VoiceSession` 和 Runtime 不依赖它。可以替换 ASR、LLM、TTS 或 Audio LLM Provider，而无需修改会话交互代码。客户端只看到通用 `/api/voice` 网关，不包含 Provider 长期密钥或具体上游地址。
 
-From the repository root:
+### 运行
 
 ```bash
 bun install
@@ -27,74 +22,56 @@ cd examples/react-native-expo
 bun run start
 ```
 
-Scan the terminal QR code with Expo Go, or press `i` / `a` to open a local iOS
-simulator or Android emulator. If a simulator cannot reach `localhost`, use:
+使用 Expo Go 扫描二维码，或按 `i` / `a` 打开本地模拟器。模拟器无法访问 localhost 时：
 
 ```bash
 bunx expo start --go --lan
 ```
 
-The first tap on **Start voice session** requests microphone access. A pause of
-about one second submits the current turn. The microphone remains active while
-the model thinks and speaks; roughly 200 ms of strong foreground speech can
-interrupt playback, including short Chinese and English commands.
+点击“开始语音对话”后会请求麦克风权限。输入字幕在识别到 partial 后原位更新；助手字幕和 PCM 音频在模型返回分片时立即更新。当前移动端 VAD 在约 450 ms 静音后提交轮次，实际产品应针对目标设备与噪声环境调参。
 
-## Configuration
-
-Copy the optional environment file when you need a different server:
+### 网关配置
 
 ```bash
 cp .env.example .env
 ```
 
 ```dotenv
-EXPO_PUBLIC_OTTERVOICE_API_URL=https://ottervoice.vercel.app/api/openrouter
+EXPO_PUBLIC_OTTERVOICE_API_URL=https://your-domain.example/api/voice
 ```
 
-This value is public by design and must point to a server-side proxy or token
-broker. Never put provider credentials in an `EXPO_PUBLIC_*` variable.
+这个值会进入客户端包，只能是你控制的服务端网关或短期令牌服务地址。不要在 `EXPO_PUBLIC_*` 中保存 Provider Key。网关实现必须提供 Demo 所用的兼容子路由；生产项目也可在 [`src/providers.ts`](src/providers.ts) 中组合其他 Provider Adapter。
 
-## Validate and compile locally
+### 验证与构建
 
 ```bash
 bun run typecheck
-bun run export               # bundle both iOS and Android
-bun run build:ios:local      # generate, compile, and install the native iOS app
-bun run build:android:local  # generate, compile, and install the native Android app
+bun run export
+bun run build:ios:local
+bun run build:android:local
 ```
 
-Generated `ios/`, `android/`, `.expo/`, and `dist/` directories are ignored.
-
-Expo SDK 57 requires Xcode 26.4 or newer for a local native iOS build. Expo Go
-can still run the JavaScript bundle on older local toolchains; the checked-in
-EAS profiles pin iOS builds to Expo's compatible `sdk-57` image. See Expo's
-[SDK compatibility table](https://docs.expo.dev/versions/latest/) and
-[EAS build infrastructure](https://docs.expo.dev/build-reference/infrastructure/).
-
-## Produce installable demo packages
-
-After signing in to an Expo account and linking the EAS project once with
-`eas init`, the included `eas.json` profiles produce QR-installable artifacts:
+需要 EAS 构建时：
 
 ```bash
-bun run build:ios:simulator   # .app archive for an iOS simulator
-bun run build:android:preview # installable Android APK
-bun run build:preview         # internal-distribution builds for both platforms
+bun run build:ios:simulator
+bun run build:android:preview
+bun run build:preview
 ```
 
-EAS prints a build page and QR code when a device-installable artifact is
-ready. Use `development-simulator` for a dev client and `preview-simulator` for
-a standalone iOS simulator build.
+实现入口：
 
-## Implementation map
+- [`src/App.tsx`](src/App.tsx)：会话、增量 UI、双语文案与延迟指标；
+- [`src/expo-adapters.ts`](src/expo-adapters.ts)：Expo PCM 输入与连续分片播放；
+- [`src/providers.ts`](src/providers.ts)：Demo 的 Provider 组合与服务端网关；
+- [`src/i18n.ts`](src/i18n.ts)：中英文文案。
 
-- `src/App.tsx` — full-duplex session, bilingual UI, transcript and latency.
-- `src/expo-adapters.ts` — Expo native PCM input, gapless chunk playlist, cache
-  files and cleanup.
-- `src/providers.ts` — production proxy plus GPT Audio Mini and Qwen3 ASR.
-- `src/i18n.ts` — Chinese and English application copy.
-- `eas.json` — development, simulator, preview APK and production profiles.
+## English
 
-The runtime stays platform-neutral: `@ottervoice/runtime-react-native` receives
-small injected Expo interfaces, while `@ottervoice/core` owns VAD turn-taking,
-barge-in, cancellation and false-interruption recovery.
+This Expo SDK 57 example demonstrates full-duplex Audio LLM sessions with continuous 16 kHz mono PCM capture. Input captions update on `asr_partial`; assistant captions update on `assistant_text_delta`; PCM playback starts as chunks arrive.
+
+The demo currently selects an OpenRouter adapter on the server, but its UI, `VoiceSession`, and runtime are provider-independent. Replace the ASR, LLM, TTS, or Audio LLM adapters in [`src/providers.ts`](src/providers.ts) without changing session interaction code. The client sees only a generic `/api/voice` gateway and contains no long-lived provider key or upstream URL.
+
+Run it with `bun run start`, scan the Expo Go QR code, or press `i` / `a`. Configure `EXPO_PUBLIC_OTTERVOICE_API_URL` only with a gateway you control. The value is public by design; never place provider credentials in an `EXPO_PUBLIC_*` variable.
+
+The current mobile VAD submits after roughly 450 ms of silence. Treat that as a low-latency starting point and test it on target devices, noisy input, speaker playback, real barge-in, and false-interruption recovery before release.

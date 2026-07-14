@@ -1,7 +1,8 @@
 # Web example
 
 Full-duplex browser demo with real microphone capture/playback and two live
-OpenRouter pipelines that can be switched in the UI:
+pipelines that can be switched in the UI. The demo server currently selects
+OpenRouter adapters, while the session and UI remain provider-independent:
 
 - **Audio LLM (default):** `openai/gpt-audio-mini` consumes the recorded turn
   and generates speech directly. Qwen ASR runs in parallel only for captions.
@@ -22,6 +23,12 @@ just to pick up core/provider changes. Run `bun run build` only before deploy
 Click **Start conversation** (allow the microphone), speak naturally,
 and pause when you are done — volume-based VAD ends each turn automatically.
 While the assistant is replying you can speak again to barge in.
+
+Input captions are incremental: `MediaRecorder` emits a WebM/Opus timeslice
+every 100 ms, the demo requests a rolling ASR snapshot every 500 ms, and
+`asr_partial` updates the existing user turn by `turnId`. `asr_final` replaces
+the provisional text at the turn boundary. A native streaming ASR adapter can
+replace the rolling snapshot provider without changing the UI event handlers.
 
 Barge-in is playback-aware: `runtime-web` derives a synchronized RMS envelope
 from the assistant audio, and core searches 0–300 ms of acoustic delay before
@@ -58,13 +65,15 @@ or microphone access.
   transitions.
 - `@ottervoice/runtime-web`: continuous microphone capture, Web Audio RMS volume
   samples for VAD, gapless PCM chunk scheduling, and playback cancellation.
-- `@ottervoice/provider-openrouter`: chat completion, batch speech-to-text, and
-  text-to-speech adapters for OpenRouter's three API endpoints.
+- `@ottervoice/provider-openrouter`: optional demo adapters for chat, rolling
+  speech-to-text, text-to-speech, and Audio LLM output.
 - `examples/web`: the server-side credential proxy, VAD thresholds,
   interruption policy, model selection, input meter, transcript, and controls.
 
 The browser never receives `OPENROUTER_API_KEY`. `serve.ts` reads it from the
-root `.env` and only proxies three allow-listed OpenRouter routes.
+root `.env`; the client calls only three allow-listed routes below the generic
+`/api/voice` gateway. Production deployments can select another provider
+behind that gateway.
 
 ## Low-cost model defaults
 
@@ -75,9 +84,12 @@ root `.env` and only proxies three allow-listed OpenRouter routes.
 
 Browser MediaRecorder produces WebM/Opus, while GPT Audio accepts WAV/MP3.
 `@ottervoice/runtime-web` decodes the completed WebM turn and encodes a mono
-PCM16 WAV before the audio-LLM request. Each output `delta.audio` PCM16 chunk is
-decoded and scheduled immediately on a Web Audio timeline; the complete stream
-is still wrapped as WAV for fallback playback and the SSE debug button.
+PCM16 WAV before the audio-LLM request. The deployed showcase downsamples that
+WAV to 16 kHz and caps a turn at 90 seconds so Base64 audio plus its JSON
+envelope stays below Vercel's Function request-body limit. Each output
+`delta.audio` PCM16 chunk is decoded and scheduled immediately on a Web Audio
+timeline; the complete stream is still wrapped as WAV for fallback playback
+and the SSE debug button.
 
 ## Price evaluation (2026-07-13)
 
@@ -131,7 +143,7 @@ reusable example. The docs site bundles this example as its primary live demo.
 
 - `docs/site/vercel.json`: clean-clone workspace install/build, site output,
   Singapore region (required for GPT Audio availability), and Function limits
-- `docs/site/api/openrouter/**`: the three deployed same-origin API Functions
+- `docs/site/api/voice/**`: the three provider-neutral deployed API Functions
 - `docs/site/build.ts`: showcase bundle plus a best-effort prebuilt opening voice
 
 Use `docs/site` as the Vercel project's Root Directory.

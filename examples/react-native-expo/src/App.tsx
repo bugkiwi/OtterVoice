@@ -8,6 +8,7 @@ import {
   type ColorValue,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { getLocales } from 'expo-localization';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   createVoiceSession,
@@ -15,10 +16,18 @@ import {
   type VoiceSessionState,
 } from '@ottervoice/core';
 import { useExpoAudioRuntime } from './expo-adapters';
-import { copy, type AppLanguage } from './i18n';
-import { createMobileProviders, OTTERVOICE_API_URL } from './providers';
+import { copy, languageFromLocales, type AppLanguage } from './i18n';
+import { createMobileProviders } from './providers';
 
 type TurnRow = { id: string; role: 'user' | 'assistant'; text: string };
+
+function upsertTurn(current: TurnRow[], next: TurnRow): TurnRow[] {
+  const index = current.findIndex((turn) => turn.id === next.id);
+  if (index === -1) return [...current, next];
+  const updated = [...current];
+  updated[index] = next;
+  return updated;
+}
 
 const light = {
   background: '#F2EEE3',
@@ -59,13 +68,12 @@ function DemoScreen() {
   const cleanupsRef = useRef<Array<() => void>>([]);
   const userAudioEndedAt = useRef<number | undefined>(undefined);
   const [language, setLanguage] = useState<AppLanguage>(() =>
-    Intl.DateTimeFormat().resolvedOptions().locale.toLowerCase().startsWith('zh')
-      ? 'zh'
-      : 'en',
+    languageFromLocales(getLocales()),
   );
   const [state, setState] = useState<VoiceSessionState>('idle');
   const [turns, setTurns] = useState<TurnRow[]>([]);
   const [partial, setPartial] = useState('');
+  const [liveTurnId, setLiveTurnId] = useState<string | undefined>(undefined);
   const [level, setLevel] = useState(0);
   const [latencyMs, setLatencyMs] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -93,6 +101,7 @@ function DemoScreen() {
     setError(undefined);
     setTurns([]);
     setPartial('');
+    setLiveTurnId(undefined);
     setLatencyMs(undefined);
     await releaseSession();
     const granted = await runtime.audioInput.requestPermission();
@@ -117,13 +126,13 @@ function DemoScreen() {
       audioLlmMaxTokens: 80,
       turnDetection: {
         strategy: 'volume',
-        minSpeechMs: 300,
-        silenceTimeoutMs: 1_000,
+        minSpeechMs: 180,
+        silenceTimeoutMs: 450,
         volumeThreshold: 0.025,
       },
       interruptionDetection: {
-        minSpeechMs: 200,
-        silenceTimeoutMs: 450,
+        minSpeechMs: 160,
+        silenceTimeoutMs: 350,
         volumeThreshold: 0.018,
       },
       policy: {
@@ -131,8 +140,8 @@ function DemoScreen() {
         allowInterruption: true,
         interruptionTailIgnoreMs: 200,
         falseInterruptionSilenceMs: 400,
-        falseInterruptionTimeoutMs: 2_000,
-        interruptionCooldownMs: 800,
+        falseInterruptionTimeoutMs: 1_200,
+        interruptionCooldownMs: 500,
       },
     });
     sessionRef.current = session;
@@ -141,13 +150,29 @@ function DemoScreen() {
         setState(to);
         if (to === 'listening' || to === 'user_speaking') setPartial('');
       }),
-      session.on('asr_partial', ({ text }) => setPartial(text)),
+      session.on('asr_partial', ({ text, turnId }) => {
+        setPartial(text);
+        setLiveTurnId(turnId);
+        if (text.trim()) {
+          setTurns((current) => upsertTurn(current, { id: turnId, role: 'user', text }));
+        }
+      }),
       session.on('asr_final', ({ text, turnId }) => {
-        if (!text.trim()) return;
-        setTurns((current) => [...current, { id: turnId, role: 'user', text }]);
+        setPartial('');
+        setLiveTurnId((current) => (current === turnId ? undefined : current));
+        if (!text.trim()) {
+          setTurns((current) => current.filter((turn) => turn.id !== turnId));
+          return;
+        }
+        setTurns((current) => upsertTurn(current, { id: turnId, role: 'user', text }));
+      }),
+      session.on('assistant_text_delta', ({ text, turnId }) => {
+        setLiveTurnId(turnId);
+        setTurns((current) => upsertTurn(current, { id: turnId, role: 'assistant', text }));
       }),
       session.on('assistant_text', ({ text, turnId }) => {
-        setTurns((current) => [...current, { id: turnId, role: 'assistant', text }]);
+        setLiveTurnId((current) => (current === turnId ? undefined : current));
+        setTurns((current) => upsertTurn(current, { id: turnId, role: 'assistant', text }));
       }),
       session.on('user_audio_end', () => {
         userAudioEndedAt.current = performance.now();
@@ -347,6 +372,7 @@ function DemoScreen() {
               </Text>
               <Text selectable style={{ flex: 1, color: colors.ink, fontSize: 17, lineHeight: 27 }}>
                 {turn.text}
+                {liveTurnId === turn.id ? ' ▍' : ''}
               </Text>
             </View>
           ))
@@ -354,9 +380,9 @@ function DemoScreen() {
       </View>
 
       <View style={{ gap: 5, paddingTop: 8 }}>
-        <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '800' }}>{t.endpoint}</Text>
+        <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '800' }}>{t.gateway}</Text>
         <Text selectable style={{ color: colors.ink, fontSize: 12, lineHeight: 18 }}>
-          {OTTERVOICE_API_URL}
+          {t.gatewayDescription}
         </Text>
       </View>
     </ScrollView>

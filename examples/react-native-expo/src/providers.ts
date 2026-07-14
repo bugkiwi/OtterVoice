@@ -5,9 +5,9 @@ import {
   createOpenRouterLLM,
 } from '@ottervoice/provider-openrouter';
 
-export const OTTERVOICE_API_URL =
+const OTTERVOICE_API_URL =
   process.env.EXPO_PUBLIC_OTTERVOICE_API_URL ??
-  'https://ottervoice.vercel.app/api/openrouter';
+  'https://ottervoice.vercel.app/api/voice';
 
 const MODELS = {
   asr: 'qwen/qwen3-asr-flash-2026-02-10',
@@ -28,6 +28,7 @@ export function createMobileProviders() {
       ...proxyOptions,
       model: MODELS.asr,
       format: 'wav',
+      partialIntervalMs: 500,
     }),
     llm: createOpenRouterLLM({
       ...proxyOptions,

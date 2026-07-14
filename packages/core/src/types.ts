@@ -109,6 +109,14 @@ export type VoiceSessionEventMap = {
     text: string;
     turnId: string;
   };
+  /** Incremental assistant transcript emitted before `assistant_text`. */
+  assistant_text_delta: {
+    /** Newly received text fragment. */
+    delta: string;
+    /** Complete assistant text accumulated for this turn so far. */
+    text: string;
+    turnId: string;
+  };
   assistant_audio_start: {
     turnId: string;
   };
@@ -144,6 +152,7 @@ export interface ASRCapabilities {
 export interface ASRSessionOptions {
   language?: string;
   sampleRate?: number;
+  channels?: number;
   encoding?: AudioEncoding;
   interimResults?: boolean;
   endpointing?: boolean;
@@ -372,7 +381,14 @@ export interface AudioChunk {
   timestamp: number;
   durationMs?: number;
   sampleRate?: number;
+  channels?: number;
   encoding?: string;
+  /**
+   * `stream` is a low-latency fragment for streaming ASR; `turn` is the
+   * complete VAD-delimited recording for batch ASR and audio-LLM input.
+   * Omitted keeps the legacy behavior and makes the chunk available to both.
+   */
+  delivery?: 'stream' | 'turn';
 }
 
 export interface AudioInputAdapter {

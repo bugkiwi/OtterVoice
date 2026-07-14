@@ -99,6 +99,7 @@ function makeSession(overrides: Partial<VoiceSessionConfig> = {}): Harness {
     'asr_partial',
     'asr_final',
     'user_audio_end',
+    'assistant_text_delta',
     'assistant_text',
     'assistant_audio_start',
     'assistant_audio_end',
@@ -235,6 +236,8 @@ describe('VoiceSession turn loop', () => {
         audioCalls += 1;
         expect(input.audio.byteLength).toBe(4);
         expect(input.format).toBe('webm');
+        await input.onTranscriptDelta?.('语音');
+        await input.onTranscriptDelta?.('模型回复');
         return {
           text: '语音模型回复',
           audioBuffer: new ArrayBuffer(8),
@@ -255,6 +258,11 @@ describe('VoiceSession turn loop', () => {
     expect(audioCalls).toBe(1);
     expect(runtime.audioOutput.played.at(-1)?.mimeType).toBe('audio/wav');
     expect(events.some(([name]) => name === 'user_audio_end')).toBe(true);
+    expect(
+      events
+        .filter(([name]) => name === 'assistant_text_delta')
+        .map(([, payload]) => (payload as { text: string }).text),
+    ).toEqual(['语音', '语音模型回复']);
     expect(
       events.some(
         ([name, payload]) =>
@@ -354,6 +362,9 @@ describe('VoiceSession turn loop', () => {
     // partial + final + audio events fired
     expect(events.some(([n]) => n === 'asr_partial')).toBe(true);
     expect(events.some(([n]) => n === 'asr_final')).toBe(true);
+    const deltas = events.filter(([n]) => n === 'assistant_text_delta');
+    expect(deltas.length).toBeGreaterThan(0);
+    expect((deltas.at(-1)?.[1] as { text: string }).text.trim()).toBe('assistant reply');
     expect(events.some(([n]) => n === 'assistant_audio_start')).toBe(true);
     expect(events.some(([n]) => n === 'assistant_audio_end')).toBe(true);
   });
@@ -1172,6 +1183,10 @@ describe('VoiceSession full_duplex', () => {
 
     expect(session.state).toBe('assistant_speaking');
     expect(streamedChunks).toEqual([[1, 2, 3, 4]]);
+    expect(events).toContainEqual([
+      'assistant_text_delta',
+      expect.objectContaining({ delta: 'streamed ', text: 'streamed ' }),
+    ]);
     expect(events.some(([name]) => name === 'assistant_text')).toBe(false);
     expect(runtime.audioOutput.played).toHaveLength(0);
 
@@ -1182,6 +1197,10 @@ describe('VoiceSession full_duplex', () => {
 
     expect(streamedChunks).toEqual([[1, 2, 3, 4], [5, 6]]);
     expect(startPcmStream).toHaveBeenCalledTimes(1);
+    const transcriptDeltas = events
+      .filter(([name]) => name === 'assistant_text_delta')
+      .map(([, payload]) => payload as { text: string; turnId: string });
+    expect(transcriptDeltas.map(({ text }) => text)).toEqual(['streamed ', 'streamed reply']);
     expect(
       events.some(
         ([name, payload]) =>
@@ -1189,6 +1208,12 @@ describe('VoiceSession full_duplex', () => {
           (payload as { text: string }).text === 'streamed reply',
       ),
     ).toBe(true);
+    const finalAssistant = events.find(
+      ([name, payload]) =>
+        name === 'assistant_text' &&
+        (payload as { text: string }).text === 'streamed reply',
+    )?.[1] as { turnId: string };
+    expect(transcriptDeltas.at(-1)?.turnId).toBe(finalAssistant.turnId);
     await session.dispose();
   });
 

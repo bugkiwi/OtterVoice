@@ -18,6 +18,8 @@ export const PROTOCOL_MESSAGE_TYPES: readonly ProtocolMessageType[] = [
   'statechange',
   'asr_partial',
   'asr_final',
+  'user_audio_end',
+  'assistant_text_delta',
   'assistant_text',
   'assistant_audio_start',
   'assistant_audio_end',

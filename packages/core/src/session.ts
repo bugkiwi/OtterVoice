@@ -47,6 +47,7 @@ interface TurnCapture {
   streamingPlayback?: StreamingAssistantPlayback;
   streamingPlaybackDisabled: boolean;
   streamingTranscript: string;
+  streamingAssistantTurnId?: string;
   nextCaptureReady?: Promise<void>;
   stopPromise?: Promise<void>;
   cancelled: boolean;
@@ -248,6 +249,9 @@ export class VoiceSession {
           : {}),
         interimResults: true,
         endpointing: true,
+        sampleRate: 16_000,
+        channels: 1,
+        encoding: 'pcm_s16le',
       });
     } catch (err) {
       this.fail(err, 'asr_connection_failed');
@@ -295,7 +299,13 @@ export class VoiceSession {
     const { audioInput } = this.config.runtime;
     capture.inputCleanups.push(
       audioInput.onChunk((chunk) => {
-        if (this.config.pipeline === 'audio_llm' && chunk.data.byteLength > 0) {
+        const streamOnly = chunk.delivery === 'stream';
+        const turnOnly = chunk.delivery === 'turn';
+        if (
+          this.config.pipeline === 'audio_llm' &&
+          !streamOnly &&
+          chunk.data.byteLength > 0
+        ) {
           capture.audioChunks.push(chunk.data.slice(0));
           capture.audioFormat ??= this.audioLlmFormat(chunk.encoding);
         }
@@ -307,6 +317,13 @@ export class VoiceSession {
         // the first chunk. Preserve that one chunk for batch ASR even while
         // assistant playback is being filtered; later assistant chunks remain
         // suppressed so the model does not transcribe loudspeaker echo.
+        const streamingAsr = this.config.providers.asr.capabilities.streaming;
+        const matchesAsrMode = streamOnly
+          ? streamingAsr
+          : turnOnly
+            ? !streamingAsr
+            : true;
+        if (!matchesAsrMode) return;
         if (!this.shouldForwardAsrAudio() && !isWebmHeader) return;
         void Promise.resolve(capture.asrSession.sendAudio(chunk.data)).catch((e) =>
           this.fail(e),
@@ -409,7 +426,10 @@ export class VoiceSession {
     return initialPrompt;
   }
 
-  private async speakAssistant(text: string): Promise<void> {
+  private async speakAssistant(
+    text: string,
+    turnId = this.generateId(),
+  ): Promise<void> {
     const generation = ++this.speakGeneration;
     if (
       this.config.mode === 'full_duplex' &&
@@ -419,7 +439,6 @@ export class VoiceSession {
       await this.startListening();
     }
     if (generation !== this.speakGeneration || !this.isActive()) return;
-    const turnId = this.generateId();
     this.transcript.add({ id: turnId, role: 'assistant', text });
     this.emitTurnAdded();
     this.emit('assistant_text', { text, turnId });
@@ -768,7 +787,10 @@ export class VoiceSession {
   private async prepareAssistantPlayback(): Promise<void> {
     this.shortInterruptionGate.reset();
     this.loudInterruptionGate.reset();
-    if (await this.suspendInputCapture()) return;
+    if (await this.suspendInputCapture()) {
+      await this.asrSession?.resetAudio?.();
+      return;
+    }
     await this.asrSession?.resetAudio?.();
   }
 
@@ -949,7 +971,8 @@ export class VoiceSession {
         return;
       }
     } else {
-      const replyPromise = this.generateReply(text);
+      const assistantTurnId = this.generateId();
+      const replyPromise = this.generateReply(text, assistantTurnId);
       void replyPromise.catch(() => {});
       await nextCaptureReady;
       let reply: string;
@@ -962,7 +985,7 @@ export class VoiceSession {
       if (turnGen !== this.turnGeneration || !this.isActive()) return;
 
       try {
-        await this.speakAssistant(reply);
+        await this.speakAssistant(reply, assistantTurnId);
       } catch (err) {
         this.fail(err, 'tts_failed');
         return;
@@ -1048,12 +1071,17 @@ export class VoiceSession {
       if (
         !(await this.finishStreamingAudioAssistant(capture, outcome.value))
       ) {
-        await this.speakAudioAssistant(outcome.value);
+        await this.speakAudioAssistant(
+          outcome.value,
+          capture.streamingAssistantTurnId,
+        );
       }
     } else {
+      const assistantTurnId =
+        capture.streamingAssistantTurnId ??= this.generateId();
       const outcome = await this.waitForCaptureReply(
         capture,
-        this.generateReply(text),
+        this.generateReply(text, assistantTurnId),
       );
       if (outcome.kind === 'cancelled') return;
       if (outcome.kind === 'error') {
@@ -1070,7 +1098,7 @@ export class VoiceSession {
         return;
       }
       try {
-        await this.speakAssistant(outcome.value);
+        await this.speakAssistant(outcome.value, assistantTurnId);
       } catch (err) {
         this.fail(err, 'tts_failed');
         return;
@@ -1117,7 +1145,7 @@ export class VoiceSession {
     await this.startListening();
   }
 
-  private async generateReply(lastUserText: string): Promise<string> {
+  private async generateReply(lastUserText: string, turnId: string): Promise<string> {
     if (this.config.agent) {
       return this.config.agent.generateNextAssistantMessage({
         turns: this.transcript.all(),
@@ -1127,7 +1155,26 @@ export class VoiceSession {
     const input: { system?: string; messages: LLMMessage[] } = {
       messages: this.transcript.toMessages(),
     };
-    const result = await this.config.providers.llm.generate(input);
+    const provider = this.config.providers.llm;
+    if (provider.stream) {
+      let text = '';
+      for await (const chunk of provider.stream(input)) {
+        if (chunk.type === 'text_delta' && chunk.text) {
+          text += chunk.text;
+          this.emit('assistant_text_delta', {
+            delta: chunk.text,
+            text,
+            turnId,
+          });
+        } else if (chunk.type === 'usage') {
+          this.usage.addLlmUsage(chunk.usage);
+        } else if (chunk.type === 'error' && chunk.error) {
+          throw new VoiceError(chunk.error);
+        }
+      }
+      return text.trim();
+    }
+    const result = await provider.generate(input);
     this.usage.addLlmUsage(result.usage);
     return result.text;
   }
@@ -1162,12 +1209,17 @@ export class VoiceSession {
         ? { maxTokens: this.config.audioLlmMaxTokens }
         : {}),
       temperature: 0.45,
-      ...(capture && this.config.runtime.audioOutput.startPcmStream
+      ...(capture
         ? {
-            onAudioChunk: (chunk: AudioLLMAudioChunk) =>
-              this.onAudioReplyChunk(capture, chunk),
             onTranscriptDelta: (text: string) => {
               capture.streamingTranscript += text;
+              const turnId =
+                capture.streamingAssistantTurnId ??= this.generateId();
+              this.emit('assistant_text_delta', {
+                delta: text,
+                text: capture.streamingTranscript,
+                turnId,
+              });
               if (
                 capture.streamingPlayback &&
                 capture.streamingPlayback.generation === this.speakGeneration
@@ -1175,6 +1227,12 @@ export class VoiceSession {
                 this.activeAssistantText = capture.streamingTranscript;
               }
             },
+            ...(this.config.runtime.audioOutput.startPcmStream
+              ? {
+                  onAudioChunk: (chunk: AudioLLMAudioChunk) =>
+                    this.onAudioReplyChunk(capture, chunk),
+                }
+              : {}),
           }
         : {}),
     });
@@ -1210,7 +1268,8 @@ export class VoiceSession {
           return;
         }
         const generation = ++this.speakGeneration;
-        const turnId = this.generateId();
+        const turnId =
+          capture.streamingAssistantTurnId ??= this.generateId();
         this.activeAssistantText = capture.streamingTranscript;
         await this.prepareAssistantPlayback();
         if (
@@ -1291,7 +1350,10 @@ export class VoiceSession {
     return true;
   }
 
-  private async speakAudioAssistant(reply: AudioLLMGenerateOutput): Promise<void> {
+  private async speakAudioAssistant(
+    reply: AudioLLMGenerateOutput,
+    turnId = this.generateId(),
+  ): Promise<void> {
     const generation = ++this.speakGeneration;
     if (
       this.config.mode === 'full_duplex' &&
@@ -1301,7 +1363,6 @@ export class VoiceSession {
       await this.startListening();
     }
     if (generation !== this.speakGeneration || !this.isActive()) return;
-    const turnId = this.generateId();
     this.transcript.add({ id: turnId, role: 'assistant', text: reply.text });
     this.emitTurnAdded();
     this.emit('assistant_text', { text: reply.text, turnId });

@@ -1,7 +1,7 @@
 /**
  * Full-duplex OpenRouter web example.
  *
- * The browser only calls the same-origin `/api/openrouter` proxy. `serve.ts`
+ * The browser only calls the same-origin `/api/voice` gateway. `serve.ts`
  * reads OPENROUTER_API_KEY from `.env`; the credential is never bundled or
  * returned to the browser.
  */
@@ -38,7 +38,7 @@ type AppLanguage = 'zh' | 'en';
 const translations = {
   zh: {
     metaDescription: 'OtterVoice — 面向 Web 与 React Native 的全双工实时语音对话 SDK。',
-    navDemo: '在线体验', navNative: 'React Native', navDocs: '项目说明',
+    navDemo: '在线体验', navNative: 'React Native', navDocs: '技术文档',
     heroEyebrow: 'Open voice infrastructure · TypeScript first',
     heroLine1: '让语音对话，', heroLine2: '像呼吸一样自然。',
     heroCopy: 'OtterVoice 把持续收音、停顿提交、语音直进直出和自然打断收敛为一套跨 Web 与 React Native 的全双工会话内核。',
@@ -47,7 +47,7 @@ const translations = {
     signal2Copy: '同一状态机与会话策略', signal3Copy: '音频分片返回即排队播放',
     demoEyebrow: 'Example 01 · Web full duplex', demoTitle: '现在，直接开口。',
     demoCopy: '麦克风会持续监听。停顿即提交，AI 说话时也可直接插话打断；屏幕同步保留完整文字记录。',
-    pipelineFootnote: 'OpenRouter 低延迟通路 · 密钥仅保留在服务端',
+    pipelineFootnote: '低延迟语音网关 · Provider 可替换 · 密钥仅保留在服务端',
     controlsAria: '对话控制', modeAria: '语音处理模式', transcriptAria: '对话记录',
     modeAudio: '新 · Audio LLM', modeCascade: '旧 · ASR→LLM→TTS', liveChannel: '实时通路',
     start: '开始语音对话', finish: '结束会话',
@@ -71,12 +71,12 @@ const translations = {
     packageUtils: 'SSE、HTTP 错误和 provider 公共能力。',
     packageExamples: '可直接运行的 Web、Expo 和 Node 集成样板。',
     securityTitle: '密钥不进入浏览器或 App。',
-    securityCopy: '示例统一请求 ottervoice.vercel.app 的同源代理，由服务端注入 OpenRouter 凭据；生产项目可以替换为自己的 token broker。',
-    readDocs: '阅读完整 README ↗', footerStack: 'TypeScript / Web Audio / Expo / OpenRouter',
+    securityCopy: '示例统一请求 ottervoice.vercel.app 的同源语音网关，由服务端选择 Provider；生产项目可以替换为自己的网关或 token broker。',
+    readDocs: '阅读技术文档 →', footerStack: 'TypeScript / Web Audio / Expo / Replaceable providers',
   },
   en: {
     metaDescription: 'OtterVoice — a full-duplex real-time voice SDK for Web and React Native.',
-    navDemo: 'Live demo', navNative: 'React Native', navDocs: 'Project guide',
+    navDemo: 'Live demo', navNative: 'React Native', navDocs: 'Docs',
     heroEyebrow: 'Open voice infrastructure · TypeScript first',
     heroLine1: 'Voice that feels', heroLine2: 'as natural as breathing.',
     heroCopy: 'OtterVoice brings continuous listening, pause-to-submit, speech-to-speech models and natural barge-in into one full-duplex session core for Web and React Native.',
@@ -85,7 +85,7 @@ const translations = {
     signal2Copy: 'One state machine and session policy', signal3Copy: 'Queue audio chunks as soon as they arrive',
     demoEyebrow: 'Example 01 · Web full duplex', demoTitle: 'Now, just speak.',
     demoCopy: 'The microphone keeps listening. A pause submits your turn; speak over the assistant to interrupt while the full transcript stays on screen.',
-    pipelineFootnote: 'Low-latency OpenRouter path · secrets stay on the server',
+    pipelineFootnote: 'Low-latency voice gateway · replaceable provider · secrets stay server-side',
     controlsAria: 'Conversation controls', modeAria: 'Voice processing mode', transcriptAria: 'Transcript',
     modeAudio: 'New · Audio LLM', modeCascade: 'Classic · ASR→LLM→TTS', liveChannel: 'Live channel',
     start: 'Start voice session', finish: 'End session',
@@ -109,8 +109,8 @@ const translations = {
     packageUtils: 'Shared SSE parsing, HTTP errors and provider primitives.',
     packageExamples: 'Runnable Web, Expo and Node integration templates.',
     securityTitle: 'Secrets never enter the browser or app.',
-    securityCopy: 'The examples call the same-origin proxy at ottervoice.vercel.app, where OpenRouter credentials are injected server-side. Production apps can replace it with their own token broker.',
-    readDocs: 'Read the full README ↗', footerStack: 'TypeScript / Web Audio / Expo / OpenRouter',
+    securityCopy: 'The examples call the same-origin voice gateway at ottervoice.vercel.app, where the provider is selected server-side. Production apps can replace it with their own gateway or token broker.',
+    readDocs: 'Read the docs →', footerStack: 'TypeScript / Web Audio / Expo / Replaceable providers',
   },
 } as const;
 
@@ -120,7 +120,7 @@ let language: AppLanguage = (() => {
   return navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
 })();
 
-const OPENROUTER_PROXY = '/api/openrouter';
+const VOICE_GATEWAY = '/api/voice';
 // This is a non-secret placeholder. The Bun proxy replaces it server-side.
 const PROXY_CREDENTIAL = 'ottervoice-local-proxy';
 const MODELS = {
@@ -183,23 +183,37 @@ function playSseAudio(capture: SseAudioCapture, button: HTMLButtonElement) {
   };
 }
 
+const turnElements = new Map<string, HTMLDivElement>();
+
 function addTurn(
   role: 'user' | 'assistant',
   text: string,
-  options?: { sseAudio?: SseAudioCapture },
+  options?: { turnId?: string; live?: boolean; sseAudio?: SseAudioCapture },
 ) {
-  const div = document.createElement('div');
-  div.className = `turn ${role}`;
-  const label = document.createElement('span');
-  label.className = 'speaker';
-  label.textContent = role === 'user' ? runtimeText[language].you : runtimeText[language].otter;
-  const body = document.createElement('div');
-  body.className = 'turn-body';
-  const message = document.createElement('span');
-  message.textContent = text;
-  body.append(message);
+  let div = options?.turnId ? turnElements.get(options.turnId) : undefined;
+  let body: HTMLDivElement;
+  let message: HTMLSpanElement;
+  if (div) {
+    body = div.querySelector<HTMLDivElement>('.turn-body')!;
+    message = body.querySelector<HTMLSpanElement>('.turn-message')!;
+  } else {
+    div = document.createElement('div');
+    div.className = `turn ${role}`;
+    const label = document.createElement('span');
+    label.className = 'speaker';
+    label.textContent = role === 'user' ? runtimeText[language].you : runtimeText[language].otter;
+    body = document.createElement('div');
+    body.className = 'turn-body';
+    message = document.createElement('span');
+    message.className = 'turn-message';
+    body.append(message);
+    div.append(label, body);
+    logEl.appendChild(div);
+    if (options?.turnId) turnElements.set(options.turnId, div);
+  }
+  message.textContent = `${text}${options?.live ? ' ▍' : ''}`;
 
-  if (role === 'assistant' && options?.sseAudio) {
+  if (role === 'assistant' && options?.sseAudio && !body.querySelector('.sse-audio-play')) {
     const capture = options.sseAudio;
     const playBtn = document.createElement('button');
     playBtn.type = 'button';
@@ -213,8 +227,6 @@ function addTurn(
     body.append(playBtn, meta);
   }
 
-  div.append(label, body);
-  logEl.appendChild(div);
   logEl.scrollTop = logEl.scrollHeight;
 }
 
@@ -239,7 +251,7 @@ function renderState(state: string) {
 
 const proxyOptions = {
   apiKey: PROXY_CREDENTIAL,
-  baseUrl: OPENROUTER_PROXY,
+  baseUrl: VOICE_GATEWAY,
   referer: location.origin,
   title: 'OtterVoice Web Example',
 };
@@ -263,6 +275,16 @@ const conversationLlm: LLMProvider = {
       temperature: 0.45,
     });
   },
+  stream(input: LLMGenerateInput) {
+    return rawLlm.stream!({
+      ...input,
+      system:
+        '你是一个反应快、语气自然的语音对话助手。默认用中文回复；如果用户明显使用其他语言，则跟随用户。' +
+        '每次只回复 1–2 个简短句子，不使用 Markdown，不列表，适合直接语音播放。',
+      maxTokens: 80,
+      temperature: 0.45,
+    });
+  },
 };
 
 const tts = createOpenRouterTTS({
@@ -277,7 +299,12 @@ const audioLlmBase = createOpenRouterAudioLLM({
   model: MODELS.audioLlm,
   voice: 'alloy',
   defaultTemperature: 0.45,
-  prepareAudio: prepareBrowserAudio,
+  // Base64 expands PCM by one third. A 16 kHz / 90 s mono WAV remains below
+  // Vercel's 4.5 MB function payload limit with room for the JSON envelope.
+  prepareAudio: (audio, format) => prepareBrowserAudio(audio, format, {
+    sampleRate: 16_000,
+    maxDurationMs: 90_000,
+  }),
 });
 const audioLlm = {
   ...audioLlmBase,
@@ -299,6 +326,8 @@ const audioLlm = {
 };
 
 const runtime = createWebRuntime({
+  // Feed WebM timeslices to ASR while the user is still speaking.
+  timesliceMs: 100,
   volumePollMs: 50,
   mimeType: 'audio/webm;codecs=opus',
 });
@@ -355,6 +384,7 @@ function buildSession(pipeline: Pipeline) {
         ...proxyOptions,
         model: MODELS.asr,
         format: 'webm',
+        partialIntervalMs: 500,
       }),
       llm: conversationLlm,
       tts,
@@ -362,10 +392,9 @@ function buildSession(pipeline: Pipeline) {
     },
     turnDetection: {
       strategy: 'volume',
-      minSpeechMs: 300,
-      // Short thinking pauses are common in natural speech. A 600 ms endpoint
-      // split clauses too aggressively and made the continuation look lost.
-      silenceTimeoutMs: 1_000,
+      minSpeechMs: 180,
+      silenceTimeoutMs: 450,
+      maxTurnMs: 80_000,
       volumeThreshold: 0.025,
     },
     interruptionDetection: {
@@ -374,8 +403,8 @@ function buildSession(pipeline: Pipeline) {
       // Four 50 ms foreground frames make short commands such as “停” eligible
       // for the strong-speech fast path; weaker candidates still use the
       // echo-tail and ASR confirmation path.
-      minSpeechMs: 200,
-      silenceTimeoutMs: 450,
+      minSpeechMs: 160,
+      silenceTimeoutMs: 350,
       volumeThreshold: 0.018,
     },
     policy: {
@@ -383,8 +412,8 @@ function buildSession(pipeline: Pipeline) {
       allowInterruption: true,
       interruptionTailIgnoreMs: 200,
       falseInterruptionSilenceMs: 400,
-      falseInterruptionTimeoutMs: 2_000,
-      interruptionCooldownMs: 800,
+      falseInterruptionTimeoutMs: 1_200,
+      interruptionCooldownMs: 500,
     },
   });
 
@@ -398,17 +427,28 @@ function buildSession(pipeline: Pipeline) {
   });
   session.on('asr_partial', (event) => {
     partialEl.textContent = event.text;
+    if (event.text.trim().length > 0) {
+      addTurn('user', event.text, { turnId: event.turnId, live: true });
+    }
   });
   session.on('asr_final', (event) => {
     partialEl.textContent = '';
-    if (event.text.trim().length > 0) addTurn('user', event.text);
+    if (event.text.trim().length > 0) {
+      addTurn('user', event.text, { turnId: event.turnId });
+    }
   });
   session.on('user_audio_end', (event) => {
     userAudioEndedAt = event.at;
   });
+  session.on('assistant_text_delta', (event) => {
+    addTurn('assistant', event.text, { turnId: event.turnId, live: true });
+  });
   session.on('assistant_text', (event) => {
     const sseAudio = pipeline === 'audio_llm' ? lastSseAudio : undefined;
-    addTurn('assistant', event.text, sseAudio ? { sseAudio } : undefined);
+    addTurn('assistant', event.text, {
+      turnId: event.turnId,
+      ...(sseAudio ? { sseAudio } : {}),
+    });
     lastSseAudio = undefined;
   });
   session.on('assistant_audio_start', () => {
@@ -443,10 +483,17 @@ let session: ReturnType<typeof buildSession> | undefined;
 startBtn.addEventListener('click', async () => {
   // Must happen before any other await so delayed assistant playback retains
   // the browser's click-derived autoplay permission.
-  await runtime.audioOutput.unlock?.();
+  try {
+    await runtime.audioOutput.unlock?.();
+  } catch (error) {
+    // Some embedded browsers reject the silent autoplay probe even after a
+    // click. Input/ASR must still start; real playback keeps its own error path.
+    console.warn('Playback unlock was rejected; continuing with microphone input.', error);
+  }
   startBtn.disabled = true;
   finishBtn.disabled = false;
   logEl.innerHTML = '';
+  turnElements.clear();
   lastSseAudio = undefined;
   debugAudioPlayer?.pause();
   await session?.dispose();

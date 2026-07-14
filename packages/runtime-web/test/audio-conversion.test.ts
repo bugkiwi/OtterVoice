@@ -17,6 +17,26 @@ describe('encodeMonoWav', () => {
     expect(view.getInt16(44, true)).toBeGreaterThan(16_000);
     expect(view.getInt16(46, true)).toBeLessThan(-16_000);
   });
+
+  it('downsamples and caps long captures from the newest audio', () => {
+    const samples = new Float32Array(96_000);
+    samples.fill(-0.5, 0, 48_000);
+    samples.fill(0.5, 48_000);
+    const wav = encodeMonoWav({
+      length: samples.length,
+      numberOfChannels: 1,
+      sampleRate: 48_000,
+      getChannelData: () => samples,
+    }, {
+      sampleRate: 16_000,
+      maxDurationMs: 1_000,
+    });
+    const view = new DataView(wav);
+    expect(view.getUint32(24, true)).toBe(16_000);
+    expect(view.getUint32(40, true)).toBe(32_000);
+    expect(wav.byteLength).toBe(44 + 32_000);
+    expect(view.getInt16(44, true)).toBeGreaterThan(16_000);
+  });
 });
 
 describe('measureBrowserAudioEnvelope', () => {

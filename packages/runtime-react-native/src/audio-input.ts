@@ -175,6 +175,19 @@ export class ExpoAudioInput implements AudioInputAdapter {
     copy.set(new Uint8Array(buffer.data));
     this.pcmParts.push(copy);
     this.pcmByteLength += copy.byteLength;
+    const durationMs =
+      buffer.sampleRate > 0 && buffer.channels > 0
+        ? (copy.byteLength / (buffer.sampleRate * buffer.channels * 2)) * 1_000
+        : 0;
+    this.emitChunk({
+      data: copy.slice().buffer,
+      timestamp: this.now(),
+      durationMs,
+      sampleRate: buffer.sampleRate,
+      channels: buffer.channels,
+      encoding: 'pcm_s16le',
+      delivery: 'stream',
+    });
   }
 
   async stop(): Promise<void> {
@@ -195,7 +208,9 @@ export class ExpoAudioInput implements AudioInputAdapter {
           timestamp: this.now(),
           durationMs,
           sampleRate: this.pcmSampleRate,
+          channels: this.pcmChannels,
           encoding: 'audio/wav',
+          delivery: 'turn',
         });
       }
       return;

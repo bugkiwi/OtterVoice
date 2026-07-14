@@ -58,7 +58,7 @@ Bun.serve({
   port,
   async fetch(request) {
     const path = new URL(request.url).pathname;
-    if (path.startsWith('/api/openrouter/')) {
+    if (path.startsWith('/api/voice/')) {
       return proxyOpenRouter(request, openRouterKey);
     }
     if (path === '/app.js') {

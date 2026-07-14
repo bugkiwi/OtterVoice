@@ -3,10 +3,11 @@ declare const process: {
   readonly env: { readonly OPENROUTER_API_KEY?: string };
 };
 
-const allowedRoutes = new Set([
-  '/api/openrouter/chat/completions',
-  '/api/openrouter/audio/transcriptions',
-  '/api/openrouter/audio/speech',
+const gatewayPrefix = '/api/voice';
+const allowedUpstreamPaths = new Set([
+  '/chat/completions',
+  '/audio/transcriptions',
+  '/audio/speech',
 ]);
 
 interface CachedSpeech {
@@ -27,11 +28,14 @@ export async function proxyOpenRouter(
 ): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
-  if (request.method !== 'POST' || !allowedRoutes.has(path)) {
+  const upstreamPath = path.startsWith(`${gatewayPrefix}/`)
+    ? path.slice(gatewayPrefix.length)
+    : '';
+  if (request.method !== 'POST' || !allowedUpstreamPaths.has(upstreamPath)) {
     return json({ error: 'not found' }, 404);
   }
   if (!apiKey) {
-    return json({ error: 'OPENROUTER_API_KEY is not configured on the server' }, 503);
+    return json({ error: 'Voice gateway is not configured on the server' }, 503);
   }
 
   const requestBody = await request.arrayBuffer();
@@ -44,14 +48,13 @@ export async function proxyOpenRouter(
       headers: {
         'cache-control': 'no-store',
         'content-type': cachedSpeech.contentType,
-        'server-timing': 'openrouter;dur=0;desc="TTS memory cache"',
+        'server-timing': 'voice_gateway;dur=0;desc="TTS memory cache"',
         'x-ottervoice-cache': 'HIT',
         ...(cachedSpeech.generationId ? { 'x-generation-id': cachedSpeech.generationId } : {}),
       },
     });
   }
 
-  const upstreamPath = path.slice('/api/openrouter'.length);
   try {
     const startedAt = performance.now();
     const upstream = await fetch(`${OPENROUTER_ORIGIN}${upstreamPath}`, {
@@ -68,7 +71,7 @@ export async function proxyOpenRouter(
     const headers = new Headers({
       'cache-control': 'no-store',
       'content-type': upstream.headers.get('content-type') ?? 'application/octet-stream',
-      'server-timing': `openrouter;dur=${(performance.now() - startedAt).toFixed(1)}`,
+      'server-timing': `voice_gateway;dur=${(performance.now() - startedAt).toFixed(1)}`,
     });
     const generationId = upstream.headers.get('x-generation-id');
     if (generationId) headers.set('x-generation-id', generationId);
@@ -98,7 +101,7 @@ export async function proxyOpenRouter(
     });
   } catch (error) {
     if (request.signal.aborted) return new Response(null, { status: 499 });
-    console.error(`[OpenRouter proxy] ${upstreamPath}:`, error);
-    return json({ error: error instanceof Error ? error.message : 'OpenRouter request failed' }, 502);
+    console.error(`[Voice gateway] ${upstreamPath}:`, error);
+    return json({ error: error instanceof Error ? error.message : 'Upstream request failed' }, 502);
   }
 }
