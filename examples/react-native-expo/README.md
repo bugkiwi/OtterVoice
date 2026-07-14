@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../../assets/brand/ottervoice-icon.webp" width="112" alt="OtterVoice pixel otter mascot" />
+</p>
+
 # OtterVoice React Native / Expo Demo
 
 [中文](#中文) · [English](#english)

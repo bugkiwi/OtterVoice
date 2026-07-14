@@ -4,6 +4,7 @@
     "slug": "ottervoice-demo",
     "version": "0.2.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "scheme": "ottervoice",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -16,7 +17,14 @@
     },
     "android": {
       "package": "io.ottervoice.demo",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#F2EEE3"
+      },
       "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       [

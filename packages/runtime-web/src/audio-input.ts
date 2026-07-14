@@ -80,7 +80,7 @@ export class WebAudioInput implements AudioInputAdapter {
   private stream: MediaStreamLike | undefined;
   private recorder: MediaRecorderLike | undefined;
   private recorderStopped: Promise<void> | undefined;
-  private readonly pendingData = new Set<Promise<void>>();
+  private pendingData = Promise.resolve();
   private audioContext: AudioContextLike | undefined;
   private volumeTimer: ReturnType<typeof setInterval> | undefined;
   private captureSuspended = false;
@@ -113,6 +113,7 @@ export class WebAudioInput implements AudioInputAdapter {
     this.hasDeliveredChunk = false;
     this.suspendedContainerHeader = undefined;
     this.suspendedPreRoll = [];
+    this.pendingData = Promise.resolve();
     let stream: MediaStreamLike;
     try {
       stream = await this.options.getUserMedia({
@@ -137,15 +138,21 @@ export class WebAudioInput implements AudioInputAdapter {
     });
 
     recorder.addEventListener('dataavailable', (event: { data?: BlobLike }) => {
-      const task = this.handleData(event.data).catch((err) => {
-        this.emitError(
-          createVoiceError('microphone_unavailable', 'failed to read recorded audio', {
-            raw: err,
-          }),
-        );
-      });
-      this.pendingData.add(task);
-      void task.finally(() => this.pendingData.delete(task));
+      // Blob.arrayBuffer() completion order is not guaranteed. Reading each
+      // timeslice concurrently can therefore reorder an otherwise valid WebM
+      // stream, which is much easier to trigger on resource-constrained mobile
+      // browsers. Serialize conversion in event order and remember whether the
+      // chunk arrived while capture delivery was suspended.
+      const capturedWhileSuspended = this.captureSuspended;
+      this.pendingData = this.pendingData
+        .then(() => this.handleData(event.data, capturedWhileSuspended))
+        .catch((err) => {
+          this.emitError(
+            createVoiceError('microphone_unavailable', 'failed to read recorded audio', {
+              raw: err,
+            }),
+          );
+        });
     });
     recorder.addEventListener('stop', () => {
       resolveRecorderStopped();
@@ -184,12 +191,15 @@ export class WebAudioInput implements AudioInputAdapter {
     }, this.volumePollMs);
   }
 
-  private async handleData(blob: BlobLike | undefined): Promise<void> {
+  private async handleData(
+    blob: BlobLike | undefined,
+    capturedWhileSuspended: boolean,
+  ): Promise<void> {
     if (!blob || blob.size === 0) return;
     const data = await blob.arrayBuffer();
     const chunk: AudioChunk = { data, timestamp: this.now() };
     if (this.options.mimeType !== undefined) chunk.encoding = this.options.mimeType;
-    if (this.captureSuspended) {
+    if (capturedWhileSuspended) {
       // MediaRecorder.pause() drops the beginning of a barge-in because VAD
       // needs several foreground frames before it can confirm the user. Keep
       // recording, but withhold a bounded tail until the core decides whether
@@ -218,18 +228,20 @@ export class WebAudioInput implements AudioInputAdapter {
     }
     const recorder = this.recorder;
     const recorderStopped = this.recorderStopped;
+    const stream = this.stream;
     this.recorder = undefined;
     this.recorderStopped = undefined;
+    this.stream = undefined;
     recorder?.stop();
-    if (this.stream) {
-      for (const track of this.stream.getTracks()) track.stop();
-      this.stream = undefined;
-    }
     // MediaRecorder emits its last dataavailable event before stop. Wait for
-    // both that event and Blob.arrayBuffer() so callers receive a complete,
-    // decodable container before they submit or decode the captured turn.
+    // that event and every ordered Blob.arrayBuffer() before stopping the
+    // source tracks. Closing tracks first can truncate the final WebM cluster
+    // on mobile Chrome.
     await recorderStopped;
-    await Promise.all([...this.pendingData]);
+    await this.pendingData;
+    if (stream) {
+      for (const track of stream.getTracks()) track.stop();
+    }
     this.captureSuspended = false;
     this.suspendedContainerHeader = undefined;
     this.suspendedPreRoll = [];

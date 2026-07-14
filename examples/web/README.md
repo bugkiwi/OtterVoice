@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../../assets/brand/ottervoice-icon.webp" width="112" alt="OtterVoice pixel otter mascot" />
+</p>
+
 # Web example
 
 Full-duplex browser demo with real microphone capture/playback and two live

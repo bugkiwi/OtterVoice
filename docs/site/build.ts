@@ -1,3 +1,5 @@
+import { mkdir } from 'node:fs/promises';
+
 const siteRoot = new URL('.', import.meta.url);
 const repositoryRoot = new URL('../../', siteRoot);
 const webExample = new URL('./examples/web/', repositoryRoot);
@@ -36,5 +38,18 @@ if (!docsResult.success) {
 
 await Bun.write(new URL('./index.html', outdir), Bun.file(new URL('./index.html', webExample)));
 await Bun.write(new URL('./index.html', docsOutdir), Bun.file(new URL('./docs.html', siteRoot)));
+
+const assetOutdir = new URL('./assets/', outdir);
+const brandAssetRoot = new URL('./assets/brand/', repositoryRoot);
+const brandAssets = [
+  'ottervoice-icon.webp',
+  'ottervoice-icon-64.png',
+  'ottervoice-icon-180.png',
+  'ottervoice-icon-512.png',
+];
+await mkdir(assetOutdir, { recursive: true });
+await Promise.all(brandAssets.map((asset) => (
+  Bun.write(new URL(asset, assetOutdir), Bun.file(new URL(asset, brandAssetRoot)))
+)));
 
 console.log(`Built OtterVoice docs site: ${outdir.pathname}`);

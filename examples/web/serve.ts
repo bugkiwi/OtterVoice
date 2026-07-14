@@ -9,18 +9,25 @@
 import { proxyOpenRouter } from './openrouter-proxy';
 
 const root = new URL('.', import.meta.url);
+const repositoryRoot = new URL('../../', root);
 const staticRoot = new URL('./dist/', root);
+const brandRoot = new URL('./assets/brand/', repositoryRoot);
 const staticTypes: Record<string, string> = {
   '.mp3': 'audio/mpeg',
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
 };
 
 async function serveStatic(pathname: string): Promise<Response | undefined> {
   if (pathname === '/' || pathname === '') return undefined;
-  const relative = pathname.replace(/^\//, '');
+  const isBrandAsset = pathname.startsWith('/assets/');
+  const relative = isBrandAsset
+    ? pathname.slice('/assets/'.length)
+    : pathname.replace(/^\//, '');
   if (!relative || relative.includes('..')) return undefined;
-  const file = Bun.file(new URL(relative, staticRoot));
+  const file = Bun.file(new URL(relative, isBrandAsset ? brandRoot : staticRoot));
   if (!(await file.exists())) return undefined;
   const extension = relative.includes('.') ? relative.slice(relative.lastIndexOf('.')) : '';
   const contentType = staticTypes[extension] ?? file.type;
@@ -29,7 +36,6 @@ async function serveStatic(pathname: string): Promise<Response | undefined> {
   });
 }
 
-const repositoryRoot = new URL('../../', root);
 const workspaceSrcAliases: Record<string, string> = {
   '@ottervoice/core': new URL('../core/src/index.ts', repositoryRoot).pathname,
   '@ottervoice/provider-utils': new URL('../provider-utils/src/index.ts', repositoryRoot).pathname,

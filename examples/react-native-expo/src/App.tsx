@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Image,
   Pressable,
   ScrollView,
   Text,
@@ -260,12 +261,19 @@ function DemoScreen() {
     >
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text
-          selectable
-          style={{ color: colors.ink, fontSize: 19, fontWeight: '800', letterSpacing: -0.6 }}
-        >
-          OtterVoice
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Image
+            source={require('../assets/icon.png')}
+            accessibilityIgnoresInvertColors
+            style={{ width: 42, height: 42, borderRadius: 11 }}
+          />
+          <Text
+            selectable
+            style={{ color: colors.ink, fontSize: 19, fontWeight: '800', letterSpacing: -0.6 }}
+          >
+            OtterVoice
+          </Text>
+        </View>
         <View
           accessibilityRole="radiogroup"
           style={{ flexDirection: 'row', borderWidth: 1, borderColor: colors.border, borderRadius: 99 }}

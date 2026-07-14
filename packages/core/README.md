@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/bugkiwi/OtterVoice/main/assets/brand/ottervoice-icon.webp" width="96" alt="OtterVoice pixel otter mascot" />
+</p>
+
 # @ottervoice/core
 
 Platform-agnostic core for [OtterVoice](https://github.com/gkiwi/OtterVoice) —

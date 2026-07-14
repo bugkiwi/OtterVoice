@@ -1,6 +1,10 @@
-# OtterVoice 🦦
+<p align="center">
+  <img src="assets/brand/ottervoice-icon.webp" width="180" alt="OtterVoice pixel otter mascot" />
+</p>
 
-TypeScript-first real-time voice SDK for Web, React Native / Expo, and Node.js.
+<h1 align="center">OtterVoice</h1>
+
+<p align="center"><strong>TypeScript-first real-time voice SDK for Web, React Native / Expo, and Node.js.</strong></p>
 
 OtterVoice 提供可替换 Provider 的实时语音会话内核，支持 ASR、LLM、TTS / Audio LLM、流式字幕、静音断句和自然打断。应用可以独立选择运行时与模型服务，不需要把业务 UI 绑定到某一家 Provider。
 

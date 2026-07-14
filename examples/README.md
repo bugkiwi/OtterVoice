@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../assets/brand/ottervoice-icon.webp" width="120" alt="OtterVoice pixel otter mascot" />
+</p>
+
 # OtterVoice examples
 
 One example per platform / integration. All run with **Bun** and the workspace

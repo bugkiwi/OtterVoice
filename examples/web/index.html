@@ -4,6 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="OtterVoice — 面向 Web 与 React Native 的全双工实时语音对话 SDK。" />
+    <meta property="og:image" content="https://ottervoice.vercel.app/assets/ottervoice-icon-512.png" />
+    <meta property="og:image:alt" content="OtterVoice pixel otter mascot" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/assets/ottervoice-icon-64.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/ottervoice-icon-180.png" />
     <title>OtterVoice — Real-time voice, naturally</title>
     <style>
       :root {
@@ -47,7 +52,8 @@
         min-height: 76px;
         border-bottom: 1px solid color-mix(in oklch, var(--ink) 18%, transparent);
       }
-      .brand { font: 700 1.2rem Georgia, "Songti SC", serif; text-decoration: none; }
+      .brand { display: inline-flex; align-items: center; gap: 9px; font: 700 1.2rem Georgia, "Songti SC", serif; text-decoration: none; }
+      .brand-mark { width: 40px; height: 40px; border-radius: 10px; }
       .nav-actions, .nav-links, .language-switch { display: flex; align-items: center; }
       .nav-actions { gap: 18px; }
       .nav-links { gap: 22px; font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
@@ -247,7 +253,7 @@
   <body>
     <header class="shell">
       <nav aria-label="Main navigation">
-        <a class="brand" href="#">OtterVoice</a>
+        <a class="brand" href="#"><img class="brand-mark" src="/assets/ottervoice-icon.webp" width="40" height="40" alt="" />OtterVoice</a>
         <div class="nav-actions">
           <div class="nav-links">
             <a href="#demo" data-i18n="navDemo">在线体验</a>
