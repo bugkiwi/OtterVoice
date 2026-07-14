@@ -21,7 +21,6 @@ import { createWebRuntime, prepareBrowserAudio } from '@ottervoice/runtime-web';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const stateEl = $('state');
 const stateCopyEl = $('state-copy');
-const partialEl = $('partial');
 const logEl = $('log');
 const meterEl = $('meter');
 const startBtn = $<HTMLButtonElement>('start');
@@ -32,6 +31,8 @@ const pipelineEl = $('pipeline-copy');
 const latencyEl = $('latency');
 const langZhBtn = $<HTMLButtonElement>('lang-zh');
 const langEnBtn = $<HTMLButtonElement>('lang-en');
+const asrPartialToggle = $<HTMLInputElement>('asr-partial-toggle');
+const transcriptToggle = $<HTMLInputElement>('transcript-toggle');
 
 type AppLanguage = 'zh' | 'en';
 
@@ -42,8 +43,10 @@ const translations = {
     demoEyebrow: 'Example 01 · Web full duplex', demoTitle: '现在，直接开口。',
     demoCopy: '麦克风会持续监听。停顿即提交，AI 说话时也可直接插话打断；屏幕同步保留完整文字记录。',
     pipelineFootnote: '低延迟语音网关 · Provider 可替换 · 密钥仅保留在服务端',
-    controlsAria: '对话控制', modeAria: '语音处理模式', transcriptAria: '对话记录',
+    controlsAria: '对话控制', modeAria: '语音处理模式', settingsAria: '会话显示设置', transcriptAria: '对话记录',
     modeAudio: '新 · Audio LLM', modeCascade: '旧 · ASR→LLM→TTS', liveChannel: '实时通路',
+    asrPartialLabel: '实时 ASR 回显', asrPartialHint: '说话 1 秒后开始，关闭则只做终句识别',
+    transcriptLabel: '输入 / 输出文本', transcriptHint: '显示实时字幕与完整对话记录',
     start: '开始语音对话', finish: '结束会话',
     phoneTitle: '现在，直接开口。', phoneCopy: '持续监听；停顿提交；说话即可打断。', phoneState: '正在持续收听',
     nativeEyebrow: 'Example 02 · React Native / Expo', nativeTitle: '同一条 Audio LLM 通路，装进手机。',
@@ -74,8 +77,10 @@ const translations = {
     demoEyebrow: 'Example 01 · Web full duplex', demoTitle: 'Now, just speak.',
     demoCopy: 'The microphone keeps listening. A pause submits your turn; speak over the assistant to interrupt while the full transcript stays on screen.',
     pipelineFootnote: 'Low-latency voice gateway · replaceable provider · secrets stay server-side',
-    controlsAria: 'Conversation controls', modeAria: 'Voice processing mode', transcriptAria: 'Transcript',
+    controlsAria: 'Conversation controls', modeAria: 'Voice processing mode', settingsAria: 'Session display settings', transcriptAria: 'Transcript',
     modeAudio: 'New · Audio LLM', modeCascade: 'Classic · ASR→LLM→TTS', liveChannel: 'Live channel',
+    asrPartialLabel: 'Live ASR captions', asrPartialHint: 'Starts after 1s of speech; off keeps final ASR only',
+    transcriptLabel: 'Input / output text', transcriptHint: 'Show live captions and the full transcript',
     start: 'Start voice session', finish: 'End session',
     phoneTitle: 'Now, just speak.', phoneCopy: 'Always listening. Pause to submit. Speak to interrupt.', phoneState: 'Listening continuously',
     nativeEyebrow: 'Example 02 · React Native / Expo', nativeTitle: 'The same Audio LLM path, now in your pocket.',
@@ -108,6 +113,13 @@ let language: AppLanguage = (() => {
   return navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
 })();
 
+const storedToggle = (key: string, fallback: boolean): boolean => {
+  const value = localStorage.getItem(key);
+  return value === null ? fallback : value === 'true';
+};
+let asrPartialEnabled = storedToggle('ottervoice-asr-partial', false);
+let transcriptVisible = storedToggle('ottervoice-transcript-visible', true);
+
 const VOICE_GATEWAY = '/api/voice';
 // This is a non-secret placeholder. The Bun proxy replaces it server-side.
 const PROXY_CREDENTIAL = 'ottervoice-local-proxy';
@@ -131,17 +143,17 @@ const runtimeText = {
   zh: {
     you: '你', otter: 'Otter', playing: '播放中…', playFailed: '播放失败', playSse: '▶ SSE 音频',
     playTitle: '播放 OpenRouter SSE 组装后的原始音频（独立于会话播放）', chunks: '片', pending: '待测',
-    asrWaiting: '等待实时字幕…', asrListening: '正在识别…',
     latencyEmpty: '完成一轮对话后显示“停顿 → 开始播放”的实测延迟',
     pipelineAudio: '<code>Qwen3 ASR</code> 实时字幕与终句确认 → <code>GPT Audio Mini</code> 语音回复',
+    pipelineAudioFinal: '<code>Qwen3 ASR</code> 终句确认 → <code>GPT Audio Mini</code> 语音回复',
     pipelineCascade: '<code>Qwen3 ASR</code> → <code>DeepSeek V4 Flash</code> → <code>Kokoro 82M</code>',
   },
   en: {
     you: 'You', otter: 'Otter', playing: 'Playing…', playFailed: 'Playback failed', playSse: '▶ SSE audio',
     playTitle: 'Play the original audio assembled from OpenRouter SSE chunks', chunks: 'chunks', pending: 'pending',
-    asrWaiting: 'Waiting for live captions…', asrListening: 'Transcribing…',
     latencyEmpty: 'Measured pause → first audio playback latency appears after one turn',
     pipelineAudio: '<code>Qwen3 ASR</code> live captions + final confirmation → <code>GPT Audio Mini</code> voice reply',
+    pipelineAudioFinal: '<code>Qwen3 ASR</code> final confirmation → <code>GPT Audio Mini</code> voice reply',
     pipelineCascade: '<code>Qwen3 ASR</code> → <code>DeepSeek V4 Flash</code> → <code>Kokoro 82M</code>',
   },
 } as const;
@@ -174,11 +186,19 @@ function playSseAudio(capture: SseAudioCapture, button: HTMLButtonElement) {
 }
 
 const turnElements = new Map<string, HTMLDivElement>();
+const turnTexts = new Map<string, string>();
+const turnIdsByElement = new Map<HTMLDivElement, string[]>();
 let liveAssistantTurnId: string | undefined;
 
 function removeTurn(turnId: string) {
-  turnElements.get(turnId)?.remove();
-  turnElements.delete(turnId);
+  const div = turnElements.get(turnId);
+  if (!div) return;
+  for (const id of turnIdsByElement.get(div) ?? [turnId]) {
+    turnElements.delete(id);
+    turnTexts.delete(id);
+  }
+  turnIdsByElement.delete(div);
+  div.remove();
 }
 
 function removeLiveAssistantTurn() {
@@ -192,28 +212,55 @@ function addTurn(
   text: string,
   options?: { turnId?: string; live?: boolean; sseAudio?: SseAudioCapture },
 ) {
-  let div = options?.turnId ? turnElements.get(options.turnId) : undefined;
+  const turnId = options?.turnId;
+  if (turnId) turnTexts.set(turnId, text);
+  let div = turnId ? turnElements.get(turnId) : undefined;
   let body: HTMLDivElement;
   let message: HTMLSpanElement;
   if (div) {
     body = div.querySelector<HTMLDivElement>('.turn-body')!;
     message = body.querySelector<HTMLSpanElement>('.turn-message')!;
   } else {
-    div = document.createElement('div');
-    div.className = `turn ${role}`;
-    const label = document.createElement('span');
-    label.className = 'speaker';
-    label.textContent = role === 'user' ? runtimeText[language].you : runtimeText[language].otter;
-    body = document.createElement('div');
-    body.className = 'turn-body';
-    message = document.createElement('span');
-    message.className = 'turn-message';
-    body.append(message);
-    div.append(label, body);
-    logEl.appendChild(div);
-    if (options?.turnId) turnElements.set(options.turnId, div);
+    const previous = logEl.lastElementChild;
+    const mergeWithPreviousUser =
+      role === 'user' &&
+      turnId !== undefined &&
+      previous instanceof HTMLDivElement &&
+      previous.classList.contains('user');
+    if (mergeWithPreviousUser) {
+      div = previous;
+      body = div.querySelector<HTMLDivElement>('.turn-body')!;
+      message = body.querySelector<HTMLSpanElement>('.turn-message')!;
+      const ids = turnIdsByElement.get(div) ?? [];
+      ids.push(turnId);
+      turnIdsByElement.set(div, ids);
+      turnElements.set(turnId, div);
+    } else {
+      div = document.createElement('div');
+      div.className = `turn ${role}`;
+      const label = document.createElement('span');
+      label.className = 'speaker';
+      label.textContent = role === 'user' ? runtimeText[language].you : runtimeText[language].otter;
+      body = document.createElement('div');
+      body.className = 'turn-body';
+      message = document.createElement('span');
+      message.className = 'turn-message';
+      body.append(message);
+      div.append(label, body);
+      logEl.appendChild(div);
+      if (turnId) {
+        turnElements.set(turnId, div);
+        turnIdsByElement.set(div, [turnId]);
+      }
+    }
   }
-  message.textContent = `${text}${options?.live ? ' ▍' : ''}`;
+  const displayedText = turnId
+    ? (turnIdsByElement.get(div) ?? [turnId])
+        .map((id) => turnTexts.get(id)?.trim())
+        .filter((value): value is string => Boolean(value))
+        .join(' ')
+    : text;
+  message.textContent = `${displayedText}${options?.live ? ' ▍' : ''}`;
 
   if (role === 'assistant' && options?.sseAudio && !body.querySelector('.sse-audio-play')) {
     const capture = options.sseAudio;
@@ -251,15 +298,8 @@ function renderState(state: string) {
   stateCopyEl.textContent = stateCopy[language][state] ?? state;
 }
 
-type CaptionState = 'waiting' | 'listening' | 'live' | 'final';
-
-function renderAsrCaption(state: CaptionState, text?: string) {
-  partialEl.dataset.captionState = state;
-  partialEl.textContent = text ?? (
-    state === 'listening'
-      ? runtimeText[language].asrListening
-      : runtimeText[language].asrWaiting
-  );
+function renderTranscriptVisibility() {
+  logEl.hidden = !transcriptVisible;
 }
 
 const proxyOptions = {
@@ -364,7 +404,9 @@ function renderPipeline() {
   cascadeBtn.setAttribute('aria-pressed', String(!isAudio));
   audioBtn.setAttribute('aria-pressed', String(isAudio));
   pipelineEl.innerHTML = isAudio
-    ? runtimeText[language].pipelineAudio
+    ? asrPartialEnabled
+      ? runtimeText[language].pipelineAudio
+      : runtimeText[language].pipelineAudioFinal
     : runtimeText[language].pipelineCascade;
 }
 
@@ -389,6 +431,7 @@ function buildSession(pipeline: Pipeline) {
   const session = createVoiceSession({
     mode: 'full_duplex',
     pipeline,
+    asrPartial: asrPartialEnabled,
     audioLlmSystemPrompt:
       '你是一个反应快、语气自然的语音对话助手。默认用中文回复；如果用户明显使用其他语言，则跟随用户。' +
       '每次只回复 1–2 个简短句子，不使用 Markdown，不列表，适合直接语音播放。',
@@ -398,7 +441,8 @@ function buildSession(pipeline: Pipeline) {
         ...proxyOptions,
         model: MODELS.asr,
         format: 'webm',
-        partialIntervalMs: 500,
+        partialIntervalMs: 1_000,
+        emptyPartialBackoffMs: 3_000,
       }),
       llm: conversationLlm,
       tts,
@@ -439,20 +483,14 @@ function buildSession(pipeline: Pipeline) {
       // A newer utterance supersedes an answer that only streamed partially.
       // Finalized assistant rows remain in the transcript.
       removeLiveAssistantTurn();
-      renderAsrCaption('listening');
     }
   });
   session.on('asr_partial', (event) => {
-    renderAsrCaption('live', event.text);
     if (event.text.trim().length > 0) {
       addTurn('user', event.text, { turnId: event.turnId, live: true });
     }
   });
   session.on('asr_final', (event) => {
-    renderAsrCaption(
-      event.text.trim().length > 0 ? 'final' : 'waiting',
-      event.text || undefined,
-    );
     if (event.text.trim().length > 0) {
       addTurn('user', event.text, { turnId: event.turnId });
     }
@@ -495,6 +533,7 @@ function buildSession(pipeline: Pipeline) {
     finishBtn.disabled = true;
     cascadeBtn.disabled = false;
     audioBtn.disabled = false;
+    asrPartialToggle.disabled = false;
   });
   session.on('finished', () => {
     removeLiveAssistantTurn();
@@ -503,7 +542,7 @@ function buildSession(pipeline: Pipeline) {
     finishBtn.disabled = true;
     cascadeBtn.disabled = false;
     audioBtn.disabled = false;
-    renderAsrCaption('waiting');
+    asrPartialToggle.disabled = false;
     meterEl.style.setProperty('--level', '0');
   });
   return session;
@@ -525,13 +564,15 @@ startBtn.addEventListener('click', async () => {
   finishBtn.disabled = false;
   logEl.innerHTML = '';
   turnElements.clear();
+  turnTexts.clear();
+  turnIdsByElement.clear();
   liveAssistantTurnId = undefined;
-  renderAsrCaption('waiting');
   lastSseAudio = undefined;
   debugAudioPlayer?.pause();
   await session?.dispose();
   cascadeBtn.disabled = true;
   audioBtn.disabled = true;
+  asrPartialToggle.disabled = true;
   const pipeline = selectedPipeline;
   session = buildSession(pipeline);
   await session.start();
@@ -548,6 +589,18 @@ for (const [button, pipeline] of [
     renderPipeline();
   });
 }
+
+asrPartialToggle.addEventListener('change', () => {
+  asrPartialEnabled = asrPartialToggle.checked;
+  localStorage.setItem('ottervoice-asr-partial', String(asrPartialEnabled));
+  renderPipeline();
+});
+
+transcriptToggle.addEventListener('change', () => {
+  transcriptVisible = transcriptToggle.checked;
+  localStorage.setItem('ottervoice-transcript-visible', String(transcriptVisible));
+  renderTranscriptVisibility();
+});
 
 function applyLanguage(next: AppLanguage) {
   language = next;
@@ -585,10 +638,6 @@ function applyLanguage(next: AppLanguage) {
 
   renderPipeline();
   renderState(stateEl.dataset.state ?? 'idle');
-  const captionState = partialEl.dataset.captionState as CaptionState | undefined;
-  if (captionState === 'waiting' || captionState === 'listening') {
-    renderAsrCaption(captionState);
-  }
   if (lastLatency) renderLatency(lastLatency.pipeline, lastLatency.value);
   else latencyEl.textContent = runtimeText[next].latencyEmpty;
 }
@@ -596,4 +645,7 @@ function applyLanguage(next: AppLanguage) {
 langZhBtn.addEventListener('click', () => applyLanguage('zh'));
 langEnBtn.addEventListener('click', () => applyLanguage('en'));
 
+asrPartialToggle.checked = asrPartialEnabled;
+transcriptToggle.checked = transcriptVisible;
+renderTranscriptVisibility();
 applyLanguage(language);

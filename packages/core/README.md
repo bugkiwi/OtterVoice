@@ -44,6 +44,12 @@ Implement these interfaces to plug in real services / platforms:
 Every error raised by an adapter should be a `NormalizedVoiceError` (use
 `createVoiceError`), so consumers handle one shape regardless of provider.
 
+Set `VoiceSessionConfig.asrPartial` to `false` when provisional captions are not
+needed. Core passes that preference to the ASR session while preserving
+`asr_final`. For batch-backed rolling ASR, providers may implement
+`ASRSession.setInterimResultsEnabled()`; volume-based sessions use it to defer
+paid partial work until VAD confirms speech.
+
 ## Session events
 
 `statechange`, `asr_partial`, `asr_final`, `user_audio_end`, `assistant_text`,

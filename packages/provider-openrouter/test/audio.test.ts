@@ -85,6 +85,95 @@ describe('createOpenRouterASR', () => {
     expect(bodies[0].input_audio.data.startsWith('UklGR')).toBe(true);
   });
 
+  it('honors the session interim-results switch while keeping the final request', async () => {
+    let requests = 0;
+    const provider = createOpenRouterASR({
+      apiKey: 'secret',
+      model: 'qwen/asr',
+      partialIntervalMs: 0,
+      fetch: async () => {
+        requests += 1;
+        return Response.json({ text: 'final only' });
+      },
+    });
+    const session = await provider.createSession({ interimResults: false });
+    const partials: ASRResult[] = [];
+    const finals: ASRResult[] = [];
+    session.onPartial((result) => partials.push(result));
+    session.onFinal((result) => finals.push(result));
+
+    await session.sendAudio(new Uint8Array([1, 2, 3]).buffer);
+    expect(requests).toBe(0);
+    await session.stop();
+
+    expect(requests).toBe(1);
+    expect(partials).toEqual([]);
+    expect(finals.map(({ text }) => text)).toEqual(['final only']);
+  });
+
+  it('starts a fresh partial interval when VAD enables interim results', async () => {
+    let time = 0;
+    let requests = 0;
+    const session = await createOpenRouterASR({
+      apiKey: 'secret',
+      model: 'qwen/asr',
+      partialIntervalMs: 1_000,
+      now: () => time,
+      fetch: async () => {
+        requests += 1;
+        return Response.json({ text: 'live speech' });
+      },
+    }).createSession({ interimResults: true });
+    const partials: string[] = [];
+    session.onPartial(({ text }) => partials.push(text));
+
+    session.setInterimResultsEnabled?.(false);
+    time = 10_000;
+    await session.sendAudio(new Uint8Array([1]).buffer);
+    expect(requests).toBe(0);
+
+    session.setInterimResultsEnabled?.(true);
+    time = 10_999;
+    await session.sendAudio(new Uint8Array([2]).buffer);
+    expect(requests).toBe(0);
+    time = 11_000;
+    await session.sendAudio(new Uint8Array([3]).buffer);
+
+    expect(requests).toBe(1);
+    expect(partials).toEqual(['live speech']);
+    await session.stop();
+  });
+
+  it('backs off rolling requests after an empty partial', async () => {
+    let time = 0;
+    let requests = 0;
+    const session = await createOpenRouterASR({
+      apiKey: 'secret',
+      model: 'qwen/asr',
+      partialIntervalMs: 100,
+      emptyPartialBackoffMs: 1_000,
+      now: () => time,
+      fetch: async () => {
+        requests += 1;
+        return Response.json({ text: requests === 1 ? '   ' : 'speech' });
+      },
+    }).createSession({ interimResults: true });
+    const partials: string[] = [];
+    session.onPartial(({ text }) => partials.push(text));
+
+    time = 100;
+    await session.sendAudio(new Uint8Array([1]).buffer);
+    time = 200;
+    await session.sendAudio(new Uint8Array([2]).buffer);
+    expect(requests).toBe(1);
+    time = 1_100;
+    await session.sendAudio(new Uint8Array([3]).buffer);
+
+    expect(requests).toBe(2);
+    expect(partials).toEqual(['speech']);
+    await session.stop();
+  });
+
   it('emits a partial from browser WebM timeslices before the final turn', async () => {
     const bodies: any[] = [];
     const provider = createOpenRouterASR({

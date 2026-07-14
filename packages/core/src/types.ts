@@ -179,6 +179,12 @@ export interface ASRSession {
   sendAudio(chunk: ArrayBuffer): void | Promise<void>;
   /** Drop buffered non-user audio while keeping the session connected. */
   resetAudio?(): void | Promise<void>;
+  /**
+   * Pause or resume provisional transcript work without affecting the final
+   * transcript. Batch-backed providers can use this to avoid paid rolling
+   * requests until voice activity confirms that the user is speaking.
+   */
+  setInterimResultsEnabled?(enabled: boolean): void | Promise<void>;
   stop(): Promise<void>;
   close(): Promise<void>;
   onPartial(cb: (result: ASRResult) => void): () => void;
@@ -558,6 +564,11 @@ export interface VoiceSessionConfig {
   mode: VoiceSessionMode;
   /** Defaults to the classic ASR -> LLM -> TTS cascade. */
   pipeline?: 'asr_llm_tts' | 'audio_llm';
+  /**
+   * Emit provisional `asr_partial` results. Defaults to true. Disabling this
+   * does not affect the authoritative `asr_final` transcript.
+   */
+  asrPartial?: boolean;
   /** Optional system instruction forwarded to a native audio LLM. */
   audioLlmSystemPrompt?: string;
   /**

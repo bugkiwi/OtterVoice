@@ -15,6 +15,7 @@ import type {
   AudioLLMProvider,
   ASRProvider,
   ASRResult,
+  ASRSessionOptions,
   NormalizedVoiceError,
   TTSProvider,
   VoiceAgentPlugin,
@@ -119,6 +120,8 @@ function controllableASR(options: { finalOnStop?: string } = {}) {
   let finalCb: ((r: ASRResult) => void) | undefined;
   let errorCb: ((e: NormalizedVoiceError) => void) | undefined;
   const ctl = {
+    options: undefined as ASRSessionOptions | undefined,
+    interimResultsEnabled: [] as boolean[],
     sendImpl: undefined as undefined | (() => unknown),
     stop: mock(async () => {
       if (options.finalOnStop !== undefined) {
@@ -138,9 +141,13 @@ function controllableASR(options: { finalOnStop?: string } = {}) {
       partialResults: true,
       languages: ['en'],
     },
-    async createSession() {
+    async createSession(sessionOptions) {
+      ctl.options = sessionOptions;
       return {
         sendAudio: () => ctl.sendImpl?.(),
+        setInterimResultsEnabled(enabled) {
+          ctl.interimResultsEnabled.push(enabled);
+        },
         stop: ctl.stop,
         close: ctl.close,
         onPartial(cb) {
@@ -896,6 +903,134 @@ describe('VoiceSession full_duplex', () => {
     expect(runtime.audioInput.started).toBe(true);
   });
 
+  it('keeps the WebM container header decodable across Audio LLM turns', async () => {
+    const runtime = createMockRuntime({ output: { autoComplete: false } });
+    runtime.audioInput.suspendCapture = mock(async () => {});
+    runtime.audioInput.resumeCapture = mock(async () => {});
+
+    let asrSessionIndex = 0;
+    const asr: ASRProvider = {
+      name: 'turn-aware-asr',
+      capabilities: {
+        streaming: true,
+        batch: true,
+        partialResults: true,
+        languages: ['auto'],
+      },
+      async createSession() {
+        const text = asrSessionIndex++ === 0 ? 'first question' : 'second question';
+        let finalCb: ((result: ASRResult) => void) | undefined;
+        return {
+          sendAudio() {},
+          resetAudio() {},
+          async stop() {
+            finalCb?.({ text });
+          },
+          async close() {},
+          onPartial() {
+            return () => {};
+          },
+          onFinal(cb) {
+            finalCb = cb;
+            return () => {
+              finalCb = undefined;
+            };
+          },
+          onError() {
+            return () => {};
+          },
+        };
+      },
+    };
+
+    let releaseFirstReply!: () => void;
+    const firstReplyGate = new Promise<void>((resolve) => {
+      releaseFirstReply = resolve;
+    });
+    let firstReplyStarted!: () => void;
+    const firstReplyStarting = new Promise<void>((resolve) => {
+      firstReplyStarted = resolve;
+    });
+    let secondReplyStarted!: () => void;
+    const secondReplyStarting = new Promise<void>((resolve) => {
+      secondReplyStarted = resolve;
+    });
+    const audioInputs: number[][] = [];
+    const audioLlm: AudioLLMProvider = {
+      name: 'captured-audio-llm',
+      async generate(input) {
+        audioInputs.push([...new Uint8Array(input.audio)]);
+        if (audioInputs.length === 1) {
+          firstReplyStarted();
+          await firstReplyGate;
+        } else {
+          secondReplyStarted();
+        }
+        return {
+          text: `reply ${audioInputs.length}`,
+          audioBuffer: new ArrayBuffer(8),
+          mimeType: 'audio/wav',
+        };
+      },
+    };
+    const { session } = makeSession({
+      mode: 'full_duplex',
+      pipeline: 'audio_llm',
+      runtime,
+      providers: { asr, audioLlm } as any,
+    });
+    await session.start();
+
+    const webmHeader = [0x1a, 0x45, 0xdf, 0xa3];
+    runtime.audioInput.emitChunk({
+      data: new Uint8Array(webmHeader).buffer,
+      timestamp: 1,
+      encoding: 'audio/webm;codecs=opus',
+    });
+    runtime.audioInput.emitChunk({
+      data: new Uint8Array([1]).buffer,
+      timestamp: 2,
+      encoding: 'audio/webm;codecs=opus',
+    });
+    const firstEnding = session.endUserTurn();
+    await firstReplyStarting;
+
+    // The next recorder is already open while the first model request runs.
+    // Its WebM header arrives before assistant playback resets buffered echo.
+    runtime.audioInput.emitChunk({
+      data: new Uint8Array(webmHeader).buffer,
+      timestamp: 3,
+      encoding: 'audio/webm;codecs=opus',
+    });
+    runtime.audioInput.emitChunk({
+      data: new Uint8Array([8]).buffer,
+      timestamp: 4,
+      encoding: 'audio/webm;codecs=opus',
+    });
+
+    const firstAudioStarted = new Promise<void>((resolve) => {
+      session.once('assistant_audio_start', () => resolve());
+    });
+    releaseFirstReply();
+    await firstEnding;
+    await firstAudioStarted;
+    const listening = nextState(session, 'listening');
+    runtime.audioOutput.fireEnd();
+    await listening;
+
+    runtime.audioInput.emitChunk({
+      data: new Uint8Array([9]).buffer,
+      timestamp: 5,
+      encoding: 'audio/webm;codecs=opus',
+    });
+    await session.endUserTurn();
+    await secondReplyStarting;
+
+    expect(audioInputs[0]).toEqual([...webmHeader, 1]);
+    expect(audioInputs[1]).toEqual([...webmHeader, 9]);
+    await session.dispose();
+  });
+
   it('does not request an audio reply when speech resumes before caption ASR final', async () => {
     const runtime = createMockRuntime();
     let sessionCount = 0;
@@ -1124,6 +1259,56 @@ describe('VoiceSession full_duplex', () => {
     await answered;
 
     expect(audioLlmCalls).toBe(1);
+    await session.dispose();
+  });
+
+  it('can disable ASR partials without disabling the final transcript', async () => {
+    const { provider: asr, ctl } = controllableASR({
+      finalOnStop: 'authoritative final',
+    });
+    const { session, events } = makeSession({
+      asrPartial: false,
+      providers: { asr } as any,
+    });
+    await session.start();
+
+    ctl.emitPartial({ text: '' });
+    ctl.emitPartial({ text: 'provisional text' });
+
+    expect(ctl.options?.interimResults).toBe(false);
+    expect(events.some(([name]) => name === 'asr_partial')).toBe(false);
+
+    const finalReceived = new Promise<void>((resolve) => {
+      session.once('asr_final', () => resolve());
+    });
+    await session.endUserTurn();
+    await finalReceived;
+    expect(
+      events.some(
+        ([name, payload]) =>
+          name === 'asr_final' &&
+          (payload as { text: string }).text === 'authoritative final',
+      ),
+    ).toBe(true);
+    await session.dispose();
+  });
+
+  it('defers batch-backed interim work until VAD confirms speech', async () => {
+    const { provider: asr, ctl } = controllableASR();
+    const { session, runtime } = makeSession({
+      providers: { asr } as any,
+      turnDetection: {
+        strategy: 'volume',
+        minSpeechMs: 0,
+        volumeThreshold: 0.02,
+      },
+    });
+    await session.start();
+
+    expect(ctl.interimResultsEnabled).toEqual([false]);
+    runtime.audioInput.emitVolume(0.1);
+    expect(ctl.interimResultsEnabled).toEqual([false, true]);
+
     await session.dispose();
   });
 

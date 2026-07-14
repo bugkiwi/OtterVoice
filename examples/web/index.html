@@ -106,6 +106,19 @@
       .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 24px; padding: 5px; border: 1px solid var(--line); border-radius: 99px; }
       .mode-switch button { min-height: 36px; padding: 0 12px; border: 0; color: var(--muted); background: transparent; font-size: .76rem; }
       .mode-switch button.selected { color: var(--paper); background: var(--ink); }
+      .demo-settings { display: grid; grid-template-columns: 1fr 1fr; margin: -6px 0 24px; border-block: 1px solid var(--line); }
+      .demo-setting { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; min-height: 68px; padding: 11px 0; cursor: pointer; }
+      .demo-setting + .demo-setting { margin-left: 18px; padding-left: 18px; border-left: 1px solid var(--line); }
+      .setting-copy { min-width: 0; }
+      .setting-copy strong { display: block; margin-bottom: 3px; font-size: .73rem; letter-spacing: .02em; }
+      .setting-copy small { display: block; color: var(--muted); font-size: .62rem; line-height: 1.35; }
+      .toggle-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+      .toggle-track { position: relative; width: 38px; height: 22px; flex: none; border: 1px solid var(--ink); border-radius: 99px; background: transparent; transition: background 160ms ease; }
+      .toggle-track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--ink); transition: transform 180ms cubic-bezier(.22, 1, .36, 1), background 160ms ease; }
+      .toggle-input:checked + .toggle-track { background: var(--mint); }
+      .toggle-input:checked + .toggle-track::after { transform: translateX(16px); }
+      .toggle-input:focus-visible + .toggle-track { outline: 3px solid var(--coral); outline-offset: 3px; }
+      .toggle-input:disabled + .toggle-track { opacity: .36; cursor: default; }
       .status-row { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
       #state { padding: 5px 10px; border-radius: 99px; background: var(--mint); font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
       #state[data-state="assistant_speaking"] { background: var(--coral-soft); }
@@ -123,13 +136,10 @@
       button:not(:disabled):hover, .pill:hover { transform: translateY(-2px); }
       #finish { color: var(--ink); background: transparent; }
       button:disabled { opacity: .36; cursor: default; }
-      .asr-caption { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: baseline; margin-top: 18px; padding-top: 14px; border-top: 1px solid color-mix(in oklch, var(--ink) 16%, transparent); }
-      .asr-caption-label { color: oklch(48% .08 37); font-size: .66rem; font-weight: 900; letter-spacing: .12em; }
-      #partial { min-height: 1.5em; margin: 0; color: oklch(48% .09 38); font-style: italic; overflow-wrap: anywhere; }
-      #partial[data-caption-state="waiting"], #partial[data-caption-state="listening"] { color: var(--muted); }
-      #latency { min-height: 1.4em; margin: 10px 0 0; color: var(--muted); font-size: .72rem; }
+      #latency { min-height: 1.4em; margin: 18px 0 0; color: var(--muted); font-size: .72rem; }
       #log { grid-column: 1 / -1; display: grid; gap: 8px; max-height: 360px; padding: 0 36px 26px; overflow-y: auto; background: var(--paper-high); }
       #log:empty { display: none; }
+      [hidden] { display: none !important; }
       .turn { display: grid; grid-template-columns: 74px 1fr; gap: 14px; padding: 14px 0; border-top: 1px solid color-mix(in oklch, var(--ink) 16%, transparent); }
       .speaker { color: oklch(48% .08 37); font-size: .7rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
       .assistant { font-family: Georgia, serif; font-size: 1.08rem; }
@@ -226,6 +236,10 @@
         .security-note { align-items: flex-start; flex-direction: column; }
         footer { flex-direction: column; }
       }
+      @media (max-width: 440px) {
+        .demo-settings { grid-template-columns: 1fr; }
+        .demo-setting + .demo-setting { margin-left: 0; padding-left: 0; border-top: 1px solid var(--line); border-left: 0; }
+      }
       @media (pointer: coarse) { button, .pill { min-height: 48px; } }
       @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition-duration: 0s !important; } }
     </style>
@@ -265,14 +279,22 @@
               <button id="mode-audio" type="button" aria-pressed="true" data-i18n="modeAudio">新 · Audio LLM</button>
               <button id="mode-cascade" type="button" aria-pressed="false" data-i18n="modeCascade">旧 · ASR→LLM→TTS</button>
             </div>
+            <div class="demo-settings" data-i18n-aria="settingsAria" aria-label="会话显示设置">
+              <label class="demo-setting">
+                <span class="setting-copy"><strong data-i18n="asrPartialLabel">实时 ASR 回显</strong><small data-i18n="asrPartialHint">说话 1 秒后开始，关闭则只做终句识别</small></span>
+                <input class="toggle-input" id="asr-partial-toggle" type="checkbox" role="switch" />
+                <span class="toggle-track" aria-hidden="true"></span>
+              </label>
+              <label class="demo-setting">
+                <span class="setting-copy"><strong data-i18n="transcriptLabel">输入 / 输出文本</strong><small data-i18n="transcriptHint">显示实时字幕与完整对话记录</small></span>
+                <input class="toggle-input" id="transcript-toggle" type="checkbox" role="switch" checked />
+                <span class="toggle-track" aria-hidden="true"></span>
+              </label>
+            </div>
             <div class="status-row"><span class="eyebrow" data-i18n="liveChannel">实时通路</span><span id="state" data-state="idle">idle</span></div>
             <p id="state-copy" aria-live="polite">准备好就可以开始</p>
             <div id="meter" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
             <div class="actions"><button id="start" data-i18n="start">开始语音对话</button><button id="finish" disabled data-i18n="finish">结束会话</button></div>
-            <div class="asr-caption">
-              <span class="asr-caption-label">ASR</span>
-              <p id="partial" data-caption-state="waiting" aria-live="polite">等待实时字幕…</p>
-            </div>
             <p id="latency" aria-live="polite">完成一轮对话后显示“停顿 → 开始播放”的实测延迟</p>
           </section>
           <div id="log" data-i18n-aria="transcriptAria" aria-label="对话记录" aria-live="polite"></div>

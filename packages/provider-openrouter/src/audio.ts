@@ -27,6 +27,11 @@ export interface OpenRouterASROptions extends CredentialOptions, HeaderOptions {
    * best-effort partial results before the turn ends. Omit for batch-only ASR.
    */
   partialIntervalMs?: number;
+  /**
+   * Delay the next rolling request after an empty provisional transcript.
+   * Defaults to the greater of 3x `partialIntervalMs` and 3 seconds.
+   */
+  emptyPartialBackoffMs?: number;
   language?: string;
   baseUrl?: string;
   /** Test hook for partial-result scheduling. */
@@ -164,6 +169,9 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
   const partialIntervalMs = options.partialIntervalMs;
   const incremental = partialIntervalMs !== undefined;
   const now = options.now ?? Date.now;
+  const partialDelayMs = Math.max(0, partialIntervalMs ?? 0);
+  const emptyPartialBackoffMs =
+    options.emptyPartialBackoffMs ?? Math.max(partialDelayMs * 3, 3_000);
 
   return {
     name: PROVIDER,
@@ -183,7 +191,8 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
       let stopped = false;
       let generation = 0;
       let partialInFlight = false;
-      let lastPartialAt = now();
+      let interimResultsEnabled = sessionOptions.interimResults !== false;
+      let nextPartialAt = now() + partialDelayMs;
 
       const toUpload = (source: readonly ArrayBuffer[]) => {
         const joined = joinChunks(source);
@@ -237,14 +246,29 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
       };
 
       const requestPartial = async () => {
-        if (partialInFlight || closed || stopped || chunks.length === 0) return;
+        if (
+          !interimResultsEnabled ||
+          partialInFlight ||
+          closed ||
+          stopped ||
+          chunks.length === 0
+        ) {
+          return;
+        }
         partialInFlight = true;
-        lastPartialAt = now();
+        nextPartialAt = now() + partialDelayMs;
         const requestGeneration = generation;
         const snapshot = chunks.map((chunk) => chunk.slice(0));
         try {
           const result = await transcribe(snapshot);
-          if (requestGeneration !== generation || closed || stopped || result.text.length === 0) {
+          if (requestGeneration !== generation || closed || stopped) {
+            return;
+          }
+          if (result.text.trim().length === 0) {
+            nextPartialAt = Math.max(
+              nextPartialAt,
+              now() + Math.max(0, emptyPartialBackoffMs),
+            );
             return;
           }
           for (const cb of [...partialCbs]) cb(result);
@@ -262,10 +286,20 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
           chunks.push(chunk.slice(0));
           if (
             incremental &&
-            now() - lastPartialAt >= Math.max(0, partialIntervalMs)
+            interimResultsEnabled &&
+            now() >= nextPartialAt
           ) {
             return requestPartial();
           }
+        },
+        setInterimResultsEnabled(enabled) {
+          if (closed || stopped || interimResultsEnabled === enabled) return;
+          interimResultsEnabled = enabled;
+          generation += 1;
+          // Enabling after VAD speech_start creates a fresh minimum window.
+          // This prevents a long idle session from firing a paid snapshot on
+          // the first tiny audio chunk of a new utterance.
+          nextPartialAt = now() + partialDelayMs;
         },
         resetAudio() {
           generation += 1;
@@ -284,7 +318,7 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
               : undefined;
           chunks.length = 0;
           if (containerHeader) chunks.push(containerHeader);
-          lastPartialAt = now();
+          nextPartialAt = now() + partialDelayMs;
         },
         async stop() {
           if (closed || stopped) return;

@@ -40,6 +40,7 @@ interface TurnCapture {
   finalResult?: ASRResult;
   processingScheduled: boolean;
   interruptedAssistant: boolean;
+  interimResultsGated: boolean;
   verifiedSpeechText: boolean;
   interruptionVoicedFrames: number;
   generation?: number;
@@ -247,7 +248,7 @@ export class VoiceSession {
         ...(this.config.language !== undefined
           ? { language: this.config.language }
           : {}),
-        interimResults: true,
+        interimResults: this.config.asrPartial !== false,
         endpointing: true,
         sampleRate: 16_000,
         channels: 1,
@@ -271,6 +272,11 @@ export class VoiceSession {
       ended: false,
       processingScheduled: false,
       interruptedAssistant: false,
+      interimResultsGated:
+        this.config.asrPartial !== false &&
+        this.detector.options.strategy !== 'manual' &&
+        this.config.mode !== 'push_to_talk' &&
+        this.config.runtime.audioInput.onVolume !== undefined,
       verifiedSpeechText: false,
       interruptionVoicedFrames: 0,
       streamingPlaybackDisabled: false,
@@ -286,6 +292,11 @@ export class VoiceSession {
     };
     this.activeCapture = capture;
     this.asrSession = session;
+    if (capture.interimResultsGated) {
+      void Promise.resolve(session.setInterimResultsEnabled?.(false)).catch((e) =>
+        this.fail(e),
+      );
+    }
 
     capture.asrCleanups.push(
       session.onPartial((r) => this.onAsrPartial(r, capture)),
@@ -488,6 +499,7 @@ export class VoiceSession {
 
   private onAsrPartial(result: ASRResult, capture: TurnCapture): void {
     if (this.activeCapture !== capture || capture.ended) return;
+    if (this.config.asrPartial === false || result.text.trim().length === 0) return;
     if (this.state === 'assistant_speaking') {
       if (
         this.tentativeInterruptionStartedAt === undefined ||
@@ -497,7 +509,7 @@ export class VoiceSession {
       }
       this.confirmInterruption(this.now());
     }
-    if (result.text.trim().length > 0) capture.verifiedSpeechText = true;
+    capture.verifiedSpeechText = true;
     this.beginUserSpeech();
     this.emit('asr_partial', {
       text: result.text,
@@ -591,6 +603,7 @@ export class VoiceSession {
       this.cancelPendingResponses();
       this.turnGeneration += 1;
     }
+    this.setInterimResultsEnabled(this.activeCapture, true);
     this.userSpeaking = true;
     this.transition('user_speaking');
   }
@@ -687,6 +700,7 @@ export class VoiceSession {
     this.tentativeInterruptionSilenceSince = undefined;
     this.loudInterruptionGate.reset();
     this.playbackEchoFilter.stop();
+    this.setInterimResultsEnabled(this.activeCapture, true);
     void this.resumeInputCapture(true).catch((error) => {
       this.fail(error, 'microphone_unavailable');
     });
@@ -754,6 +768,7 @@ export class VoiceSession {
     this.interruptionCooldownUntil =
       now + (this.config.policy?.interruptionCooldownMs ?? 800);
     this.playbackEchoFilter.start(now);
+    this.setInterimResultsEnabled(this.activeCapture, false);
     if (!resume) return;
     if (!this.supportsCaptureSuspension()) {
       void resume.call(this.config.runtime.audioOutput).catch(() => {
@@ -783,6 +798,7 @@ export class VoiceSession {
   private async prepareAssistantPlayback(): Promise<void> {
     this.shortInterruptionGate.reset();
     this.loudInterruptionGate.reset();
+    this.setInterimResultsEnabled(this.activeCapture, false);
     if (await this.suspendInputCapture()) {
       await this.asrSession?.resetAudio?.();
       this.resetTurnAudio();
@@ -794,6 +810,16 @@ export class VoiceSession {
   private supportsCaptureSuspension(): boolean {
     const { audioInput } = this.config.runtime;
     return Boolean(audioInput.suspendCapture && audioInput.resumeCapture);
+  }
+
+  private setInterimResultsEnabled(
+    capture: TurnCapture | undefined,
+    enabled: boolean,
+  ): void {
+    if (!capture?.interimResultsGated) return;
+    void Promise.resolve(
+      capture.asrSession.setInterimResultsEnabled?.(enabled),
+    ).catch((error) => this.fail(error, 'asr_connection_failed'));
   }
 
   private async suspendInputCapture(): Promise<boolean> {
@@ -876,6 +902,10 @@ export class VoiceSession {
     const normalized = encoding?.toLowerCase() ?? '';
     if (normalized.includes('wav')) return 'wav';
     if (normalized.includes('mpeg') || normalized.includes('mp3')) return 'mp3';
+    // A browser MediaRecorder commonly reports `audio/webm;codecs=opus`.
+    // WebM is the container and must win over its Opus codec so resetTurnAudio
+    // keeps the first container chunk for the next Audio LLM turn.
+    if (normalized.includes('webm')) return 'webm';
     if (normalized.includes('opus')) return 'opus';
     return 'webm';
   }

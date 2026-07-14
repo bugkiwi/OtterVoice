@@ -26,13 +26,25 @@ and pause when you are done — volume-based VAD ends each turn automatically.
 While the assistant is replying you can speak again to barge in.
 
 Input captions are incremental: `MediaRecorder` emits a WebM/Opus timeslice
-every 100 ms, the demo requests a rolling ASR snapshot every 500 ms, and
-`asr_partial` updates the existing user turn by `turnId`. `asr_final` replaces
-the provisional text at the turn boundary. A native streaming ASR adapter can
-replace the rolling snapshot provider without changing the UI event handlers.
+every 100 ms, but rolling ASR stays paused until VAD confirms real speech. The
+demo then requests at most one snapshot every 1 second, and backs off for
+3 seconds after an empty result. Short turns therefore go straight to the
+single final transcription, while idle microphone audio creates no rolling ASR
+requests. `asr_partial` updates the existing user turn by `turnId`; `asr_final`
+replaces the provisional text at the turn boundary. A native streaming ASR
+adapter can replace the rolling snapshot provider without changing the UI event
+handlers.
 Partial results never start an LLM request. If speech resumes before final ASR
 confirms the turn, the pending capture is cancelled without spending an Audio
 LLM request.
+
+The Web controls expose two independent switches. **Live ASR captions** maps to
+the core `asrPartial` session option and can remove rolling ASR requests while
+keeping final recognition. **Input / output text** only controls whether the
+transcript UI is visible. Live ASR captions default to off to avoid rolling ASR
+costs, while the transcript defaults to on. Both are remembered in
+`localStorage`; the ASR switch is locked while a session is active because it
+is part of session construction.
 
 Barge-in is playback-aware: `runtime-web` derives a synchronized RMS envelope
 from the assistant audio, and core searches 0–300 ms of acoustic delay before
