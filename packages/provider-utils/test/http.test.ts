@@ -30,6 +30,22 @@ describe('normalizeHttpError', () => {
     expect(e.retryable).toBe(true);
   });
 
+  it('maps authentication failures with stage, status, and a safe message', () => {
+    const error = normalizeHttpError(401, '{"token":"must-not-log"}', {
+      provider: 'openrouter',
+      stage: 'gateway',
+      failureCode: 'llm_failed',
+    });
+    expect(error).toMatchObject({
+      code: 'llm_failed',
+      provider: 'openrouter',
+      stage: 'gateway',
+      httpStatus: 401,
+      retryable: false,
+      safeMessage: 'The voice gateway or provider rejected the credentials.',
+    });
+  });
+
   it('uses the supplied failureCode for other 4xx', () => {
     expect(normalizeHttpError(400, 'bad', { failureCode: 'llm_failed' }).code).toBe(
       'llm_failed',

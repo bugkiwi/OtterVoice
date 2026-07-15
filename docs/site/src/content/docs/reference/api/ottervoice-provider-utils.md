@@ -48,7 +48,7 @@ MIT
 
 ### ASRDecodeResult
 
-Defined in: [websocket.ts:48](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L48)
+Defined in: [websocket.ts:48](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L48)
 
 Result of decoding one vendor WebSocket text frame inside
 [WebSocketASRConfig.decode](/docs/reference/api/ottervoice-provider-utils/#decode). Omit fields that do not apply; return
@@ -58,15 +58,15 @@ Result of decoding one vendor WebSocket text frame inside
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="error"></a> `error?` | [`NormalizedVoiceError`](/docs/reference/api/ottervoice-core/#normalizedvoiceerror) | Provider-reported or decode-time failure for this frame. | [websocket.ts:54](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L54) |
-| <a id="final"></a> `final?` | [`ASRResult`](/docs/reference/api/ottervoice-core/#asrresult) | Finalized transcript segment, if this frame ends an utterance. | [websocket.ts:52](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L52) |
-| <a id="partial"></a> `partial?` | [`ASRResult`](/docs/reference/api/ottervoice-core/#asrresult) | Incremental (non-final) transcript, if this frame carries one. | [websocket.ts:50](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L50) |
+| <a id="error"></a> `error?` | [`NormalizedVoiceError`](/docs/reference/api/ottervoice-core/#normalizedvoiceerror) | Provider-reported or decode-time failure for this frame. | [websocket.ts:54](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L54) |
+| <a id="final"></a> `final?` | [`ASRResult`](/docs/reference/api/ottervoice-core/#asrresult) | Finalized transcript segment, if this frame ends an utterance. | [websocket.ts:52](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L52) |
+| <a id="partial"></a> `partial?` | [`ASRResult`](/docs/reference/api/ottervoice-core/#asrresult) | Incremental (non-final) transcript, if this frame carries one. | [websocket.ts:50](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L50) |
 
 ***
 
 ### BrokerRequest
 
-Defined in: [credential.ts:11](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/credential.ts#L11)
+Defined in: [credential.ts:11](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/credential.ts#L11)
 
 Body posted to [CredentialOptions.tokenBrokerUrl](/docs/reference/api/ottervoice-provider-utils/#tokenbrokerurl).
 
@@ -74,15 +74,15 @@ Body posted to [CredentialOptions.tokenBrokerUrl](/docs/reference/api/ottervoice
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="provider"></a> `provider` | `string` | Vendor id echoed to the broker (e.g. `deepgram`, `openrouter`). | [credential.ts:13](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/credential.ts#L13) |
-| <a id="purpose"></a> `purpose` | [`CredentialPurpose`](/docs/reference/api/ottervoice-provider-utils/#credentialpurpose) | Why the token is needed so the broker can scope permissions. | [credential.ts:15](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/credential.ts#L15) |
-| <a id="sessionid"></a> `sessionId?` | `string` | Optional client session id for audit / rate limits. | [credential.ts:17](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/credential.ts#L17) |
+| <a id="provider"></a> `provider` | `string` | Vendor id echoed to the broker (e.g. `deepgram`, `openrouter`). | [credential.ts:13](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/credential.ts#L13) |
+| <a id="purpose"></a> `purpose` | [`CredentialPurpose`](/docs/reference/api/ottervoice-provider-utils/#credentialpurpose) | Why the token is needed so the broker can scope permissions. | [credential.ts:15](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/credential.ts#L15) |
+| <a id="sessionid"></a> `sessionId?` | `string` | Optional client session id for audit / rate limits. | [credential.ts:17](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/credential.ts#L17) |
 
 ***
 
 ### BrokerToken
 
-Defined in: [credential.ts:24](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/credential.ts#L24)
+Defined in: [credential.ts:24](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/credential.ts#L24)
 
 Short-lived auth material returned by a token broker (or synthesized from
 [CredentialOptions.apiKey](/docs/reference/api/ottervoice-provider-utils/#apikey)). Use via [createCredentialResolver](/docs/reference/api/ottervoice-provider-utils/#createcredentialresolver).
@@ -91,15 +91,15 @@ Short-lived auth material returned by a token broker (or synthesized from
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="expiresat"></a> `expiresAt?` | `number` | Epoch millis after which the token must be refreshed. | [credential.ts:30](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/credential.ts#L30) |
-| <a id="token"></a> `token` | `string` | Bearer / API token used for upstream auth. | [credential.ts:28](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/credential.ts#L28) |
-| <a id="url"></a> `url?` | `string` | Optional signed URL (e.g. a websocket endpoint) returned by the broker. | [credential.ts:26](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/credential.ts#L26) |
+| <a id="expiresat"></a> `expiresAt?` | `number` | Epoch millis after which the token must be refreshed. | [credential.ts:30](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/credential.ts#L30) |
+| <a id="token"></a> `token` | `string` | Bearer / API token used for upstream auth. | [credential.ts:28](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/credential.ts#L28) |
+| <a id="url"></a> `url?` | `string` | Optional signed URL (e.g. a websocket endpoint) returned by the broker. | [credential.ts:26](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/credential.ts#L26) |
 
 ***
 
 ### CredentialOptions
 
-Defined in: [credential.ts:38](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/credential.ts#L38)
+Defined in: [credential.ts:38](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/credential.ts#L38)
 
 Auth input for provider factories. Prefer [CredentialOptions.tokenBrokerUrl](/docs/reference/api/ottervoice-provider-utils/#tokenbrokerurl)
 on browsers and apps; reserve [CredentialOptions.apiKey](/docs/reference/api/ottervoice-provider-utils/#apikey) for trusted
@@ -118,16 +118,16 @@ server-side runtimes only.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="apikey"></a> `apiKey?` | `string` | A long-lived key (server-side only — never ship to clients). | [credential.ts:40](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/credential.ts#L40) |
-| <a id="fetch"></a> `fetch?` | [`FetchLike`](/docs/reference/api/ottervoice-provider-utils/#fetchlike) | Custom `fetch` implementation (tests / React Native polyfills). | [credential.ts:44](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/credential.ts#L44) |
-| <a id="now"></a> `now?` | () => `number` | Clock override for deterministic expiry checks in tests. | [credential.ts:46](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/credential.ts#L46) |
-| <a id="tokenbrokerurl"></a> `tokenBrokerUrl?` | `string` | Endpoint that mints short-lived tokens (client-safe). | [credential.ts:42](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/credential.ts#L42) |
+| <a id="apikey"></a> `apiKey?` | `string` | A long-lived key (server-side only — never ship to clients). | [credential.ts:40](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/credential.ts#L40) |
+| <a id="fetch"></a> `fetch?` | [`FetchLike`](/docs/reference/api/ottervoice-provider-utils/#fetchlike) | Custom `fetch` implementation (tests / React Native polyfills). | [credential.ts:44](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/credential.ts#L44) |
+| <a id="now"></a> `now?` | () => `number` | Clock override for deterministic expiry checks in tests. | [credential.ts:46](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/credential.ts#L46) |
+| <a id="tokenbrokerurl"></a> `tokenBrokerUrl?` | `string` | Endpoint that mints short-lived tokens (client-safe). | [credential.ts:42](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/credential.ts#L42) |
 
 ***
 
 ### HttpErrorOptions
 
-Defined in: [http.ts:30](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/http.ts#L30)
+Defined in: [http.ts:31](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/http.ts#L31)
 
 Options for [normalizeHttpError](/docs/reference/api/ottervoice-provider-utils/#normalizehttperror). Use when mapping vendor HTTP
 failures into OtterVoice's shared error shape.
@@ -136,14 +136,15 @@ failures into OtterVoice's shared error shape.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="failurecode"></a> `failureCode?` | [`VoiceErrorCode`](/docs/reference/api/ottervoice-core/#voiceerrorcode-1) | Code to use for ordinary 4xx failures (e.g. `llm_failed`, `tts_failed`). | [http.ts:34](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/http.ts#L34) |
-| <a id="provider-1"></a> `provider?` | `string` | Vendor id attached to the resulting [NormalizedVoiceError](/docs/reference/api/ottervoice-core/#normalizedvoiceerror). | [http.ts:32](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/http.ts#L32) |
+| <a id="failurecode"></a> `failureCode?` | [`VoiceErrorCode`](/docs/reference/api/ottervoice-core/#voiceerrorcode-1) | Code to use for ordinary 4xx failures (e.g. `llm_failed`, `tts_failed`). | [http.ts:35](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/http.ts#L35) |
+| <a id="provider-1"></a> `provider?` | `string` | Vendor id attached to the resulting [NormalizedVoiceError](/docs/reference/api/ottervoice-core/#normalizedvoiceerror). | [http.ts:33](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/http.ts#L33) |
+| <a id="stage"></a> `stage?` | `"gateway"` \| `"provider"` | Request boundary that returned the response. Defaults to `provider`. | [http.ts:37](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/http.ts#L37) |
 
 ***
 
 ### WebSocketASRConfig
 
-Defined in: [websocket.ts:62](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L62)
+Defined in: [websocket.ts:62](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L62)
 
 Vendor-agnostic knobs for [createWebSocketASRSession](/docs/reference/api/ottervoice-provider-utils/#createwebsocketasrsession). Wire
 `encodeAudio` / `decode` to the specific ASR protocol; this config owns only
@@ -153,17 +154,17 @@ the session plumbing.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="decode"></a> `decode` | (`data`) => \| [`ASRDecodeResult`](/docs/reference/api/ottervoice-provider-utils/#asrdecoderesult) \| `undefined` | Decode a (text) server message into transcripts. Return `undefined` to skip. | [websocket.ts:70](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L70) |
-| <a id="encodeaudio"></a> `encodeAudio` | (`chunk`) => `string` \| `ArrayBufferLike` \| `ArrayBufferView`\<`ArrayBufferLike`\> | Encode an audio chunk into a WS payload. | [websocket.ts:68](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L68) |
-| <a id="finishmessage"></a> `finishMessage?` | `string` | Optional message sent on `stop()` to flush the stream. | [websocket.ts:72](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L72) |
-| <a id="provider-2"></a> `provider` | `string` | Vendor id used in emitted [NormalizedVoiceError](/docs/reference/api/ottervoice-core/#normalizedvoiceerror)s. | [websocket.ts:66](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L66) |
-| <a id="ws"></a> `ws` | [`WebSocketLike`](/docs/reference/api/ottervoice-provider-utils/#websocketlike) | Open (or about-to-open) socket used for the ASR stream. | [websocket.ts:64](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L64) |
+| <a id="decode"></a> `decode` | (`data`) => \| [`ASRDecodeResult`](/docs/reference/api/ottervoice-provider-utils/#asrdecoderesult) \| `undefined` | Decode a (text) server message into transcripts. Return `undefined` to skip. | [websocket.ts:70](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L70) |
+| <a id="encodeaudio"></a> `encodeAudio` | (`chunk`) => `string` \| `ArrayBufferLike` \| `ArrayBufferView`\<`ArrayBufferLike`\> | Encode an audio chunk into a WS payload. | [websocket.ts:68](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L68) |
+| <a id="finishmessage"></a> `finishMessage?` | `string` | Optional message sent on `stop()` to flush the stream. | [websocket.ts:72](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L72) |
+| <a id="provider-2"></a> `provider` | `string` | Vendor id used in emitted [NormalizedVoiceError](/docs/reference/api/ottervoice-core/#normalizedvoiceerror)s. | [websocket.ts:66](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L66) |
+| <a id="ws"></a> `ws` | [`WebSocketLike`](/docs/reference/api/ottervoice-provider-utils/#websocketlike) | Open (or about-to-open) socket used for the ASR stream. | [websocket.ts:64](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L64) |
 
 ***
 
 ### WebSocketLike
 
-Defined in: [websocket.ts:13](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L13)
+Defined in: [websocket.ts:13](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L13)
 
 Minimal browser/Node WebSocket surface used by [createWebSocketASRSession](/docs/reference/api/ottervoice-provider-utils/#createwebsocketasrsession).
 Prefer the platform constructor via [resolveWebSocket](/docs/reference/api/ottervoice-provider-utils/#resolvewebsocket), or inject a mock
@@ -173,7 +174,7 @@ in tests.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="binarytype"></a> `binaryType?` | `string` | Prefer `'arraybuffer'` when the peer sends binary frames. | [websocket.ts:15](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L15) |
+| <a id="binarytype"></a> `binaryType?` | `string` | Prefer `'arraybuffer'` when the peer sends binary frames. | [websocket.ts:15](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L15) |
 
 #### Methods
 
@@ -183,7 +184,7 @@ in tests.
 addEventListener(type, listener): void;
 ```
 
-Defined in: [websocket.ts:21](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L21)
+Defined in: [websocket.ts:21](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L21)
 
 Subscribe to `open` / `message` / `error` / `close` (and peers).
 
@@ -204,7 +205,7 @@ Subscribe to `open` / `message` / `error` / `close` (and peers).
 close(code?, reason?): void;
 ```
 
-Defined in: [websocket.ts:19](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L19)
+Defined in: [websocket.ts:19](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L19)
 
 Close the socket; optional close code and reason.
 
@@ -225,7 +226,7 @@ Close the socket; optional close code and reason.
 send(data): void;
 ```
 
-Defined in: [websocket.ts:17](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L17)
+Defined in: [websocket.ts:17](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L17)
 
 Send a text or binary frame to the peer.
 
@@ -247,7 +248,7 @@ Send a text or binary frame to the peer.
 type CredentialPurpose = "asr" | "llm" | "tts" | "pronunciation";
 ```
 
-Defined in: [credential.ts:8](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/credential.ts#L8)
+Defined in: [credential.ts:8](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/credential.ts#L8)
 
 Why a short-lived credential is being minted. Sent as
 [BrokerRequest.purpose](/docs/reference/api/ottervoice-provider-utils/#purpose) so the broker can scope permissions.
@@ -260,7 +261,7 @@ Why a short-lived credential is being minted. Sent as
 type FetchLike = (input, init?) => Promise<Response>;
 ```
 
-Defined in: [http.ts:11](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/http.ts#L11)
+Defined in: [http.ts:12](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/http.ts#L12)
 
 Minimal `fetch`-compatible callable. Inject a custom impl for tests or
 React Native polyfills; otherwise [resolveFetch](/docs/reference/api/ottervoice-provider-utils/#resolvefetch) uses `globalThis.fetch`.
@@ -284,7 +285,7 @@ React Native polyfills; otherwise [resolveFetch](/docs/reference/api/ottervoice-
 type WebSocketCtor = (url, protocols?) => WebSocketLike;
 ```
 
-Defined in: [websocket.ts:28](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L28)
+Defined in: [websocket.ts:28](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L28)
 
 Constructible WebSocket type returning a [WebSocketLike](/docs/reference/api/ottervoice-provider-utils/#websocketlike). Passed to
 [resolveWebSocket](/docs/reference/api/ottervoice-provider-utils/#resolvewebsocket) when the runtime has no global `WebSocket`.
@@ -308,7 +309,7 @@ Constructible WebSocket type returning a [WebSocketLike](/docs/reference/api/ott
 function createCredentialResolver(options, request): () => Promise<BrokerToken>;
 ```
 
-Defined in: [credential.ts:61](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/credential.ts#L61)
+Defined in: [credential.ts:61](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/credential.ts#L61)
 
 Returns a resolver that yields a usable [BrokerToken](/docs/reference/api/ottervoice-provider-utils/#brokertoken). Prefers a static
 `apiKey`; otherwise calls the token broker and caches the result until just
@@ -335,7 +336,7 @@ Async function that resolves a fresh-enough [BrokerToken](/docs/reference/api/ot
 function createWebSocketASRSession(config): ASRSession;
 ```
 
-Defined in: [websocket.ts:84](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L84)
+Defined in: [websocket.ts:84](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L84)
 
 Build an [ASRSession](/docs/reference/api/ottervoice-core/#asrsession) over a WebSocket. Audio sent before the socket
 opens is queued and flushed on open. Vendor specifics live entirely in
@@ -359,12 +360,12 @@ An [ASRSession](/docs/reference/api/ottervoice-core/#asrsession) bound to the gi
 
 ```ts
 function normalizeHttpError(
-   status, 
-   body, 
+   status,
+   body,
    options?): NormalizedVoiceError;
 ```
 
-Defined in: [http.ts:46](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/http.ts#L46)
+Defined in: [http.ts:49](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/http.ts#L49)
 
 Map an HTTP status + body into a [NormalizedVoiceError](/docs/reference/api/ottervoice-core/#normalizedvoiceerror), with sensible
 retryable/quota/rate-limit handling shared by every HTTP provider.
@@ -391,7 +392,7 @@ A normalized error suitable for `VoiceError` or event emission.
 function parseSSEStream(stream): AsyncGenerator<string>;
 ```
 
-Defined in: [sse.ts:9](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/sse.ts#L9)
+Defined in: [sse.ts:9](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/sse.ts#L9)
 
 Parse a Server-Sent-Events byte stream into successive `data:` payload
 strings. Comment lines (`:`), blank lines, and non-`data:` fields are
@@ -417,7 +418,7 @@ Async generator yielding trimmed `data:` field values.
 function readBody(res): Promise<string>;
 ```
 
-Defined in: [http.ts:83](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/http.ts#L83)
+Defined in: [http.ts:109](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/http.ts#L109)
 
 Read a response body as text, returning `''` if the body cannot be read.
 
@@ -441,7 +442,7 @@ Body text, or an empty string on read failure.
 function resolveFetch(fetchImpl?): FetchLike;
 ```
 
-Defined in: [http.ts:22](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/http.ts#L22)
+Defined in: [http.ts:23](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/http.ts#L23)
 
 Resolve the `fetch` implementation, preferring an injected one.
 
@@ -465,7 +466,7 @@ A [FetchLike](/docs/reference/api/ottervoice-provider-utils/#fetchlike) ready fo
 function resolveWebSocket(ctor?): WebSocketCtor;
 ```
 
-Defined in: [websocket.ts:39](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/websocket.ts#L39)
+Defined in: [websocket.ts:39](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/websocket.ts#L39)
 
 Resolve the WebSocket constructor, preferring an injected one.
 
@@ -489,7 +490,7 @@ A [WebSocketCtor](/docs/reference/api/ottervoice-provider-utils/#websocketctor) 
 function streamFromStrings(chunks): ReadableStream<Uint8Array<ArrayBufferLike>>;
 ```
 
-Defined in: [sse.ts:46](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-utils/src/sse.ts#L46)
+Defined in: [sse.ts:46](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-utils/src/sse.ts#L46)
 
 Build a `ReadableStream<Uint8Array>` from string chunks (handy for tests).
 

@@ -11,6 +11,7 @@ describe('createVoiceError', () => {
     const err = createVoiceError('llm_failed', 'boom', {
       retryable: true,
       provider: 'mock',
+      safeMessage: 'The assistant could not generate a reply.',
       raw: { a: 1 },
     });
     expect(err).toEqual({
@@ -18,6 +19,7 @@ describe('createVoiceError', () => {
       message: 'boom',
       retryable: true,
       provider: 'mock',
+      safeMessage: 'The assistant could not generate a reply.',
       raw: { a: 1 },
     });
   });
@@ -56,6 +58,7 @@ describe('VoiceError', () => {
       message: 'slow',
       retryable: true,
       provider: 'eleven',
+      safeMessage: 'The voice service is busy. Try again shortly.',
       raw: { status: 429 },
     });
   });
@@ -66,6 +69,7 @@ describe('VoiceError', () => {
       code: 'unknown',
       message: 'x',
       retryable: false,
+      safeMessage: 'An unexpected voice error occurred.',
     });
   });
 });
@@ -84,9 +88,20 @@ describe('normalizeError', () => {
   });
 
   it('maps an error-shaped object with a known code', () => {
-    const out = normalizeError({ code: 'asr_timeout', message: 'late' });
+    const out = normalizeError({
+      code: 'asr_timeout',
+      message: 'late',
+      stage: 'provider',
+      httpStatus: 504,
+      safeMessage: 'Recognition timed out safely.',
+    });
     expect(out.code).toBe('asr_timeout');
     expect(out.retryable).toBe(true);
+    expect(out).toMatchObject({
+      stage: 'provider',
+      httpStatus: 504,
+      safeMessage: 'Recognition timed out safely.',
+    });
   });
 
   it('falls back when an error-shaped object has an unknown code', () => {

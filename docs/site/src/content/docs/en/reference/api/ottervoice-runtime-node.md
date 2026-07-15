@@ -45,7 +45,7 @@ MIT
 
 ### ConsoleLogger
 
-Defined in: [runtime-node/src/logger.ts:15](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/logger.ts#L15)
+Defined in: [runtime-node/src/logger.ts:15](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/logger.ts#L15)
 
 [LoggerAdapter](/docs/en/reference/api/ottervoice-core/#loggeradapter) that forwards to `console` (or an injected console).
 
@@ -61,7 +61,7 @@ Defined in: [runtime-node/src/logger.ts:15](https://github.com/bugkiwi/OtterVoic
 new ConsoleLogger(out?): ConsoleLogger;
 ```
 
-Defined in: [runtime-node/src/logger.ts:16](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/logger.ts#L16)
+Defined in: [runtime-node/src/logger.ts:16](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/logger.ts#L16)
 
 ###### Parameters
 
@@ -81,7 +81,7 @@ Defined in: [runtime-node/src/logger.ts:16](https://github.com/bugkiwi/OtterVoic
 debug(...args): void;
 ```
 
-Defined in: [runtime-node/src/logger.ts:18](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/logger.ts#L18)
+Defined in: [runtime-node/src/logger.ts:18](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/logger.ts#L18)
 
 Verbose diagnostics (disabled in production by default).
 
@@ -105,7 +105,7 @@ Verbose diagnostics (disabled in production by default).
 error(...args): void;
 ```
 
-Defined in: [runtime-node/src/logger.ts:30](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/logger.ts#L30)
+Defined in: [runtime-node/src/logger.ts:30](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/logger.ts#L30)
 
 Failures that typically surface as session errors.
 
@@ -129,7 +129,7 @@ Failures that typically surface as session errors.
 info(...args): void;
 ```
 
-Defined in: [runtime-node/src/logger.ts:22](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/logger.ts#L22)
+Defined in: [runtime-node/src/logger.ts:22](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/logger.ts#L22)
 
 Informational lifecycle messages.
 
@@ -153,7 +153,7 @@ Informational lifecycle messages.
 warn(...args): void;
 ```
 
-Defined in: [runtime-node/src/logger.ts:26](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/logger.ts#L26)
+Defined in: [runtime-node/src/logger.ts:26](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/logger.ts#L26)
 
 Recoverable anomalies.
 
@@ -175,7 +175,7 @@ Recoverable anomalies.
 
 ### NodeAudioInput
 
-Defined in: [runtime-node/src/audio.ts:43](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L43)
+Defined in: [runtime-node/src/audio.ts:43](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L43)
 
 Reads audio bytes from an async iterable (a mic subprocess, a file stream, …)
 and emits [AudioChunk](/docs/en/reference/api/ottervoice-core/#audiochunk)s. Node has no permission model, so
@@ -193,7 +193,7 @@ and emits [AudioChunk](/docs/en/reference/api/ottervoice-core/#audiochunk)s. Nod
 new NodeAudioInput(options?): NodeAudioInput;
 ```
 
-Defined in: [runtime-node/src/audio.ts:52](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L52)
+Defined in: [runtime-node/src/audio.ts:52](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L52)
 
 ###### Parameters
 
@@ -209,7 +209,7 @@ Defined in: [runtime-node/src/audio.ts:52](https://github.com/bugkiwi/OtterVoice
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="whendrained"></a> `whenDrained` | `Promise`\<`void`\> | Resolves when the source has been fully consumed (or stopped). | [runtime-node/src/audio.ts:50](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L50) |
+| <a id="whendrained"></a> `whenDrained` | `Promise`\<`void`\> | Resolves when the source has been fully consumed (or stopped). | [runtime-node/src/audio.ts:50](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L50) |
 
 #### Methods
 
@@ -219,7 +219,7 @@ Defined in: [runtime-node/src/audio.ts:52](https://github.com/bugkiwi/OtterVoice
 onChunk(cb): () => void;
 ```
 
-Defined in: [runtime-node/src/audio.ts:107](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L107)
+Defined in: [runtime-node/src/audio.ts:107](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L107)
 
 Subscribe to encoded / PCM chunks.
 
@@ -245,7 +245,7 @@ Unsubscribe function.
 onError(cb): () => void;
 ```
 
-Defined in: [runtime-node/src/audio.ts:112](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L112)
+Defined in: [runtime-node/src/audio.ts:112](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L112)
 
 Subscribe to capture failures.
 
@@ -271,7 +271,7 @@ Unsubscribe function.
 pause(): Promise<void>;
 ```
 
-Defined in: [runtime-node/src/audio.ts:99](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L99)
+Defined in: [runtime-node/src/audio.ts:99](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L99)
 
 Pause capture without tearing down permission / hardware (optional).
 
@@ -289,7 +289,7 @@ Pause capture without tearing down permission / hardware (optional).
 requestPermission(): Promise<boolean>;
 ```
 
-Defined in: [runtime-node/src/audio.ts:56](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L56)
+Defined in: [runtime-node/src/audio.ts:56](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L56)
 
 Prompt for mic permission; `false` should surface as a session error.
 
@@ -307,7 +307,7 @@ Prompt for mic permission; `false` should surface as a session error.
 resume(): Promise<void>;
 ```
 
-Defined in: [runtime-node/src/audio.ts:103](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L103)
+Defined in: [runtime-node/src/audio.ts:103](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L103)
 
 Resume after [pause](/docs/en/reference/api/ottervoice-core/#pause-3).
 
@@ -325,7 +325,7 @@ Resume after [pause](/docs/en/reference/api/ottervoice-core/#pause-3).
 start(startOptions?): Promise<void>;
 ```
 
-Defined in: [runtime-node/src/audio.ts:60](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L60)
+Defined in: [runtime-node/src/audio.ts:60](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L60)
 
 Begin capture.
 
@@ -349,7 +349,7 @@ Begin capture.
 stop(): Promise<void>;
 ```
 
-Defined in: [runtime-node/src/audio.ts:95](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L95)
+Defined in: [runtime-node/src/audio.ts:95](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L95)
 
 Stop capture and release resources tied to the current start.
 
@@ -365,7 +365,7 @@ Stop capture and release resources tied to the current start.
 
 ### NodeAudioOutput
 
-Defined in: [runtime-node/src/audio.ts:135](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L135)
+Defined in: [runtime-node/src/audio.ts:135](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L135)
 
 Node has no built-in UI playback. By default this records what would have
 played; supply a `sink` to actually emit audio (file/speaker subprocess).
@@ -382,7 +382,7 @@ played; supply a `sink` to actually emit audio (file/speaker subprocess).
 new NodeAudioOutput(options?): NodeAudioOutput;
 ```
 
-Defined in: [runtime-node/src/audio.ts:141](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L141)
+Defined in: [runtime-node/src/audio.ts:141](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L141)
 
 ###### Parameters
 
@@ -398,7 +398,7 @@ Defined in: [runtime-node/src/audio.ts:141](https://github.com/bugkiwi/OtterVoic
 
 | Property | Type | Default value | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="played"></a> `played` | [`AudioPlaybackInput`](/docs/en/reference/api/ottervoice-core/#audioplaybackinput)[] | `[]` | [runtime-node/src/audio.ts:139](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L139) |
+| <a id="played"></a> `played` | [`AudioPlaybackInput`](/docs/en/reference/api/ottervoice-core/#audioplaybackinput)[] | `[]` | [runtime-node/src/audio.ts:139](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L139) |
 
 #### Methods
 
@@ -408,7 +408,7 @@ Defined in: [runtime-node/src/audio.ts:141](https://github.com/bugkiwi/OtterVoic
 onEnd(cb): () => void;
 ```
 
-Defined in: [runtime-node/src/audio.ts:167](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L167)
+Defined in: [runtime-node/src/audio.ts:167](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L167)
 
 Subscribe to playback end (natural finish or stop).
 
@@ -434,7 +434,7 @@ Unsubscribe function.
 onError(cb): () => void;
 ```
 
-Defined in: [runtime-node/src/audio.ts:172](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L172)
+Defined in: [runtime-node/src/audio.ts:172](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L172)
 
 Subscribe to playback failures.
 
@@ -460,7 +460,7 @@ Unsubscribe function.
 onStart(cb): () => void;
 ```
 
-Defined in: [runtime-node/src/audio.ts:162](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L162)
+Defined in: [runtime-node/src/audio.ts:162](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L162)
 
 Subscribe to playback start.
 
@@ -486,7 +486,7 @@ Unsubscribe function.
 play(input): Promise<void>;
 ```
 
-Defined in: [runtime-node/src/audio.ts:143](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L143)
+Defined in: [runtime-node/src/audio.ts:143](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L143)
 
 Play a complete encoded buffer or URL.
 
@@ -510,7 +510,7 @@ Play a complete encoded buffer or URL.
 stop(): Promise<void>;
 ```
 
-Defined in: [runtime-node/src/audio.ts:158](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L158)
+Defined in: [runtime-node/src/audio.ts:158](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L158)
 
 Stop current playback and cancel any open PCM stream.
 
@@ -526,7 +526,7 @@ Stop current playback and cancel any open PCM stream.
 
 ### NodeNetworkAdapter
 
-Defined in: [runtime-node/src/network.ts:99](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L99)
+Defined in: [runtime-node/src/network.ts:99](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L99)
 
 [NetworkAdapter](/docs/en/reference/api/ottervoice-core/#networkadapter) backed by global (or injected) `fetch`/`WebSocket`.
 
@@ -542,7 +542,7 @@ Defined in: [runtime-node/src/network.ts:99](https://github.com/bugkiwi/OtterVoi
 new NodeNetworkAdapter(options?): NodeNetworkAdapter;
 ```
 
-Defined in: [runtime-node/src/network.ts:103](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L103)
+Defined in: [runtime-node/src/network.ts:103](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L103)
 
 ###### Parameters
 
@@ -562,7 +562,7 @@ Defined in: [runtime-node/src/network.ts:103](https://github.com/bugkiwi/OtterVo
 createWebSocket(url, protocols?): RuntimeWebSocket;
 ```
 
-Defined in: [runtime-node/src/network.ts:112](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L112)
+Defined in: [runtime-node/src/network.ts:112](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L112)
 
 Open a WebSocket for streaming providers.
 
@@ -587,7 +587,7 @@ Open a WebSocket for streaming providers.
 fetch(input, init?): Promise<Response>;
 ```
 
-Defined in: [runtime-node/src/network.ts:108](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L108)
+Defined in: [runtime-node/src/network.ts:108](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L108)
 
 Fetch implementation (browser `fetch`, undici, etc.).
 
@@ -610,7 +610,7 @@ Fetch implementation (browser `fetch`, undici, etc.).
 
 ### NodeRuntimeWebSocket
 
-Defined in: [runtime-node/src/network.ts:49](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L49)
+Defined in: [runtime-node/src/network.ts:49](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L49)
 
 Adapts a [WebSocketLike](/docs/en/reference/api/ottervoice-runtime-node/#websocketlike) to the core [RuntimeWebSocket](/docs/en/reference/api/ottervoice-core/#runtimewebsocket) contract.
 
@@ -626,7 +626,7 @@ Adapts a [WebSocketLike](/docs/en/reference/api/ottervoice-runtime-node/#websock
 new NodeRuntimeWebSocket(ws): NodeRuntimeWebSocket;
 ```
 
-Defined in: [runtime-node/src/network.ts:50](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L50)
+Defined in: [runtime-node/src/network.ts:50](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L50)
 
 ###### Parameters
 
@@ -646,7 +646,7 @@ Defined in: [runtime-node/src/network.ts:50](https://github.com/bugkiwi/OtterVoi
 close(code?, reason?): void;
 ```
 
-Defined in: [runtime-node/src/network.ts:58](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L58)
+Defined in: [runtime-node/src/network.ts:58](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L58)
 
 Close the socket.
 
@@ -671,7 +671,7 @@ Close the socket.
 onClose(cb): () => void;
 ```
 
-Defined in: [runtime-node/src/network.ts:80](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L80)
+Defined in: [runtime-node/src/network.ts:80](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L80)
 
 Subscribe to close.
 
@@ -697,7 +697,7 @@ Unsubscribe function.
 onError(cb): () => void;
 ```
 
-Defined in: [runtime-node/src/network.ts:74](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L74)
+Defined in: [runtime-node/src/network.ts:74](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L74)
 
 Subscribe to socket-level errors.
 
@@ -723,7 +723,7 @@ Unsubscribe function.
 onMessage(cb): () => void;
 ```
 
-Defined in: [runtime-node/src/network.ts:68](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L68)
+Defined in: [runtime-node/src/network.ts:68](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L68)
 
 Subscribe to inbound frames.
 
@@ -749,7 +749,7 @@ Unsubscribe function.
 onOpen(cb): () => void;
 ```
 
-Defined in: [runtime-node/src/network.ts:62](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L62)
+Defined in: [runtime-node/src/network.ts:62](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L62)
 
 Subscribe to the open event.
 
@@ -775,7 +775,7 @@ Unsubscribe function.
 send(data): void;
 ```
 
-Defined in: [runtime-node/src/network.ts:54](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L54)
+Defined in: [runtime-node/src/network.ts:54](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L54)
 
 Send a text or binary frame.
 
@@ -797,7 +797,7 @@ Send a text or binary frame.
 
 ### ConsoleLike
 
-Defined in: [runtime-node/src/logger.ts:7](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/logger.ts#L7)
+Defined in: [runtime-node/src/logger.ts:7](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/logger.ts#L7)
 
 Minimal console surface accepted by [ConsoleLogger](/docs/en/reference/api/ottervoice-runtime-node/#consolelogger) and
 [NodeRuntimeOptions.logger](/docs/en/reference/api/ottervoice-runtime-node/#logger-1).
@@ -810,7 +810,7 @@ Minimal console surface accepted by [ConsoleLogger](/docs/en/reference/api/otter
 debug(...args): void;
 ```
 
-Defined in: [runtime-node/src/logger.ts:8](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/logger.ts#L8)
+Defined in: [runtime-node/src/logger.ts:8](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/logger.ts#L8)
 
 ###### Parameters
 
@@ -828,7 +828,7 @@ Defined in: [runtime-node/src/logger.ts:8](https://github.com/bugkiwi/OtterVoice
 error(...args): void;
 ```
 
-Defined in: [runtime-node/src/logger.ts:11](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/logger.ts#L11)
+Defined in: [runtime-node/src/logger.ts:11](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/logger.ts#L11)
 
 ###### Parameters
 
@@ -846,7 +846,7 @@ Defined in: [runtime-node/src/logger.ts:11](https://github.com/bugkiwi/OtterVoic
 info(...args): void;
 ```
 
-Defined in: [runtime-node/src/logger.ts:9](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/logger.ts#L9)
+Defined in: [runtime-node/src/logger.ts:9](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/logger.ts#L9)
 
 ###### Parameters
 
@@ -864,7 +864,7 @@ Defined in: [runtime-node/src/logger.ts:9](https://github.com/bugkiwi/OtterVoice
 warn(...args): void;
 ```
 
-Defined in: [runtime-node/src/logger.ts:10](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/logger.ts#L10)
+Defined in: [runtime-node/src/logger.ts:10](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/logger.ts#L10)
 
 ###### Parameters
 
@@ -880,7 +880,7 @@ Defined in: [runtime-node/src/logger.ts:10](https://github.com/bugkiwi/OtterVoic
 
 ### NodeAudioInputOptions
 
-Defined in: [runtime-node/src/audio.ts:24](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L24)
+Defined in: [runtime-node/src/audio.ts:24](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L24)
 
 Options for [NodeAudioInput](/docs/en/reference/api/ottervoice-runtime-node/#nodeaudioinput). Pass a [NodeAudioInputOptions.source](/docs/en/reference/api/ottervoice-runtime-node/#source)
 to stream bytes from a subprocess or file; omit it for a no-op / caller-driven
@@ -890,16 +890,16 @@ input under [createNodeRuntime](/docs/en/reference/api/ottervoice-runtime-node/#
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="encoding"></a> `encoding?` | `string` | Default encoding stamped on chunks when `start` does not override. | [runtime-node/src/audio.ts:35](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L35) |
-| <a id="now"></a> `now?` | () => `number` | Override clock used for [AudioChunk.timestamp](/docs/en/reference/api/ottervoice-core/#timestamp) (tests). | [runtime-node/src/audio.ts:31](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L31) |
-| <a id="samplerate"></a> `sampleRate?` | `number` | Default sample rate stamped on chunks when `start` does not override. | [runtime-node/src/audio.ts:33](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L33) |
-| <a id="source"></a> `source?` | `AsyncIterable`\<`ArrayBuffer` \| `Uint8Array`\<`ArrayBufferLike`\>, `any`, `any`\> | The PCM/byte source — e.g. a child process stdout exposed as an async iterable. When omitted, the input produces nothing (caller-driven). | [runtime-node/src/audio.ts:29](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L29) |
+| <a id="encoding"></a> `encoding?` | `string` | Default encoding stamped on chunks when `start` does not override. | [runtime-node/src/audio.ts:35](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L35) |
+| <a id="now"></a> `now?` | () => `number` | Override clock used for [AudioChunk.timestamp](/docs/en/reference/api/ottervoice-core/#timestamp) (tests). | [runtime-node/src/audio.ts:31](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L31) |
+| <a id="samplerate"></a> `sampleRate?` | `number` | Default sample rate stamped on chunks when `start` does not override. | [runtime-node/src/audio.ts:33](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L33) |
+| <a id="source"></a> `source?` | `AsyncIterable`\<`ArrayBuffer` \| `Uint8Array`\<`ArrayBufferLike`\>, `any`, `any`\> | The PCM/byte source — e.g. a child process stdout exposed as an async iterable. When omitted, the input produces nothing (caller-driven). | [runtime-node/src/audio.ts:29](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L29) |
 
 ***
 
 ### NodeAudioOutputOptions
 
-Defined in: [runtime-node/src/audio.ts:123](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L123)
+Defined in: [runtime-node/src/audio.ts:123](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L123)
 
 Options for [NodeAudioOutput](/docs/en/reference/api/ottervoice-runtime-node/#nodeaudiooutput). Supply a [NodeAudioOutputOptions.sink](/docs/en/reference/api/ottervoice-runtime-node/#sink)
 to emit audio; otherwise played inputs accumulate in
@@ -909,13 +909,13 @@ to emit audio; otherwise played inputs accumulate in
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="sink"></a> `sink?` | (`input`) => `void` \| `Promise`\<`void`\> | Where to send synthesized audio — write a file, pipe to a speaker process, etc. When omitted, audio is collected in [NodeAudioOutput.played](/docs/en/reference/api/ottervoice-runtime-node/#played). | [runtime-node/src/audio.ts:128](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/audio.ts#L128) |
+| <a id="sink"></a> `sink?` | (`input`) => `void` \| `Promise`\<`void`\> | Where to send synthesized audio — write a file, pipe to a speaker process, etc. When omitted, audio is collected in [NodeAudioOutput.played](/docs/en/reference/api/ottervoice-runtime-node/#played). | [runtime-node/src/audio.ts:128](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/audio.ts#L128) |
 
 ***
 
 ### NodeNetworkOptions
 
-Defined in: [runtime-node/src/network.ts:91](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L91)
+Defined in: [runtime-node/src/network.ts:91](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L91)
 
 Injected HTTP / WebSocket constructors for [NodeNetworkAdapter](/docs/en/reference/api/ottervoice-runtime-node/#nodenetworkadapter).
 Defaults to `globalThis.fetch` and `globalThis.WebSocket` when omitted.
@@ -924,14 +924,14 @@ Defaults to `globalThis.fetch` and `globalThis.WebSocket` when omitted.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="fetch-1"></a> `fetch?` | [`FetchLike`](/docs/en/reference/api/ottervoice-runtime-node/#fetchlike) | Override `fetch` (defaults to the global). | [runtime-node/src/network.ts:93](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L93) |
-| <a id="websocket"></a> `webSocket?` | [`WebSocketCtor`](/docs/en/reference/api/ottervoice-runtime-node/#websocketctor) | Override the WebSocket constructor (defaults to the global). | [runtime-node/src/network.ts:95](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L95) |
+| <a id="fetch-1"></a> `fetch?` | [`FetchLike`](/docs/en/reference/api/ottervoice-runtime-node/#fetchlike) | Override `fetch` (defaults to the global). | [runtime-node/src/network.ts:93](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L93) |
+| <a id="websocket"></a> `webSocket?` | [`WebSocketCtor`](/docs/en/reference/api/ottervoice-runtime-node/#websocketctor) | Override the WebSocket constructor (defaults to the global). | [runtime-node/src/network.ts:95](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L95) |
 
 ***
 
 ### NodeRuntime
 
-Defined in: [runtime-node/src/index.ts:36](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/index.ts#L36)
+Defined in: [runtime-node/src/index.ts:36](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/index.ts#L36)
 
 Node.js [RuntimeAdapter](/docs/en/reference/api/ottervoice-core/#runtimeadapter) returned by [createNodeRuntime](/docs/en/reference/api/ottervoice-runtime-node/#createnoderuntime).
 Includes audio adapters plus a [NodeNetworkAdapter](/docs/en/reference/api/ottervoice-runtime-node/#nodenetworkadapter) for providers
@@ -945,17 +945,17 @@ that need explicit `fetch` / WebSocket hooks.
 
 | Property | Type | Description | Overrides | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ | ------ |
-| <a id="audioinput"></a> `audioInput` | [`NodeAudioInput`](/docs/en/reference/api/ottervoice-runtime-node/#nodeaudioinput) | Byte-source microphone (async iterable or caller-driven). | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`audioInput`](/docs/en/reference/api/ottervoice-core/#audioinput-1) | - | [runtime-node/src/index.ts:38](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/index.ts#L38) |
-| <a id="audiooutput"></a> `audioOutput` | [`NodeAudioOutput`](/docs/en/reference/api/ottervoice-runtime-node/#nodeaudiooutput) | Sink or in-memory playback recorder. | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`audioOutput`](/docs/en/reference/api/ottervoice-core/#audiooutput-1) | - | [runtime-node/src/index.ts:40](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/index.ts#L40) |
-| <a id="logger"></a> `logger?` | [`LoggerAdapter`](/docs/en/reference/api/ottervoice-core/#loggeradapter) | Optional logger; core uses it sparingly. | - | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`logger`](/docs/en/reference/api/ottervoice-core/#logger-1) | core/dist/types.d.ts:853 |
-| <a id="network"></a> `network` | [`NodeNetworkAdapter`](/docs/en/reference/api/ottervoice-runtime-node/#nodenetworkadapter) | HTTP / WebSocket adapter for providers. | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`network`](/docs/en/reference/api/ottervoice-core/#network-1) | - | [runtime-node/src/index.ts:42](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/index.ts#L42) |
-| <a id="storage"></a> `storage?` | [`RuntimeStorageAdapter`](/docs/en/reference/api/ottervoice-core/#runtimestorageadapter) | Optional persistence for caches. | - | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`storage`](/docs/en/reference/api/ottervoice-core/#storage-1) | core/dist/types.d.ts:851 |
+| <a id="audioinput"></a> `audioInput` | [`NodeAudioInput`](/docs/en/reference/api/ottervoice-runtime-node/#nodeaudioinput) | Byte-source microphone (async iterable or caller-driven). | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`audioInput`](/docs/en/reference/api/ottervoice-core/#audioinput-1) | - | [runtime-node/src/index.ts:38](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/index.ts#L38) |
+| <a id="audiooutput"></a> `audioOutput` | [`NodeAudioOutput`](/docs/en/reference/api/ottervoice-runtime-node/#nodeaudiooutput) | Sink or in-memory playback recorder. | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`audioOutput`](/docs/en/reference/api/ottervoice-core/#audiooutput-1) | - | [runtime-node/src/index.ts:40](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/index.ts#L40) |
+| <a id="logger"></a> `logger?` | [`LoggerAdapter`](/docs/en/reference/api/ottervoice-core/#loggeradapter) | Optional logger; core uses it sparingly. | - | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`logger`](/docs/en/reference/api/ottervoice-core/#logger-1) | core/dist/types.d.ts:893 |
+| <a id="network"></a> `network` | [`NodeNetworkAdapter`](/docs/en/reference/api/ottervoice-runtime-node/#nodenetworkadapter) | HTTP / WebSocket adapter for providers. | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`network`](/docs/en/reference/api/ottervoice-core/#network-1) | - | [runtime-node/src/index.ts:42](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/index.ts#L42) |
+| <a id="storage"></a> `storage?` | [`RuntimeStorageAdapter`](/docs/en/reference/api/ottervoice-core/#runtimestorageadapter) | Optional persistence for caches. | - | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`storage`](/docs/en/reference/api/ottervoice-core/#storage-1) | core/dist/types.d.ts:891 |
 
 ***
 
 ### NodeRuntimeOptions
 
-Defined in: [runtime-node/src/index.ts:20](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/index.ts#L20)
+Defined in: [runtime-node/src/index.ts:20](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/index.ts#L20)
 
 Optional overrides for [createNodeRuntime](/docs/en/reference/api/ottervoice-runtime-node/#createnoderuntime).
 Use when piping a subprocess mic, writing audio to a sink, stubbing
@@ -965,16 +965,16 @@ Use when piping a subprocess mic, writing audio to a sink, stubbing
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="audioinput-1"></a> `audioInput?` | [`NodeAudioInputOptions`](/docs/en/reference/api/ottervoice-runtime-node/#nodeaudioinputoptions) | Optional overrides for the default in-memory / stdin-style audio input. | [runtime-node/src/index.ts:22](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/index.ts#L22) |
-| <a id="audiooutput-1"></a> `audioOutput?` | [`NodeAudioOutputOptions`](/docs/en/reference/api/ottervoice-runtime-node/#nodeaudiooutputoptions) | Optional overrides for the default console/file audio output. | [runtime-node/src/index.ts:24](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/index.ts#L24) |
-| <a id="logger-1"></a> `logger?` | \| `false` \| [`ConsoleLike`](/docs/en/reference/api/ottervoice-runtime-node/#consolelike) | Provide `false` to omit the logger, or a console to redirect it. | [runtime-node/src/index.ts:28](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/index.ts#L28) |
-| <a id="network-1"></a> `network?` | [`NodeNetworkOptions`](/docs/en/reference/api/ottervoice-runtime-node/#nodenetworkoptions) | Optional overrides for `fetch` / WebSocket. | [runtime-node/src/index.ts:26](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/index.ts#L26) |
+| <a id="audioinput-1"></a> `audioInput?` | [`NodeAudioInputOptions`](/docs/en/reference/api/ottervoice-runtime-node/#nodeaudioinputoptions) | Optional overrides for the default in-memory / stdin-style audio input. | [runtime-node/src/index.ts:22](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/index.ts#L22) |
+| <a id="audiooutput-1"></a> `audioOutput?` | [`NodeAudioOutputOptions`](/docs/en/reference/api/ottervoice-runtime-node/#nodeaudiooutputoptions) | Optional overrides for the default console/file audio output. | [runtime-node/src/index.ts:24](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/index.ts#L24) |
+| <a id="logger-1"></a> `logger?` | \| `false` \| [`ConsoleLike`](/docs/en/reference/api/ottervoice-runtime-node/#consolelike) | Provide `false` to omit the logger, or a console to redirect it. | [runtime-node/src/index.ts:28](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/index.ts#L28) |
+| <a id="network-1"></a> `network?` | [`NodeNetworkOptions`](/docs/en/reference/api/ottervoice-runtime-node/#nodenetworkoptions) | Optional overrides for `fetch` / WebSocket. | [runtime-node/src/index.ts:26](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/index.ts#L26) |
 
 ***
 
 ### WebSocketLike
 
-Defined in: [runtime-node/src/network.ts:4](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L4)
+Defined in: [runtime-node/src/network.ts:4](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L4)
 
 Minimal surface of a browser/Bun/`ws` WebSocket the wrapper relies on.
 
@@ -982,7 +982,7 @@ Minimal surface of a browser/Bun/`ws` WebSocket the wrapper relies on.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="binarytype"></a> `binaryType?` | `string` | Prefer `'arraybuffer'` when the peer sends binary frames. | [runtime-node/src/network.ts:6](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L6) |
+| <a id="binarytype"></a> `binaryType?` | `string` | Prefer `'arraybuffer'` when the peer sends binary frames. | [runtime-node/src/network.ts:6](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L6) |
 
 #### Methods
 
@@ -992,7 +992,7 @@ Minimal surface of a browser/Bun/`ws` WebSocket the wrapper relies on.
 addEventListener(type, listener): void;
 ```
 
-Defined in: [runtime-node/src/network.ts:12](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L12)
+Defined in: [runtime-node/src/network.ts:12](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L12)
 
 Subscribe to socket events (`open` / `message` / `error` / `close`).
 
@@ -1013,7 +1013,7 @@ Subscribe to socket events (`open` / `message` / `error` / `close`).
 close(code?, reason?): void;
 ```
 
-Defined in: [runtime-node/src/network.ts:10](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L10)
+Defined in: [runtime-node/src/network.ts:10](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L10)
 
 Close the socket; optional close code and reason.
 
@@ -1034,7 +1034,7 @@ Close the socket; optional close code and reason.
 removeEventListener(type, listener): void;
 ```
 
-Defined in: [runtime-node/src/network.ts:14](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L14)
+Defined in: [runtime-node/src/network.ts:14](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L14)
 
 Unsubscribe a listener previously added with [WebSocketLike.addEventListener](/docs/en/reference/api/ottervoice-runtime-node/#addeventlistener).
 
@@ -1055,7 +1055,7 @@ Unsubscribe a listener previously added with [WebSocketLike.addEventListener](/d
 send(data): void;
 ```
 
-Defined in: [runtime-node/src/network.ts:8](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L8)
+Defined in: [runtime-node/src/network.ts:8](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L8)
 
 Send a text or binary frame to the peer.
 
@@ -1077,7 +1077,7 @@ Send a text or binary frame to the peer.
 type FetchLike = (input, init?) => Promise<Response>;
 ```
 
-Defined in: [runtime-node/src/network.ts:24](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L24)
+Defined in: [runtime-node/src/network.ts:24](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L24)
 
 `fetch`-compatible HTTP entry point used by [NodeNetworkAdapter](/docs/en/reference/api/ottervoice-runtime-node/#nodenetworkadapter).
 
@@ -1100,7 +1100,7 @@ Defined in: [runtime-node/src/network.ts:24](https://github.com/bugkiwi/OtterVoi
 type WebSocketCtor = (url, protocols?) => WebSocketLike;
 ```
 
-Defined in: [runtime-node/src/network.ts:18](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L18)
+Defined in: [runtime-node/src/network.ts:18](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L18)
 
 Constructor for [WebSocketLike](/docs/en/reference/api/ottervoice-runtime-node/#websocketlike) (global `WebSocket` or `ws`).
 
@@ -1123,7 +1123,7 @@ Constructor for [WebSocketLike](/docs/en/reference/api/ottervoice-runtime-node/#
 function createNodeRuntime(options?): NodeRuntime;
 ```
 
-Defined in: [runtime-node/src/index.ts:50](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/index.ts#L50)
+Defined in: [runtime-node/src/index.ts:50](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/index.ts#L50)
 
 Assemble a Node.js [RuntimeAdapter](/docs/en/reference/api/ottervoice-core/#runtimeadapter).
 
@@ -1145,7 +1145,7 @@ Assemble a Node.js [RuntimeAdapter](/docs/en/reference/api/ottervoice-core/#runt
 function normalizeWsData(data): string | ArrayBuffer;
 ```
 
-Defined in: [runtime-node/src/network.ts:35](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-node/src/network.ts#L35)
+Defined in: [runtime-node/src/network.ts:35](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/runtime-node/src/network.ts#L35)
 
 Normalize a WebSocket `message` event's `data` to `string | ArrayBuffer`.
 

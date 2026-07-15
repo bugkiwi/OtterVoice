@@ -105,4 +105,96 @@ describe('createOpenRouterAudioLLM', () => {
     expect(new TextDecoder().decode(wav.slice(8, 12))).toBe('WAVE');
     expect(new DataView(wav).getUint32(24, true)).toBe(24_000);
   });
+
+  it('classifies browser decode failures as non-retryable audio preparation errors', async () => {
+    const provider = createOpenRouterAudioLLM({
+      apiKey: 'test',
+      model: 'openai/gpt-audio-mini',
+      prepareAudio: async () => {
+        throw new Error('decoder included private browser details');
+      },
+      fetch: async () => new Response(),
+    });
+
+    await expect(provider.generate({
+      audio: new Uint8Array([1]).buffer,
+      format: 'webm',
+      messages: [],
+    })).rejects.toMatchObject({
+      code: 'llm_failed',
+      provider: 'openrouter',
+      stage: 'audio_prepare',
+      retryable: false,
+      safeMessage: 'The recorded audio could not be decoded or converted.',
+    });
+  });
+
+  it('distinguishes gateway authentication responses from provider generation errors', async () => {
+    const provider = createOpenRouterAudioLLM({
+      apiKey: 'test',
+      model: 'openai/gpt-audio-mini',
+      baseUrl: '/api/voice',
+      fetch: async () => new Response('{"error":"secret upstream response"}', { status: 403 }),
+    });
+
+    await expect(provider.generate({
+      audio: new Uint8Array([1]).buffer,
+      format: 'wav',
+      messages: [],
+    })).rejects.toMatchObject({
+      code: 'llm_failed',
+      stage: 'gateway',
+      httpStatus: 403,
+      retryable: false,
+    });
+  });
+
+  it('reports an SSE connection that ends before DONE as a retryable stream error', async () => {
+    const provider = createOpenRouterAudioLLM({
+      apiKey: 'test',
+      model: 'openai/gpt-audio-mini',
+      requireDoneSentinel: true,
+      fetch: async () => new Response(
+        streamFromStrings([
+          'data: {"choices":[{"delta":{"audio":{"data":"AQIDBA=="}}}]}\n',
+        ]),
+        { status: 200 },
+      ),
+    });
+
+    await expect(provider.generate({
+      audio: new Uint8Array([1]).buffer,
+      format: 'wav',
+      messages: [],
+    })).rejects.toMatchObject({
+      code: 'network_error',
+      provider: 'openrouter',
+      stage: 'stream',
+      retryable: true,
+      safeMessage: 'The provider audio stream ended unexpectedly.',
+    });
+  });
+
+  it('accepts a clean SSE EOF by default for compatibility with existing gateways', async () => {
+    const provider = createOpenRouterAudioLLM({
+      apiKey: 'test',
+      model: 'openai/gpt-audio-mini',
+      fetch: async () => new Response(
+        streamFromStrings([
+          'data: {"choices":[{"delta":{"audio":{"data":"AQIDBA=="}}}]}\n',
+        ]),
+        { status: 200 },
+      ),
+    });
+
+    const output = await provider.generate({
+      audio: new Uint8Array([1]).buffer,
+      format: 'wav',
+      messages: [],
+    });
+
+    expect(new Uint8Array(output.audioBuffer).slice(44)).toEqual(
+      new Uint8Array([1, 2, 3, 4]),
+    );
+  });
 });

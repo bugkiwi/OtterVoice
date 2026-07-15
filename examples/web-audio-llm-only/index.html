@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OtterVoice · Audio LLM only</title>
+    <style>
+      :root { color-scheme: light dark; font: 16px/1.5 system-ui, sans-serif; }
+      body { max-width: 44rem; margin: 4rem auto; padding: 0 1.25rem; }
+      button { padding: .7rem 1rem; margin-right: .5rem; }
+      #history { padding: 0; list-style: none; }
+      #history li { padding: .65rem .8rem; margin: .5rem 0; border: 1px solid #7895; border-radius: .6rem; }
+      #status { min-height: 1.5rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Audio LLM only</h1>
+    <p>One native audio model generates text and speech; ASR is used only for user captions.</p>
+    <p id="status">Ready.</p>
+    <button id="start">Start</button>
+    <button id="finish" disabled>Finish</button>
+    <ul id="history"></ul>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

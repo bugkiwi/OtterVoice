@@ -10,6 +10,7 @@ import type {
   AudioLLMAudioChunk,
   AudioLLMInputFormat,
   AudioLLMGenerateOutput,
+  AudioLLMOnlyVoiceSessionConfig,
   AudioOutputStream,
   ASRResult,
   ASRSession,
@@ -35,6 +36,8 @@ interface TurnCapture {
   asrCleanups: Array<() => void>;
   audioChunks: ArrayBuffer[];
   audioFormat?: AudioLLMInputFormat;
+  recordingFormat?: string;
+  audioDurationMs: number;
   asrContainerHeaderForwarded: boolean;
   ended: boolean;
   finalResult?: ASRResult;
@@ -279,7 +282,12 @@ export class VoiceSession {
         encoding: 'pcm_s16le',
       });
     } catch (err) {
-      this.fail(err, 'asr_connection_failed');
+      this.fail(
+        err,
+        'asr_connection_failed',
+        'provider',
+        this.config.providers.asr.name,
+      );
       return;
     }
     let resolveCancel!: () => void;
@@ -292,6 +300,7 @@ export class VoiceSession {
       inputCleanups: [],
       asrCleanups: [],
       audioChunks: [],
+      audioDurationMs: 0,
       asrContainerHeaderForwarded: false,
       ended: false,
       processingScheduled: false,
@@ -319,7 +328,12 @@ export class VoiceSession {
     this.asrSession = session;
     if (capture.interimResultsGated) {
       void Promise.resolve(session.setInterimResultsEnabled?.(false)).catch((e) =>
-        this.fail(e),
+        this.fail(
+          e,
+          'asr_connection_failed',
+          'provider',
+          this.config.providers.asr.name,
+        ),
       );
     }
 
@@ -329,7 +343,14 @@ export class VoiceSession {
         this.onAsrFinal(r, capture);
       }),
       session.onError((e) => {
-        if (this.activeCapture === capture && !capture.ended) this.fail(e);
+        if (this.activeCapture === capture && !capture.ended) {
+          this.fail(
+            e,
+            'asr_connection_failed',
+            'provider',
+            this.config.providers.asr.name,
+          );
+        }
       }),
     );
 
@@ -339,11 +360,7 @@ export class VoiceSession {
         const streamOnly = chunk.delivery === 'stream';
         const turnOnly = chunk.delivery === 'turn';
         const startsNewWebmContainer = this.isWebmContainerHeader(chunk.data);
-        if (
-          this.config.pipeline === 'audio_llm' &&
-          !streamOnly &&
-          chunk.data.byteLength > 0
-        ) {
+        if (!streamOnly && chunk.data.byteLength > 0) {
           // Web runtimes may restart MediaRecorder after assistant playback so
           // Android receives a fresh container instead of a WebM timeline with
           // dropped clusters. A new EBML header supersedes the preserved header
@@ -353,10 +370,15 @@ export class VoiceSession {
             capture.audioChunks.length > 0
           ) {
             capture.audioChunks = [];
+            capture.audioDurationMs = 0;
             capture.asrContainerHeaderForwarded = false;
           }
           capture.audioChunks.push(chunk.data.slice(0));
           capture.audioFormat ??= this.audioLlmFormat(chunk.encoding);
+          capture.recordingFormat ??= chunk.encoding ?? capture.audioFormat;
+          if (chunk.durationMs !== undefined) {
+            capture.audioDurationMs += chunk.durationMs;
+          }
         }
         const isWebmHeader =
           !capture.asrContainerHeaderForwarded &&
@@ -375,11 +397,16 @@ export class VoiceSession {
         if (!matchesAsrMode) return;
         if (!this.shouldForwardAsrAudio() && !isWebmHeader) return;
         void Promise.resolve(capture.asrSession.sendAudio(chunk.data)).catch((e) =>
-          this.fail(e),
+          this.fail(
+            e,
+            'asr_connection_failed',
+            'provider',
+            this.config.providers.asr.name,
+          ),
         );
         if (chunk.durationMs) this.usage.addAsrAudioMs(chunk.durationMs);
       }),
-      audioInput.onError((e) => this.fail(e)),
+      audioInput.onError((e) => this.fail(e, 'microphone_unavailable', 'capture')),
     );
     if (audioInput.onVolume) {
       capture.inputCleanups.push(
@@ -397,7 +424,7 @@ export class VoiceSession {
         this.transition('listening');
       }
     } catch (err) {
-      this.fail(err, 'microphone_unavailable');
+      this.fail(err, 'microphone_unavailable', 'capture');
     }
   }
 
@@ -529,9 +556,22 @@ export class VoiceSession {
       audio.audioUrl !== undefined
         ? { audioUrl: audio.audioUrl, mimeType: audio.mimeType }
         : { audioBuffer: audio.audioBuffer, mimeType: audio.mimeType };
+    this.emit('assistant_audio', {
+      turnId,
+      mimeType: audio.mimeType,
+      ...(audio.audioBuffer !== undefined
+        ? { audio: audio.audioBuffer.slice(0) }
+        : {}),
+      ...(audio.audioUrl !== undefined ? { audioUrl: audio.audioUrl } : {}),
+      ...(audio.durationMs !== undefined ? { durationMs: audio.durationMs } : {}),
+    });
     this.assistantPlaybackActive = true;
     try {
       await this.config.runtime.audioOutput.play(playInput);
+    } catch (error) {
+      throw new VoiceError(
+        normalizeError(error, 'tts_failed', undefined, 'playback'),
+      );
     } finally {
       this.assistantPlaybackActive = false;
     }
@@ -683,9 +723,18 @@ export class VoiceSession {
       // turn. Low-latency audio-LLM sessions may start their reply in parallel.
       await this.config.runtime.audioInput.stop();
     } catch (err) {
-      this.fail(err);
+      this.fail(err, 'microphone_unavailable', 'capture');
       return;
     }
+
+    this.emit('user_audio_final', {
+      turnId: capture.id,
+      audio: this.joinAudioChunks(capture.audioChunks),
+      format: capture.recordingFormat ?? capture.audioFormat ?? 'unknown',
+      ...(capture.audioDurationMs > 0
+        ? { durationMs: capture.audioDurationMs }
+        : {}),
+    });
 
     for (const off of capture.inputCleanups) off();
     capture.inputCleanups = [];
@@ -746,7 +795,12 @@ export class VoiceSession {
           capture.generation === this.turnGeneration &&
           this.isActive()
         ) {
-          this.fail(err, 'asr_connection_failed');
+          this.fail(
+            err,
+            'asr_connection_failed',
+            'provider',
+            this.config.providers.asr.name,
+          );
         }
       } finally {
         for (const off of capture.asrCleanups) off();
@@ -775,7 +829,7 @@ export class VoiceSession {
     this.playbackEchoFilter.stop();
     this.setInterimResultsEnabled(this.activeCapture, true);
     void this.resumeInputCapture(true).catch((error) => {
-      this.fail(error, 'microphone_unavailable');
+      this.fail(error, 'microphone_unavailable', 'capture');
     });
     void audioOutput.pause().catch(() => {
       if (
@@ -829,7 +883,7 @@ export class VoiceSession {
     // assistant_speaking and drops those opening syllables from captions.
     this.interruptAssistant();
     void this.resumeInputCapture(true).catch((error) => {
-      this.fail(error, 'microphone_unavailable');
+      this.fail(error, 'microphone_unavailable', 'capture');
     });
   }
 
@@ -892,7 +946,14 @@ export class VoiceSession {
     if (!capture?.interimResultsGated) return;
     void Promise.resolve(
       capture.asrSession.setInterimResultsEnabled?.(enabled),
-    ).catch((error) => this.fail(error, 'asr_connection_failed'));
+    ).catch((error) =>
+      this.fail(
+        error,
+        'asr_connection_failed',
+        'provider',
+        this.config.providers.asr.name,
+      ),
+    );
   }
 
   private async suspendInputCapture(): Promise<boolean> {
@@ -1078,7 +1139,14 @@ export class VoiceSession {
         this.usage.addLlmUsage(reply.usage);
         await this.speakAudioAssistant(reply);
       } catch (err) {
-        this.fail(err, 'llm_failed');
+        if (!(await this.recoverAudioLlmFailure(err))) {
+          this.fail(
+            err,
+            'llm_failed',
+            'provider',
+            this.config.providers.audioLlm?.name,
+          );
+        }
         return;
       }
     } else {
@@ -1090,7 +1158,7 @@ export class VoiceSession {
       try {
         reply = await replyPromise;
       } catch (err) {
-        this.fail(err, 'llm_failed');
+        this.fail(err, 'llm_failed', 'provider', this.config.providers.llm?.name);
         return;
       }
       if (turnGen !== this.turnGeneration || !this.isActive()) return;
@@ -1098,7 +1166,7 @@ export class VoiceSession {
       try {
         await this.speakAssistant(reply, assistantTurnId);
       } catch (err) {
-        this.fail(err, 'tts_failed');
+        this.fail(err, 'tts_failed', 'provider', this.config.providers.tts?.name);
         return;
       }
     }
@@ -1177,7 +1245,14 @@ export class VoiceSession {
       if (outcome.kind === 'cancelled') return;
       if (outcome.kind === 'error') {
         if (generation === this.turnGeneration && this.isActive()) {
-          this.fail(outcome.error, 'llm_failed');
+          if (!(await this.recoverAudioLlmFailure(outcome.error, capture))) {
+            this.fail(
+              outcome.error,
+              'llm_failed',
+              'provider',
+              this.config.providers.audioLlm?.name,
+            );
+          }
         }
         return;
       }
@@ -1208,7 +1283,12 @@ export class VoiceSession {
       if (outcome.kind === 'cancelled') return;
       if (outcome.kind === 'error') {
         if (generation === this.turnGeneration && this.isActive()) {
-          this.fail(outcome.error, 'llm_failed');
+          this.fail(
+            outcome.error,
+            'llm_failed',
+            'provider',
+            this.config.providers.llm?.name,
+          );
         }
         return;
       }
@@ -1222,7 +1302,7 @@ export class VoiceSession {
       try {
         await this.speakAssistant(outcome.value, assistantTurnId);
       } catch (err) {
-        this.fail(err, 'tts_failed');
+        this.fail(err, 'tts_failed', 'provider', this.config.providers.tts?.name);
         return;
       }
     }
@@ -1283,6 +1363,14 @@ export class VoiceSession {
       ...(signal ? { signal } : {}),
     };
     const provider = this.config.providers.llm;
+    if (!provider) {
+      throw new VoiceError({
+        code: 'invalid_state',
+        message: 'pipeline "asr_llm_tts" requires providers.llm',
+        stage: 'session',
+        retryable: false,
+      });
+    }
     if (provider.stream) {
       let text = '';
       for await (const chunk of provider.stream(input)) {
@@ -1327,51 +1415,101 @@ export class VoiceSession {
       joined.set(new Uint8Array(chunk), offset);
       offset += chunk.byteLength;
     }
-    return provider.generate({
-      audio: joined.buffer,
-      format: capture?.audioFormat ?? 'webm',
-      messages: this.transcript.toMessages(),
-      ...(this.config.audioLlmSystemPrompt
-        ? { system: this.config.audioLlmSystemPrompt }
-        : {}),
-      ...(this.config.audioLlmMaxTokens !== undefined
-        ? { maxTokens: this.config.audioLlmMaxTokens }
-        : {}),
-      temperature: 0.45,
-      ...(signal ? { signal } : {}),
-      ...(capture
-        ? {
-            onTranscriptDelta: (text: string) => {
-              if (
-                capture.cancelled ||
-                capture.generation !== this.turnGeneration ||
-                !this.isActive()
-              ) {
-                return;
+    const messages = this.transcript.toMessages();
+    const retry = this.config.audioLlmRetry;
+    const configuredAttempts = retry?.maxAttempts;
+    const maxAttempts = typeof configuredAttempts === 'number' &&
+      Number.isFinite(configuredAttempts) && configuredAttempts > 0
+      ? Math.min(10, Math.floor(configuredAttempts))
+      : 1;
+    let attempt = 0;
+    while (attempt < maxAttempts) {
+      attempt += 1;
+      let streamedOutput = false;
+      try {
+        return await provider.generate({
+          audio: joined.buffer,
+          format: capture?.audioFormat ?? 'webm',
+          messages,
+          ...(this.config.audioLlmSystemPrompt
+            ? { system: this.config.audioLlmSystemPrompt }
+            : {}),
+          ...(this.config.audioLlmMaxTokens !== undefined
+            ? { maxTokens: this.config.audioLlmMaxTokens }
+            : {}),
+          temperature: 0.45,
+          ...(signal ? { signal } : {}),
+          ...(capture
+            ? {
+                onTranscriptDelta: (text: string) => {
+                  streamedOutput = true;
+                  if (
+                    capture.cancelled ||
+                    capture.generation !== this.turnGeneration ||
+                    !this.isActive()
+                  ) {
+                    return;
+                  }
+                  capture.streamingTranscript += text;
+                  const turnId =
+                    capture.streamingAssistantTurnId ??= this.generateId();
+                  this.emit('assistant_text_delta', {
+                    delta: text,
+                    text: capture.streamingTranscript,
+                    turnId,
+                  });
+                  if (
+                    capture.streamingPlayback &&
+                    capture.streamingPlayback.generation === this.speakGeneration
+                  ) {
+                    this.activeAssistantText = capture.streamingTranscript;
+                  }
+                },
+                ...(this.config.runtime.audioOutput.startPcmStream
+                  ? {
+                      onAudioChunk: (chunk: AudioLLMAudioChunk) => {
+                        streamedOutput = true;
+                        return this.onAudioReplyChunk(capture, chunk);
+                      },
+                    }
+                  : {}),
               }
-              capture.streamingTranscript += text;
-              const turnId =
-                capture.streamingAssistantTurnId ??= this.generateId();
-              this.emit('assistant_text_delta', {
-                delta: text,
-                text: capture.streamingTranscript,
-                turnId,
-              });
-              if (
-                capture.streamingPlayback &&
-                capture.streamingPlayback.generation === this.speakGeneration
-              ) {
-                this.activeAssistantText = capture.streamingTranscript;
-              }
-            },
-            ...(this.config.runtime.audioOutput.startPcmStream
-              ? {
-                  onAudioChunk: (chunk: AudioLLMAudioChunk) =>
-                    this.onAudioReplyChunk(capture, chunk),
-                }
-              : {}),
-          }
-        : {}),
+            : {}),
+        });
+      } catch (error) {
+        const normalized = normalizeError(
+          error,
+          'llm_failed',
+          provider.name,
+          'provider',
+        );
+        const retryable =
+          retry?.retryableOnly === false || normalized.retryable === true;
+        if (
+          attempt >= maxAttempts ||
+          signal?.aborted ||
+          streamedOutput ||
+          !retryable
+        ) {
+          throw new VoiceError(normalized);
+        }
+        const configuredBackoff = retry?.backoffMs;
+        const base = typeof configuredBackoff === 'number' &&
+          Number.isFinite(configuredBackoff) && configuredBackoff >= 0
+          ? configuredBackoff
+          : 250;
+        const delay = Math.min(30_000, retry?.exponentialBackoff === false
+          ? base
+          : base * 2 ** (attempt - 1));
+        await this.waitForRetry(delay, signal);
+      }
+    }
+    throw new VoiceError({
+      code: 'llm_failed',
+      message: 'Audio LLM retry loop exhausted',
+      provider: provider.name,
+      stage: 'provider',
+      retryable: false,
     });
   }
 
@@ -1463,10 +1601,19 @@ export class VoiceSession {
     this.transcript.add({ id: playback.turnId, role: 'assistant', text });
     this.emitTurnAdded();
     this.emit('assistant_text', { text, turnId: playback.turnId });
+    this.emit('assistant_audio', {
+      turnId: playback.turnId,
+      audio: reply.audioBuffer.slice(0),
+      mimeType: reply.mimeType,
+    });
     this.usage.addAssistantSpeechChars(text.length);
     this.activeAssistantText = text;
     try {
       await playback.output.close();
+    } catch (error) {
+      throw new VoiceError(
+        normalizeError(error, 'llm_failed', undefined, 'playback'),
+      );
     } finally {
       this.assistantPlaybackActive = false;
     }
@@ -1503,6 +1650,11 @@ export class VoiceSession {
     this.transcript.add({ id: turnId, role: 'assistant', text: reply.text });
     this.emitTurnAdded();
     this.emit('assistant_text', { text: reply.text, turnId });
+    this.emit('assistant_audio', {
+      turnId,
+      audio: reply.audioBuffer.slice(0),
+      mimeType: reply.mimeType,
+    });
     this.usage.addAssistantSpeechChars(reply.text.length);
     this.activeAssistantText = reply.text;
     await this.prepareAssistantPlayback();
@@ -1514,6 +1666,10 @@ export class VoiceSession {
         audioBuffer: reply.audioBuffer,
         mimeType: reply.mimeType,
       });
+    } catch (error) {
+      throw new VoiceError(
+        normalizeError(error, 'llm_failed', undefined, 'playback'),
+      );
     } finally {
       this.assistantPlaybackActive = false;
     }
@@ -1532,6 +1688,51 @@ export class VoiceSession {
     const containerHeader =
       capture.audioFormat === 'webm' ? capture.audioChunks[0] : undefined;
     capture.audioChunks = containerHeader ? [containerHeader] : [];
+    capture.audioDurationMs = 0;
+  }
+
+  private joinAudioChunks(audioChunks: readonly ArrayBuffer[]): ArrayBuffer {
+    const total = audioChunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+    const joined = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of audioChunks) {
+      joined.set(new Uint8Array(chunk), offset);
+      offset += chunk.byteLength;
+    }
+    return joined.buffer;
+  }
+
+  private async waitForRetry(
+    delayMs: number,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    if (signal?.aborted) {
+      throw new VoiceError({
+        code: 'aborted',
+        message: 'Audio LLM retry cancelled',
+        stage: 'session',
+        retryable: false,
+      });
+    }
+    if (delayMs <= 0) return;
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve();
+      }, delayMs);
+      const onAbort = () => {
+        clearTimeout(timer);
+        reject(
+          new VoiceError({
+            code: 'aborted',
+            message: 'Audio LLM retry cancelled',
+            stage: 'session',
+            retryable: false,
+          }),
+        );
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
   }
 
   private shouldFinishAfterTurn(): boolean {
@@ -1545,6 +1746,35 @@ export class VoiceSession {
     const max = this.config.policy?.maxSessionDurationMs;
     if (max === undefined) return false;
     return this.usage.snapshot().sessionDurationMs >= max;
+  }
+
+  private async recoverAudioLlmFailure(
+    error: unknown,
+    capture?: TurnCapture,
+  ): Promise<boolean> {
+    if (this.config.audioLlmRetry?.continueSessionOnFailure !== true) {
+      return false;
+    }
+    const normalized = normalizeError(
+      error,
+      'llm_failed',
+      this.config.providers.audioLlm?.name,
+      'provider',
+    );
+    this.emit('error', { ...normalized, fatal: false });
+    if (capture) {
+      capture.streamingPlaybackDisabled = true;
+      capture.streamingPlayback = undefined;
+    }
+    this.activeAssistantText = undefined;
+    if (this.assistantPlaybackActive || this.state === 'assistant_speaking') {
+      await this.safeStopAudioOutput();
+      if (this.state === 'assistant_speaking' && this.machine.can('processing')) {
+        this.transition('processing', 'audio_llm_failed');
+      }
+    }
+    await this.ensureListeningAfterTurn();
+    return true;
   }
 
   // -- internal: teardown -------------------------------------------------
@@ -1568,9 +1798,11 @@ export class VoiceSession {
   private fail(
     error: unknown,
     fallbackCode: NormalizedVoiceError['code'] = 'unknown',
+    stage?: NormalizedVoiceError['stage'],
+    provider?: string,
   ): void {
-    const normalized = normalizeError(error, fallbackCode);
-    this.emit('error', normalized);
+    const normalized = normalizeError(error, fallbackCode, provider, stage);
+    this.emit('error', { ...normalized, fatal: true });
     this.cancelPendingResponses();
     this.cleanupListening();
     void this.safeStopAudioInput();
@@ -1702,4 +1934,20 @@ export class VoiceSession {
  */
 export function createVoiceSession(config: VoiceSessionConfig): VoiceSession {
   return new VoiceSession(config);
+}
+
+/**
+ * Create an OtterVoice session using an explicit, collision-resistant factory name.
+ * This is an alias of {@link createVoiceSession}; use it when an application also
+ * has a database-level `createVoiceSession` function.
+ *
+ * @param config - Runtime adapter, providers, mode/pipeline, VAD, and policy.
+ * @returns A session that must be {@link VoiceSession.dispose | dispose()}d when finished.
+ */
+export function createOtterVoiceSession(
+  config: VoiceSessionConfig | AudioLLMOnlyVoiceSessionConfig,
+): VoiceSession {
+  // The audio-only branch never reads providers.llm; keep the original
+  // VoiceSession/createVoiceSession public contract unchanged for compatibility.
+  return createVoiceSession(config as VoiceSessionConfig);
 }

@@ -129,6 +129,11 @@ export default defineConfig({
               translations: { en: 'Security' },
               slug: 'guides/security',
             },
+            {
+              label: '生产接入',
+              translations: { en: 'Production integration' },
+              slug: 'guides/production-integration',
+            },
           ],
         },
         {

@@ -12,6 +12,7 @@ packages; none need API keys to start (cognition falls back to mocks).
 | [`node-cli`](node-cli) | Node | `bun run examples/node-cli/index.ts` |
 | [`node-openrouter`](node-openrouter) | Node + real LLM | `bun run examples/node-openrouter/index.ts` |
 | [`web`](web) | Browser | `bun run examples/web/serve.ts` → http://localhost:5173 |
+| [`web-audio-llm-only`](web-audio-llm-only) | Browser, native Audio LLM | `bun run examples/web-audio-llm-only/server.ts` → http://localhost:5174 |
 | [`react-native-expo`](react-native-expo) | Expo SDK 57 | `cd examples/react-native-expo && bun run start` |
 | [`token-broker`](token-broker) | Backend | `bun run examples/token-broker/server.ts` |
 
@@ -24,6 +25,8 @@ packages; none need API keys to start (cognition falls back to mocks).
 - **web** — full-duplex browser conversation with automatic volume endpointing,
   a live input meter, and barge-in via `@ottervoice/runtime-web`; bundled and
   served by Bun (no Vite). Swap in real providers + the token broker to ship.
+- **web-audio-llm-only** — the minimal browser path: caption ASR plus one native
+  audio-in/audio-out model, with no text LLM or TTS provider.
 - **react-native-expo** — a runnable full-duplex Audio LLM app with native PCM
   capture, continuous VAD/barge-in, SSE chunk playback through AudioPlaylist,
   Expo Go QR preview, and EAS simulator/APK build profiles.

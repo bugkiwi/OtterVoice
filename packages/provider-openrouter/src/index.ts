@@ -36,6 +36,8 @@ export interface OpenRouterOptions extends CredentialOptions, HeaderOptions {
   model: string;
   /** API base, default `https://openrouter.ai/api/v1`. */
   baseUrl?: string;
+  /** Classify HTTP failures as gateway/provider errors. Defaults from whether `baseUrl` is customized. */
+  requestStage?: 'gateway' | 'provider';
   /** Applied when a request does not specify its own temperature. */
   defaultTemperature?: number;
   /** Explicitly enable/disable reasoning tokens on compatible models. */
@@ -57,6 +59,7 @@ export function createOpenRouterLLM(options: OpenRouterOptions): LLMProvider {
     purpose: 'llm',
   });
   const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, '');
+  const requestStage = options.requestStage ?? (options.baseUrl ? 'gateway' : 'provider');
   const url = `${baseUrl}/chat/completions`;
 
   async function send(input: LLMGenerateInput, stream: boolean): Promise<Response> {
@@ -85,6 +88,7 @@ export function createOpenRouterLLM(options: OpenRouterOptions): LLMProvider {
           normalizeHttpError(res.status, await readBody(res), {
             provider: PROVIDER,
             failureCode: 'llm_failed',
+            stage: requestStage,
           }),
         );
       }
@@ -111,6 +115,7 @@ export function createOpenRouterLLM(options: OpenRouterOptions): LLMProvider {
           error: normalizeHttpError(res.status, await readBody(res), {
             provider: PROVIDER,
             failureCode: 'llm_failed',
+            stage: requestStage,
           }),
         };
         return;

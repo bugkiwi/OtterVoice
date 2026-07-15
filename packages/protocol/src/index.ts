@@ -11,8 +11,15 @@ import type { VoiceSessionEventMap } from '@ottervoice/core';
 /** Bumped when the envelope shape or payload contracts change incompatibly. */
 export const PROTOCOL_VERSION = 1 as const;
 
-/** Event name carried in {@link ProtocolEnvelope.type} (mirrors core session events). */
-export type ProtocolMessageType = keyof VoiceSessionEventMap;
+/**
+ * JSON-safe event name carried in {@link ProtocolEnvelope.type}.
+ * Binary `user_audio_final` / `assistant_audio` events stay in-process; upload
+ * their bytes or use a binary side channel instead of JSON stringification.
+ */
+export type ProtocolMessageType = Exclude<
+  keyof VoiceSessionEventMap,
+  'user_audio_final' | 'assistant_audio'
+>;
 
 /** Every event type that may appear on the wire, in a stable order. */
 export const PROTOCOL_MESSAGE_TYPES: readonly ProtocolMessageType[] = [

@@ -1,0 +1,76 @@
+---
+title: 生产接入
+description: 面向正式语音产品的网关、数据留存、安全诊断、重试与运营控制。
+---
+
+生产客户端只应知道业务会话和自有网关。供应商密钥、不受限的模型 ID、对象存储 Key 和留存策略都必须由服务端控制。
+
+## 信任边界
+
+| 边界 | 必须落实的控制 |
+| --- | --- |
+| 浏览器 / App → 网关 | 鉴权；每次请求都校验会话归属 |
+| 模型选择 | 忽略或白名单校验客户端 `model`；优先由服务端直接覆盖 |
+| 跨站请求 | 精确校验 `Origin`；Cookie 鉴权时配合 SameSite 与 CSRF Token |
+| 滥用控制 | 按用户、会话、IP 和供应商成本预算限流 |
+| 输入 | 限制请求体和 SDK `maxTurnMs`；拒绝不支持的 Content-Type |
+| 输出 | 设置上游与总请求超时；客户端断开时取消上游任务 |
+
+可运行的 [Audio LLM-only 示例](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web-audio-llm-only) 会覆盖 ASR 和 Audio LLM 模型、校验 `Origin` 并限制请求体。请把它接入自己的鉴权系统；它不是完整的账号服务。
+
+## 密钥与请求头
+
+- 长期 Key 不能进入浏览器代码、App 包、`EXPO_PUBLIC_*` 或任何 API 响应。
+- 请求/响应类 API 走同源网关；客户端必须直连流式供应商时，只发短期、限权 Token。
+- 自定义请求头必须先校验为浏览器兼容字符；任意业务元数据放 JSON Body，不要硬塞 Header。
+- Trace 中必须脱敏 `authorization`、Cookie、签名 URL、供应商原始响应和 Base64 音频。
+
+## 单轮音频与私有存储
+
+直接订阅最终音频事件，不再包装 Provider 或用临时变量关联时序：
+
+```ts
+session.on('user_audio_final', async ({ turnId, audio, format }) => {
+  await uploadPrivateTurn({ turnId, role: 'user', bytes: audio, format });
+});
+
+session.on('assistant_audio', async ({ turnId, audio, mimeType }) => {
+  if (audio) await uploadPrivateTurn({ turnId, role: 'assistant', bytes: audio, format: mimeType });
+});
+```
+
+- 录音必须进入私有 Bucket；对象 Key 不可猜测，并绑定租户/会话记录。
+- 回放走用户鉴权代理或短时签名 URL，不能把 Bucket 改成公开。
+- 对象 Key、校验和、留存截止时间、`turnId` 与数据库 Turn 放进同一套可审计流程。
+- 删除会话/账号时，幂等地排队删除对象并记录结果；数据库级联不会自动删除对象存储。
+- 开启录音前取得合规同意并定义留存周期；转写和声音都按敏感个人数据处理。
+
+错误中的 `raw` 和 `cause` 可能含上游响应或用户内容，只用于开发诊断。生产日志只记录 `code`、`stage`、`provider`、`httpStatus`、`retryable`、`fatal`、`safeMessage` 和自有 request id。
+
+## 重试策略
+
+只重试 `retryable` 错误，在网关使用带随机抖动的指数退避并遵守供应商 Retry Header。鉴权、额度、音频解码、参数校验失败不能在请求不变时盲目重试。
+
+```ts
+const session = createOtterVoiceSession({
+  pipeline: 'audio_llm',
+  audioLlmRetry: {
+    maxAttempts: 2,
+    backoffMs: 300,
+    exponentialBackoff: true,
+    retryableOnly: true,
+    continueSessionOnFailure: true,
+  },
+  // ...
+});
+```
+
+Core 只会在还没有输出任何文本/音频流时重试当前轮。一旦开始输出，自动重试可能导致重复播报，因此会直接报告失败。启用 `continueSessionOnFailure` 后，`error.fatal` 为 `false`，会话恢复监听；否则进入终止性的 `error` 状态。
+
+## 上线检查
+
+- 分别测试 401/403、402/额度、429、5xx、超时、客户端取消、SSE 中断、解码失败和播放失败。
+- 上报 `user_audio_end` → `assistant_audio_start` 延迟，以及错误 `stage` / HTTP 状态。
+- CI 执行 `bun run test:smoke:audio-llm`；它不使用麦克风，以固定 WebM 覆盖转换、网关、SSE 和最终音频。
+- 告警样本必须隐私安全，不能自动附带完整请求/响应 Body。
+- 上线前明确删除流程、留存周期、供应商区域和事故响应责任人。

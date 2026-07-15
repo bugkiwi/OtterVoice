@@ -1,0 +1,76 @@
+---
+title: Production integration
+description: Gateway, data retention, diagnostics, retries, and operational controls for a production voice product.
+---
+
+A production client should know only your application session and gateway. It must not choose provider credentials, unrestricted model ids, storage object keys, or retention policy.
+
+## Trust boundary
+
+| Boundary | Required control |
+| --- | --- |
+| Browser / app → gateway | Authenticate the user; verify conversation ownership on every request |
+| Model selection | Ignore or allowlist the client `model`; prefer overwriting it server-side |
+| Cross-site requests | Enforce exact `Origin`; use SameSite cookies and a CSRF token when cookies authorize requests |
+| Abuse | Rate-limit by user, session, IP, and provider cost budget |
+| Input | Cap HTTP body size and the SDK's `maxTurnMs`; reject unsupported content types |
+| Output | Set upstream and total request timeouts; abort work when the client disconnects |
+
+The runnable [Audio LLM-only example](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web-audio-llm-only) overwrites ASR and Audio LLM model ids, validates `Origin`, and caps the request body. Adapt its checks to your authentication system; it is not a complete account service.
+
+## Credentials and headers
+
+- Never place a long-lived key in browser code, app binaries, `EXPO_PUBLIC_*`, or an API response.
+- Use a same-origin gateway for request/response APIs. Use short-lived, scoped tokens when the client must connect directly to a streaming provider.
+- Validate custom request-header values before sending them. Browser headers must contain Web-compatible characters; encode arbitrary metadata in a JSON body instead.
+- Redact `authorization`, cookies, signed URLs, provider payloads, and Base64 audio from traces.
+
+## Turn audio and private storage
+
+Use the final audio events; do not wrap provider methods or correlate temporary variables:
+
+```ts
+session.on('user_audio_final', async ({ turnId, audio, format }) => {
+  await uploadPrivateTurn({ turnId, role: 'user', bytes: audio, format });
+});
+
+session.on('assistant_audio', async ({ turnId, audio, mimeType }) => {
+  if (audio) await uploadPrivateTurn({ turnId, role: 'assistant', bytes: audio, format: mimeType });
+});
+```
+
+- Store recordings in a private bucket. Object keys must be unguessable and scoped to your tenant/conversation record.
+- Play saved recordings through an authenticated endpoint or a short-lived signed URL. Never make the bucket public.
+- Store the object key, checksum, retention deadline, and turn id in the same auditable workflow as the database turn.
+- On conversation/account deletion, enqueue object deletion, retry it idempotently, and record completion. A database cascade does not delete bucket objects.
+- Obtain consent and define retention before enabling recording. Treat transcripts and voice as sensitive personal data.
+
+`raw` and `cause` on errors can contain upstream responses or user data. They are development diagnostics, not production log fields. Log `code`, `stage`, `provider`, `httpStatus`, `retryable`, `fatal`, `safeMessage`, and your own request id.
+
+## Retry policy
+
+Retry only failures marked `retryable`; use exponential backoff with jitter and honor provider retry headers at the gateway. Do not retry authentication, quota, audio-decode, or request-validation failures without changing the request.
+
+```ts
+const session = createOtterVoiceSession({
+  pipeline: 'audio_llm',
+  audioLlmRetry: {
+    maxAttempts: 2,
+    backoffMs: 300,
+    exponentialBackoff: true,
+    retryableOnly: true,
+    continueSessionOnFailure: true,
+  },
+  // ...
+});
+```
+
+Core retries a turn only before any transcript/audio stream output is delivered. Once output starts, an automatic retry could duplicate speech, so the failure is reported instead. With `continueSessionOnFailure`, the `error` event has `fatal: false` and the session returns to listening; otherwise it enters the terminal `error` state.
+
+## Launch checklist
+
+- Test 401/403, 402/quota, 429, 5xx, timeout, client abort, malformed SSE, decode failure, and playback failure separately.
+- Export latency from `user_audio_end` to `assistant_audio_start`, plus error `stage` and HTTP status.
+- Run `bun run test:smoke:audio-llm` in CI. It uses fixed WebM bytes and no microphone while exercising conversion, the gateway, SSE parsing, and final audio.
+- Set privacy-safe alert samples. Never attach whole request/response bodies automatically.
+- Document user deletion, retention, provider region, and incident-response ownership before launch.

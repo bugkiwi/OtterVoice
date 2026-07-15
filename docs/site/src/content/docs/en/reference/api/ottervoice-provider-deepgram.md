@@ -48,7 +48,7 @@ MIT
 
 ### DeepgramOptions
 
-Defined in: [provider-deepgram/src/index.ts:22](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/index.ts#L22)
+Defined in: [provider-deepgram/src/index.ts:22](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/index.ts#L22)
 
 Options for [createDeepgramASR](/docs/en/reference/api/ottervoice-provider-deepgram/#createdeepgramasr). Extends [CredentialOptions](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions) and
 [DeepgramQueryOptions](/docs/en/reference/api/ottervoice-provider-deepgram/#deepgramqueryoptions); prefer `tokenBrokerUrl` on clients over a static key.
@@ -62,24 +62,24 @@ Options for [createDeepgramASR](/docs/en/reference/api/ottervoice-provider-deepg
 | Property | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
 | <a id="apikey"></a> `apiKey?` | `string` | A long-lived key (server-side only — never ship to clients). | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`apiKey`](/docs/en/reference/api/ottervoice-provider-utils/#apikey) | provider-utils/dist/credential.d.ts:35 |
-| <a id="baseurl"></a> `baseUrl?` | `string` | Override the listen endpoint. | - | [provider-deepgram/src/index.ts:24](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/index.ts#L24) |
-| <a id="encoding"></a> `encoding?` | `string` | Raw audio encoding when not inferred from the runtime (e.g. `linear16`). | [`DeepgramQueryOptions`](/docs/en/reference/api/ottervoice-provider-deepgram/#deepgramqueryoptions).[`encoding`](/docs/en/reference/api/ottervoice-provider-deepgram/#encoding-1) | [provider-deepgram/src/decode.ts:14](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L14) |
+| <a id="baseurl"></a> `baseUrl?` | `string` | Override the listen endpoint. | - | [provider-deepgram/src/index.ts:24](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/index.ts#L24) |
+| <a id="encoding"></a> `encoding?` | `string` | Raw audio encoding when not inferred from the runtime (e.g. `linear16`). | [`DeepgramQueryOptions`](/docs/en/reference/api/ottervoice-provider-deepgram/#deepgramqueryoptions).[`encoding`](/docs/en/reference/api/ottervoice-provider-deepgram/#encoding-1) | [provider-deepgram/src/decode.ts:14](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L14) |
 | <a id="fetch"></a> `fetch?` | [`FetchLike`](/docs/en/reference/api/ottervoice-provider-utils/#fetchlike) | Custom `fetch` implementation (tests / React Native polyfills). | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`fetch`](/docs/en/reference/api/ottervoice-provider-utils/#fetch) | provider-utils/dist/credential.d.ts:39 |
-| <a id="interimresults"></a> `interimResults?` | `boolean` | Request interim (`is_final: false`) Results; default from session options. | [`DeepgramQueryOptions`](/docs/en/reference/api/ottervoice-provider-deepgram/#deepgramqueryoptions).[`interimResults`](/docs/en/reference/api/ottervoice-provider-deepgram/#interimresults-1) | [provider-deepgram/src/decode.ts:18](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L18) |
-| <a id="language"></a> `language?` | `string` | BCP-47 language; overridden by [ASRSessionOptions.language](/docs/en/reference/api/ottervoice-core/#language) when set. | [`DeepgramQueryOptions`](/docs/en/reference/api/ottervoice-provider-deepgram/#deepgramqueryoptions).[`language`](/docs/en/reference/api/ottervoice-provider-deepgram/#language-1) | [provider-deepgram/src/decode.ts:12](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L12) |
-| <a id="model"></a> `model?` | `string` | Deepgram model id (e.g. `nova-2`, `nova-3`). | [`DeepgramQueryOptions`](/docs/en/reference/api/ottervoice-provider-deepgram/#deepgramqueryoptions).[`model`](/docs/en/reference/api/ottervoice-provider-deepgram/#model-1) | [provider-deepgram/src/decode.ts:10](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L10) |
+| <a id="interimresults"></a> `interimResults?` | `boolean` | Request interim (`is_final: false`) Results; default from session options. | [`DeepgramQueryOptions`](/docs/en/reference/api/ottervoice-provider-deepgram/#deepgramqueryoptions).[`interimResults`](/docs/en/reference/api/ottervoice-provider-deepgram/#interimresults-1) | [provider-deepgram/src/decode.ts:18](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L18) |
+| <a id="language"></a> `language?` | `string` | BCP-47 language; overridden by [ASRSessionOptions.language](/docs/en/reference/api/ottervoice-core/#language) when set. | [`DeepgramQueryOptions`](/docs/en/reference/api/ottervoice-provider-deepgram/#deepgramqueryoptions).[`language`](/docs/en/reference/api/ottervoice-provider-deepgram/#language-1) | [provider-deepgram/src/decode.ts:12](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L12) |
+| <a id="model"></a> `model?` | `string` | Deepgram model id (e.g. `nova-2`, `nova-3`). | [`DeepgramQueryOptions`](/docs/en/reference/api/ottervoice-provider-deepgram/#deepgramqueryoptions).[`model`](/docs/en/reference/api/ottervoice-provider-deepgram/#model-1) | [provider-deepgram/src/decode.ts:10](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L10) |
 | <a id="now"></a> `now?` | () => `number` | Clock override for deterministic expiry checks in tests. | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`now`](/docs/en/reference/api/ottervoice-provider-utils/#now) | provider-utils/dist/credential.d.ts:41 |
-| <a id="punctuate"></a> `punctuate?` | `boolean` | Ask Deepgram to add punctuation to transcripts. | [`DeepgramQueryOptions`](/docs/en/reference/api/ottervoice-provider-deepgram/#deepgramqueryoptions).[`punctuate`](/docs/en/reference/api/ottervoice-provider-deepgram/#punctuate-1) | [provider-deepgram/src/decode.ts:20](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L20) |
-| <a id="samplerate"></a> `sampleRate?` | `number` | Sample rate in Hz for PCM encodings; overridden by session options when set. | [`DeepgramQueryOptions`](/docs/en/reference/api/ottervoice-provider-deepgram/#deepgramqueryoptions).[`sampleRate`](/docs/en/reference/api/ottervoice-provider-deepgram/#samplerate-1) | [provider-deepgram/src/decode.ts:16](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L16) |
-| <a id="smartformat"></a> `smartFormat?` | `boolean` | Enable Deepgram smart formatting (numbers, dates, etc.). | [`DeepgramQueryOptions`](/docs/en/reference/api/ottervoice-provider-deepgram/#deepgramqueryoptions).[`smartFormat`](/docs/en/reference/api/ottervoice-provider-deepgram/#smartformat-1) | [provider-deepgram/src/decode.ts:22](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L22) |
+| <a id="punctuate"></a> `punctuate?` | `boolean` | Ask Deepgram to add punctuation to transcripts. | [`DeepgramQueryOptions`](/docs/en/reference/api/ottervoice-provider-deepgram/#deepgramqueryoptions).[`punctuate`](/docs/en/reference/api/ottervoice-provider-deepgram/#punctuate-1) | [provider-deepgram/src/decode.ts:20](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L20) |
+| <a id="samplerate"></a> `sampleRate?` | `number` | Sample rate in Hz for PCM encodings; overridden by session options when set. | [`DeepgramQueryOptions`](/docs/en/reference/api/ottervoice-provider-deepgram/#deepgramqueryoptions).[`sampleRate`](/docs/en/reference/api/ottervoice-provider-deepgram/#samplerate-1) | [provider-deepgram/src/decode.ts:16](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L16) |
+| <a id="smartformat"></a> `smartFormat?` | `boolean` | Enable Deepgram smart formatting (numbers, dates, etc.). | [`DeepgramQueryOptions`](/docs/en/reference/api/ottervoice-provider-deepgram/#deepgramqueryoptions).[`smartFormat`](/docs/en/reference/api/ottervoice-provider-deepgram/#smartformat-1) | [provider-deepgram/src/decode.ts:22](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L22) |
 | <a id="tokenbrokerurl"></a> `tokenBrokerUrl?` | `string` | Endpoint that mints short-lived tokens (client-safe). | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerUrl`](/docs/en/reference/api/ottervoice-provider-utils/#tokenbrokerurl) | provider-utils/dist/credential.d.ts:37 |
-| <a id="websocket"></a> `webSocket?` | [`WebSocketCtor`](/docs/en/reference/api/ottervoice-provider-utils/#websocketctor) | Inject a WebSocket constructor (defaults to the global). | - | [provider-deepgram/src/index.ts:26](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/index.ts#L26) |
+| <a id="websocket"></a> `webSocket?` | [`WebSocketCtor`](/docs/en/reference/api/ottervoice-provider-utils/#websocketctor) | Inject a WebSocket constructor (defaults to the global). | - | [provider-deepgram/src/index.ts:26](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/index.ts#L26) |
 
 ***
 
 ### DeepgramQueryOptions
 
-Defined in: [provider-deepgram/src/decode.ts:8](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L8)
+Defined in: [provider-deepgram/src/decode.ts:8](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L8)
 
 Query knobs mapped onto Deepgram's `/v1/listen` WebSocket URL.
 
@@ -91,13 +91,13 @@ Query knobs mapped onto Deepgram's `/v1/listen` WebSocket URL.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="encoding-1"></a> `encoding?` | `string` | Raw audio encoding when not inferred from the runtime (e.g. `linear16`). | [provider-deepgram/src/decode.ts:14](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L14) |
-| <a id="interimresults-1"></a> `interimResults?` | `boolean` | Request interim (`is_final: false`) Results; default from session options. | [provider-deepgram/src/decode.ts:18](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L18) |
-| <a id="language-1"></a> `language?` | `string` | BCP-47 language; overridden by [ASRSessionOptions.language](/docs/en/reference/api/ottervoice-core/#language) when set. | [provider-deepgram/src/decode.ts:12](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L12) |
-| <a id="model-1"></a> `model?` | `string` | Deepgram model id (e.g. `nova-2`, `nova-3`). | [provider-deepgram/src/decode.ts:10](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L10) |
-| <a id="punctuate-1"></a> `punctuate?` | `boolean` | Ask Deepgram to add punctuation to transcripts. | [provider-deepgram/src/decode.ts:20](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L20) |
-| <a id="samplerate-1"></a> `sampleRate?` | `number` | Sample rate in Hz for PCM encodings; overridden by session options when set. | [provider-deepgram/src/decode.ts:16](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L16) |
-| <a id="smartformat-1"></a> `smartFormat?` | `boolean` | Enable Deepgram smart formatting (numbers, dates, etc.). | [provider-deepgram/src/decode.ts:22](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L22) |
+| <a id="encoding-1"></a> `encoding?` | `string` | Raw audio encoding when not inferred from the runtime (e.g. `linear16`). | [provider-deepgram/src/decode.ts:14](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L14) |
+| <a id="interimresults-1"></a> `interimResults?` | `boolean` | Request interim (`is_final: false`) Results; default from session options. | [provider-deepgram/src/decode.ts:18](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L18) |
+| <a id="language-1"></a> `language?` | `string` | BCP-47 language; overridden by [ASRSessionOptions.language](/docs/en/reference/api/ottervoice-core/#language) when set. | [provider-deepgram/src/decode.ts:12](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L12) |
+| <a id="model-1"></a> `model?` | `string` | Deepgram model id (e.g. `nova-2`, `nova-3`). | [provider-deepgram/src/decode.ts:10](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L10) |
+| <a id="punctuate-1"></a> `punctuate?` | `boolean` | Ask Deepgram to add punctuation to transcripts. | [provider-deepgram/src/decode.ts:20](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L20) |
+| <a id="samplerate-1"></a> `sampleRate?` | `number` | Sample rate in Hz for PCM encodings; overridden by session options when set. | [provider-deepgram/src/decode.ts:16](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L16) |
+| <a id="smartformat-1"></a> `smartFormat?` | `boolean` | Enable Deepgram smart formatting (numbers, dates, etc.). | [provider-deepgram/src/decode.ts:22](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L22) |
 
 ## Variables
 
@@ -107,7 +107,7 @@ Query knobs mapped onto Deepgram's `/v1/listen` WebSocket URL.
 const DEFAULT_BASE_URL: "wss://api.deepgram.com/v1/listen" = 'wss://api.deepgram.com/v1/listen';
 ```
 
-Defined in: [provider-deepgram/src/decode.ts:5](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L5)
+Defined in: [provider-deepgram/src/decode.ts:5](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L5)
 
 Default Deepgram live listen WebSocket endpoint.
 
@@ -117,12 +117,12 @@ Default Deepgram live listen WebSocket endpoint.
 
 ```ts
 function buildDeepgramUrl(
-   baseUrl, 
-   options, 
+   baseUrl,
+   options,
    asr): string;
 ```
 
-Defined in: [provider-deepgram/src/decode.ts:33](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L33)
+Defined in: [provider-deepgram/src/decode.ts:33](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L33)
 
 Build the Deepgram listen WebSocket URL with query parameters.
 
@@ -148,7 +148,7 @@ Fully qualified `wss://` URL including search params.
 function createDeepgramASR(options): ASRProvider;
 ```
 
-Defined in: [provider-deepgram/src/index.ts:45](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/index.ts#L45)
+Defined in: [provider-deepgram/src/index.ts:45](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/index.ts#L45)
 
 Deepgram streaming ASR provider over WebSocket.
 
@@ -167,12 +167,12 @@ Deepgram streaming ASR provider over WebSocket.
 ### decodeDeepgram()
 
 ```ts
-function decodeDeepgram(data): 
+function decodeDeepgram(data):
   | ASRDecodeResult
   | undefined;
 ```
 
-Defined in: [provider-deepgram/src/decode.ts:63](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-deepgram/src/decode.ts#L63)
+Defined in: [provider-deepgram/src/decode.ts:63](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/provider-deepgram/src/decode.ts#L63)
 
 Decode a Deepgram `Results` message into a transcript result.
 

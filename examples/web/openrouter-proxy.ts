@@ -5,6 +5,15 @@ const allowedUpstreamPaths = new Set([
   '/audio/transcriptions',
   '/audio/speech',
 ]);
+const maxRequestBodyBytes = 6 * 1024 * 1024;
+const allowedModelsByPath: Readonly<Record<string, ReadonlySet<string>>> = {
+  '/chat/completions': new Set([
+    'openai/gpt-audio-mini',
+    'deepseek/deepseek-v4-flash:nitro',
+  ]),
+  '/audio/transcriptions': new Set(['qwen/qwen3-asr-flash-2026-02-10']),
+  '/audio/speech': new Set(['hexgrad/kokoro-82m']),
+};
 
 interface CachedSpeech {
   bytes: ArrayBuffer;
@@ -30,11 +39,32 @@ export async function proxyOpenRouter(
   if (request.method !== 'POST' || !allowedUpstreamPaths.has(upstreamPath)) {
     return json({ error: 'not found' }, 404);
   }
+  const origin = request.headers.get('origin');
+  if (origin && origin !== url.origin) {
+    return json({ error: 'origin rejected' }, 403);
+  }
   if (!apiKey) {
     return json({ error: 'Voice gateway is not configured on the server' }, 503);
   }
 
   const requestBody = await request.arrayBuffer();
+  if (requestBody.byteLength > maxRequestBodyBytes) {
+    return json({ error: 'voice request is too large' }, 413);
+  }
+  let requestedModel: unknown;
+  try {
+    requestedModel = (
+      JSON.parse(new TextDecoder().decode(requestBody)) as { model?: unknown }
+    ).model;
+  } catch {
+    return json({ error: 'invalid JSON request' }, 400);
+  }
+  if (
+    typeof requestedModel !== 'string' ||
+    !allowedModelsByPath[upstreamPath]?.has(requestedModel)
+  ) {
+    return json({ error: 'model is not allowed for this route' }, 403);
+  }
   const speechKey = path.endsWith('/audio/speech')
     ? new TextDecoder().decode(requestBody)
     : undefined;

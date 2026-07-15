@@ -38,6 +38,8 @@ export interface OpenRouterASROptions extends CredentialOptions, HeaderOptions {
   language?: string;
   /** API root; defaults to OpenRouter's chat-compatible base URL. */
   baseUrl?: string;
+  /** Classify HTTP failures as gateway/provider errors. Defaults from whether `baseUrl` is customized. */
+  requestStage?: 'gateway' | 'provider';
   /** Test hook for partial-result scheduling. */
   now?: () => number;
 }
@@ -50,6 +52,8 @@ export interface OpenRouterTTSOptions extends CredentialOptions, HeaderOptions {
   voice: string;
   /** API root; defaults to OpenRouter's chat-compatible base URL. */
   baseUrl?: string;
+  /** Classify HTTP failures as gateway/provider errors. Defaults from whether `baseUrl` is customized. */
+  requestStage?: 'gateway' | 'provider';
   /** Speaking rate multiplier when the upstream model supports it. */
   speed?: number;
 }
@@ -177,6 +181,7 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
     purpose: 'asr',
   });
   const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, '');
+  const requestStage = options.requestStage ?? (options.baseUrl ? 'gateway' : 'provider');
   const format = options.format ?? 'webm';
   const partialIntervalMs = options.partialIntervalMs;
   const incremental = partialIntervalMs !== undefined;
@@ -256,6 +261,7 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
             normalizeHttpError(res.status, await readBody(res), {
               provider: PROVIDER,
               failureCode: 'asr_connection_failed',
+              stage: requestStage,
             }),
           );
         }
@@ -428,6 +434,7 @@ export function createOpenRouterTTS(options: OpenRouterTTSOptions): TTSProvider 
     purpose: 'tts',
   });
   const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, '');
+  const requestStage = options.requestStage ?? (options.baseUrl ? 'gateway' : 'provider');
 
   return {
     name: PROVIDER,
@@ -456,6 +463,7 @@ export function createOpenRouterTTS(options: OpenRouterTTSOptions): TTSProvider 
           normalizeHttpError(res.status, await readBody(res), {
             provider: PROVIDER,
             failureCode: 'tts_failed',
+            stage: requestStage,
           }),
         );
       }

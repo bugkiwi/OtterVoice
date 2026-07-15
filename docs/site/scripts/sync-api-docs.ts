@@ -57,6 +57,7 @@ function rewriteLinks(markdown: string, locale: 'en' | 'zh'): string {
   let out = rewritePackagePaths(markdown);
   out = out.replace(/(\]\([^)\s]+)\.md(#[^)\s]*)?\)/g, '$1/$2)');
   out = out.replace(/(href="[^"\s]+)\.md(#[^"\s]*)?"/g, '$1/$2"');
+  out = out.replace(/[ \t]+$/gm, '');
 
   if (locale === 'zh') {
     out = out.replaceAll('/docs/en/reference/api/', '/docs/reference/api/');

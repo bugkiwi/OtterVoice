@@ -1,6 +1,6 @@
 {
   "name": "@ottervoice/provider-deepgram",
-  "version": "0.2.0-alpha.0",
+  "version": "0.2.0-alpha.1",
   "type": "module",
   "description": "Deepgram streaming ASR provider for OtterVoice (WebSocket).",
   "license": "MIT",

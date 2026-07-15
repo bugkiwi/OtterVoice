@@ -28,14 +28,54 @@ session.on('assistant_text', ({ turnId, text }) => {
 | `asr_partial` | Provisional ASR | Update user row + live cursor |
 | `asr_final` | User turn confirmed | Replace provisional text |
 | `user_audio_end` | VAD ends user speech | Latency start marker |
+| `user_audio_final` | Recorder stopped and final bytes flushed | Private upload / audit |
 | `assistant_text_delta` | Model text fragment | Upsert assistant row (prefer accumulated `text`) |
 | `assistant_text` | Reply confirmed | Commit final text |
 | `assistant_audio_start` / `_end` | Playback bounds | First-audio latency, speaking state |
+| `assistant_audio` | Complete generated audio snapshot | Private upload / replay |
 | `turn` | Turn committed | History |
 | `usage` | Usage snapshot | Metrics |
 | `finished` | Session ended | Teardown UI |
 | `error` | Normalized error | Toast / retry |
 
-`assistant_text_delta.delta` is the new fragment; render accumulated `text`. Finals may normalize punctuation.
+`assistant_text_delta.delta` is the new fragment; render accumulated `text`. Finals may normalize punctuation. Audio and text events for the same speaker share a `turnId`.
+
+## State and event order
+
+```text
+idle → starting → listening → user_speaking → processing
+                         ↑                        ↓
+                         └── assistant_speaking ─┘
+                                  │
+                                  └── user_speaking (confirmed barge-in)
+
+Any active state → paused / finished / error
+paused → listening
+```
+
+The common `audioLlmStartTiming: 'after_asr_final'` order is:
+
+| Order | Event | Guarantee |
+| ---: | --- | --- |
+| 1 | `user_audio_end` | VAD/manual boundary; recorder flush starts |
+| 2 | `user_audio_final` | Complete encoded user recording is now available |
+| 3 | `asr_final` | Authoritative caption (it may be empty) |
+| 4 | `assistant_text_delta` | Zero or more accumulated reply updates |
+| 5 | `assistant_text` / `assistant_audio` | Complete snapshots; buffered output emits these before playback, streamed output may finalize them after playback starts |
+| 6 | `assistant_audio_start` | Playback has started; it can precede step 5 for streaming PCM |
+| 7 | `assistant_audio_end` | Playback completed or was interrupted |
+
+With `audioLlmStartTiming: 'after_audio'`, assistant deltas/audio may start before `asr_final`. Build UI and persistence around `turnId`, not global temporary variables.
+
+## Lifecycle guarantees
+
+| Call / event | Contract |
+| --- | --- |
+| `start()` | Valid once from `idle`. Provider/runtime startup failures emit `error`; an illegal repeated call rejects with `invalid_state`. |
+| `finish()` | Graceful and idempotent. Cancels pending work, stops I/O, then emits `usage` and exactly one `finished`. Calling from `idle` is a no-op. |
+| `dispose()` | Idempotent hard teardown. Removes listeners and does **not** emit `finished`; call `finish()` first when product analytics need completion. |
+| `error` | `fatal: true` means the state becomes `error`. `fatal: false` is a configured recoverable Audio LLM turn failure and the session resumes listening. |
+
+Only `safeMessage` is intended for production logs/UI. `message`, `cause`, and `raw` can contain provider or user data.
 
 Payload shapes: `VoiceSessionEventMap` in the [API reference](/docs/en/reference/).

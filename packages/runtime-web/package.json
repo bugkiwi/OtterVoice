@@ -1,6 +1,6 @@
 {
   "name": "@ottervoice/runtime-web",
-  "version": "0.2.0-alpha.0",
+  "version": "0.2.0-alpha.1",
   "type": "module",
   "description": "Web runtime adapter for OtterVoice: getUserMedia + MediaRecorder capture, HTMLAudioElement playback, fetch/WebSocket network.",
   "license": "MIT",

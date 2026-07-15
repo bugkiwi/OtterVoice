@@ -98,8 +98,11 @@ or microphone access.
 
 The browser never receives `OPENROUTER_API_KEY`. `serve.ts` reads it from the
 root `.env`; the client calls only three allow-listed routes below the generic
-`/api/voice` gateway. Production deployments can select another provider
-behind that gateway.
+`/api/voice` gateway. The example gateway also validates same-origin requests,
+caps request bodies, and enforces a route-specific model allowlist instead of
+trusting the browser's `model`. Production deployments can select another
+provider behind that gateway and must add their own user/session authorization
+and durable rate limiting.
 
 ## Low-cost model defaults
 

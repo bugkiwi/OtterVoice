@@ -1,4 +1,5 @@
 import {
+  normalizeError,
   VoiceError,
   type AudioLLMGenerateInput,
   type AudioLLMGenerateOutput,
@@ -34,6 +35,11 @@ export interface OpenRouterAudioLLMOptions extends CredentialOptions, HeaderOpti
   voice?: 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'fable' | 'nova' | 'onyx' | 'sage' | 'shimmer' | 'verse';
   /** API root; defaults to OpenRouter's public `…/api/v1`. */
   baseUrl?: string;
+  /**
+   * Classify HTTP failures as direct provider or same-origin gateway errors.
+   * Defaults to `gateway` when `baseUrl` is customized, otherwise `provider`.
+   */
+  requestStage?: 'gateway' | 'provider';
   /** Default sampling temperature when the session does not override. */
   defaultTemperature?: number;
   /**
@@ -44,6 +50,11 @@ export interface OpenRouterAudioLLMOptions extends CredentialOptions, HeaderOpti
     audio: ArrayBuffer,
     format: AudioLLMInputFormat,
   ) => Promise<PreparedAudioInput>;
+  /**
+   * Require the SSE response to end with an explicit `[DONE]` sentinel.
+   * Disabled by default for compatibility with gateways that close a complete stream cleanly.
+   */
+  requireDoneSentinel?: boolean;
 }
 
 function base64ToBytes(value: string): Uint8Array {
@@ -169,6 +180,8 @@ export function createOpenRouterAudioLLM(
     purpose: 'llm',
   });
   const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, '');
+  const requestStage =
+    options.requestStage ?? (options.baseUrl ? 'gateway' : 'provider');
 
   return {
     name: PROVIDER,
@@ -177,13 +190,24 @@ export function createOpenRouterAudioLLM(
       if (input.format === 'wav' || input.format === 'mp3') {
         prepared = { audio: input.audio, format: input.format };
       } else if (options.prepareAudio) {
-        prepared = await options.prepareAudio(input.audio, input.format);
+        try {
+          prepared = await options.prepareAudio(input.audio, input.format);
+        } catch (error) {
+          throw new VoiceError({
+            ...normalizeError(error, 'llm_failed', PROVIDER, 'audio_prepare'),
+            stage: 'audio_prepare',
+            retryable: false,
+            safeMessage: 'The recorded audio could not be decoded or converted.',
+          });
+        }
       } else {
         throw new VoiceError({
           code: 'unsupported_runtime',
           message: `Audio LLM input ${input.format} requires prepareAudio() to produce WAV or MP3`,
           provider: PROVIDER,
+          stage: 'audio_prepare',
           retryable: false,
+          safeMessage: 'The recorded audio format is not supported by this runtime.',
         });
       }
 
@@ -206,7 +230,19 @@ export function createOpenRouterAudioLLM(
         ],
       });
 
-      const { token } = await resolveCredential();
+      let token: string;
+      try {
+        ({ token } = await resolveCredential());
+      } catch (error) {
+        throw new VoiceError(
+          normalizeError(
+            error,
+            'network_error',
+            PROVIDER,
+            options.tokenBrokerUrl ? 'gateway' : requestStage,
+          ),
+        );
+      }
       const startedAt = performance.now();
       const body: Record<string, unknown> = {
         model: options.model,
@@ -218,17 +254,25 @@ export function createOpenRouterAudioLLM(
         temperature: input.temperature ?? options.defaultTemperature,
       };
       if (input.maxTokens !== undefined) body.max_tokens = input.maxTokens;
-      const res = await fetchImpl(`${baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: buildHeaders(token, options),
-        body: JSON.stringify(body),
-        signal: input.signal,
-      });
+      let res: Response;
+      try {
+        res = await fetchImpl(`${baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: buildHeaders(token, options),
+          body: JSON.stringify(body),
+          signal: input.signal,
+        });
+      } catch (error) {
+        throw new VoiceError(
+          normalizeError(error, 'network_error', PROVIDER, requestStage),
+        );
+      }
       if (!res.ok || !res.body) {
         throw new VoiceError(
           normalizeHttpError(res.status, await readBody(res), {
             provider: PROVIDER,
             failureCode: 'llm_failed',
+            stage: requestStage,
           }),
         );
       }
@@ -241,35 +285,58 @@ export function createOpenRouterAudioLLM(
       let usage;
       let rawUsage: Record<string, unknown> | undefined;
       let firstAudioAtMs: number | undefined;
-      for await (const data of parseSSEStream(res.body)) {
-        if (data === '[DONE]') break;
-        let json: Record<string, unknown>;
-        try {
-          json = JSON.parse(data) as Record<string, unknown>;
-        } catch {
-          continue;
-        }
-        const audio = extractStreamAudioDelta(json);
-        if (audio?.data) {
-          firstAudioAtMs ??= performance.now() - startedAt;
-          audioB64Parts.push(audio.data);
-          const pcm = incrementalDecoder?.push(audio.data);
-          if (pcm && pcm.byteLength > 0) {
-            await input.onAudioChunk?.({
-              data: detachedBuffer(pcm),
-              encoding: 'pcm_s16le',
-              sampleRate: 24_000,
-              channels: 1,
-            });
+      let completed = false;
+      try {
+        for await (const data of parseSSEStream(res.body)) {
+          if (data === '[DONE]') {
+            completed = true;
+            break;
           }
+          let json: Record<string, unknown>;
+          try {
+            json = JSON.parse(data) as Record<string, unknown>;
+          } catch {
+            continue;
+          }
+          const audio = extractStreamAudioDelta(json);
+          if (audio?.data) {
+            firstAudioAtMs ??= performance.now() - startedAt;
+            audioB64Parts.push(audio.data);
+            const pcm = incrementalDecoder?.push(audio.data);
+            if (pcm && pcm.byteLength > 0) {
+              await input.onAudioChunk?.({
+                data: detachedBuffer(pcm),
+                encoding: 'pcm_s16le',
+                sampleRate: 24_000,
+                channels: 1,
+              });
+            }
+          }
+          if (audio?.transcript) {
+            text += audio.transcript;
+            await input.onTranscriptDelta?.(audio.transcript);
+          }
+          const chunkUsage = (json as { usage?: Record<string, unknown> }).usage;
+          if (chunkUsage) rawUsage = chunkUsage;
+          usage = mapUsage(chunkUsage as never) ?? usage;
         }
-        if (audio?.transcript) {
-          text += audio.transcript;
-          await input.onTranscriptDelta?.(audio.transcript);
-        }
-        const chunkUsage = (json as { usage?: Record<string, unknown> }).usage;
-        if (chunkUsage) rawUsage = chunkUsage;
-        usage = mapUsage(chunkUsage as never) ?? usage;
+      } catch (error) {
+        throw new VoiceError({
+          ...normalizeError(error, 'network_error', PROVIDER, 'stream'),
+          stage: 'stream',
+          retryable: true,
+          safeMessage: 'The provider audio stream was interrupted.',
+        });
+      }
+      if (options.requireDoneSentinel && !completed) {
+        throw new VoiceError({
+          code: 'network_error',
+          message: 'Audio LLM SSE stream ended before [DONE]',
+          provider: PROVIDER,
+          stage: 'stream',
+          retryable: true,
+          safeMessage: 'The provider audio stream ended unexpectedly.',
+        });
       }
 
       const finalPcm = incrementalDecoder?.finish();
@@ -288,7 +355,9 @@ export function createOpenRouterAudioLLM(
           code: 'llm_failed',
           message: 'Audio LLM returned no audio',
           provider: PROVIDER,
+          stage: 'provider',
           retryable: true,
+          safeMessage: 'The provider returned no playable audio.',
         });
       }
       const wav = pcm16ToWav(audioBytes);

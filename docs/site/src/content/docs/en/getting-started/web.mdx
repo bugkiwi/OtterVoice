@@ -5,6 +5,8 @@ description: Full-duplex capture, VAD, and barge-in with runtime-web.
 
 Example: [`examples/web`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web)
 
+Need only native audio-in/audio-out? Start with the smaller [`examples/web-audio-llm-only`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web-audio-llm-only); it configures no text LLM or TTS provider.
+
 ```bash
 cd examples/web
 bun run start   # http://localhost:5173
@@ -46,11 +48,25 @@ const session = createVoiceSession({
 await session.start();
 ```
 
+## VAD defaults and starting profiles
+
+Core defaults are `hybrid`, `minSpeechMs: 500`, `silenceTimeoutMs: 1200`, `maxTurnMs: 120000`, and `volumeThreshold: 0.02`. They are conservative cross-runtime defaults. For product tuning, start with this matrix and validate against your devices and acoustic environment:
+
+| Browser | Strategy | `minSpeechMs` | `silenceTimeoutMs` | `volumeThreshold` | Capture note |
+| --- | --- | ---: | ---: | ---: | --- |
+| Desktop Chrome | `hybrid` | 180 | 650 | 0.02–0.03 | 100 ms timeslices; 500 ms barge-in pre-roll |
+| Android Chrome | `hybrid` | 220 | 850 | 0.025–0.04 | 100 ms timeslices; 600 ms pre-roll; cap turns at 60–90 s |
+| Safari (macOS/iOS) | `hybrid` | 250 | 900 | 0.025–0.04 | Let `MediaRecorder` choose a supported MIME when WebM is unavailable |
+
+Raise `volumeThreshold` when background noise creates false starts; lower it when quiet speakers are missed. Tune normal VAD and `interruptionDetection` independently—barge-in should be stricter. Never copy a threshold to production without testing built-in microphones, headsets, speakerphone echo, and permission/autoplay recovery.
+
 ## Browser checklist
 
 - Serve over HTTPS or `localhost`
 - Request the mic (and prefer `audioOutput.unlock?.()`) from a user gesture
 - Autoplay unlock failure must not block ASR
 - Call `await session.dispose()` when leaving the page
+
+For model locking, storage, deletion, safe logging, and retries, continue with [Production integration](/docs/en/guides/production-integration/).
 
 See [@ottervoice/runtime-web](/docs/en/packages/runtime-web/) for options.

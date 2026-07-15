@@ -75,13 +75,22 @@
         "@ottervoice/runtime-web": "workspace:*",
       },
     },
+    "examples/web-audio-llm-only": {
+      "name": "@ottervoice/example-web-audio-llm-only",
+      "version": "0.1.0",
+      "dependencies": {
+        "@ottervoice/core": "workspace:*",
+        "@ottervoice/provider-openrouter": "workspace:*",
+        "@ottervoice/runtime-web": "workspace:*",
+      },
+    },
     "packages/core": {
       "name": "@ottervoice/core",
-      "version": "0.2.0-alpha.0",
+      "version": "0.2.0-alpha.1",
     },
     "packages/protocol": {
       "name": "@ottervoice/protocol",
-      "version": "0.2.0-alpha.0",
+      "version": "0.2.0-alpha.1",
       "devDependencies": {
         "@ottervoice/core": "workspace:^",
       },
@@ -91,7 +100,7 @@
     },
     "packages/provider-azure-speech": {
       "name": "@ottervoice/provider-azure-speech",
-      "version": "0.2.0-alpha.0",
+      "version": "0.2.0-alpha.1",
       "dependencies": {
         "@ottervoice/provider-utils": "workspace:^",
       },
@@ -105,7 +114,7 @@
     },
     "packages/provider-deepgram": {
       "name": "@ottervoice/provider-deepgram",
-      "version": "0.2.0-alpha.0",
+      "version": "0.2.0-alpha.1",
       "dependencies": {
         "@ottervoice/provider-utils": "workspace:^",
       },
@@ -119,7 +128,7 @@
     },
     "packages/provider-elevenlabs": {
       "name": "@ottervoice/provider-elevenlabs",
-      "version": "0.2.0-alpha.0",
+      "version": "0.2.0-alpha.1",
       "dependencies": {
         "@ottervoice/provider-utils": "workspace:^",
       },
@@ -133,7 +142,7 @@
     },
     "packages/provider-openrouter": {
       "name": "@ottervoice/provider-openrouter",
-      "version": "0.2.0-alpha.0",
+      "version": "0.2.0-alpha.1",
       "dependencies": {
         "@ottervoice/provider-utils": "workspace:^",
       },
@@ -147,7 +156,7 @@
     },
     "packages/provider-utils": {
       "name": "@ottervoice/provider-utils",
-      "version": "0.2.0-alpha.0",
+      "version": "0.2.0-alpha.1",
       "devDependencies": {
         "@ottervoice/core": "workspace:^",
       },
@@ -157,7 +166,7 @@
     },
     "packages/runtime-node": {
       "name": "@ottervoice/runtime-node",
-      "version": "0.2.0-alpha.0",
+      "version": "0.2.0-alpha.1",
       "devDependencies": {
         "@ottervoice/core": "workspace:^",
       },
@@ -167,7 +176,7 @@
     },
     "packages/runtime-react-native": {
       "name": "@ottervoice/runtime-react-native",
-      "version": "0.2.0-alpha.0",
+      "version": "0.2.0-alpha.1",
       "devDependencies": {
         "@ottervoice/core": "workspace:^",
       },
@@ -177,7 +186,7 @@
     },
     "packages/runtime-web": {
       "name": "@ottervoice/runtime-web",
-      "version": "0.2.0-alpha.0",
+      "version": "0.2.0-alpha.1",
       "devDependencies": {
         "@ottervoice/core": "workspace:^",
       },
@@ -604,6 +613,8 @@
     "@ottervoice/example-token-broker": ["@ottervoice/example-token-broker@workspace:examples/token-broker"],
 
     "@ottervoice/example-web": ["@ottervoice/example-web@workspace:examples/web"],
+
+    "@ottervoice/example-web-audio-llm-only": ["@ottervoice/example-web-audio-llm-only@workspace:examples/web-audio-llm-only"],
 
     "@ottervoice/protocol": ["@ottervoice/protocol@workspace:packages/protocol"],
 

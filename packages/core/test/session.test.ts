@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
-import { createVoiceSession, VoiceSession } from '../src/session';
+import {
+  createOtterVoiceSession,
+  createVoiceSession,
+  VoiceSession,
+} from '../src/session';
 import { VoiceError } from '../src/errors';
 import {
   createMockASR,
@@ -100,10 +104,12 @@ function makeSession(overrides: Partial<VoiceSessionConfig> = {}): Harness {
     'asr_partial',
     'asr_final',
     'user_audio_end',
+    'user_audio_final',
     'assistant_text_delta',
     'assistant_text',
     'assistant_audio_start',
     'assistant_audio_end',
+    'assistant_audio',
     'turn',
     'usage',
     'finished',
@@ -177,6 +183,43 @@ function controllableASR(options: { finalOnStop?: string } = {}) {
 // --- tests -----------------------------------------------------------------
 
 describe('VoiceSession lifecycle', () => {
+  it('provides a collision-resistant factory alias', () => {
+    const runtime = createMockRuntime();
+    const session = createOtterVoiceSession({
+      mode: 'half_duplex',
+      runtime,
+      providers: {
+        asr: createMockASR({ transcripts: [] }),
+        llm: createMockLLM(),
+      },
+    });
+    expect(session).toBeInstanceOf(VoiceSession);
+  });
+
+  it('accepts an Audio LLM-only config through the additive factory alias', () => {
+    const audioLlm: AudioLLMProvider = {
+      name: 'audio-only',
+      async generate() {
+        return {
+          text: 'hello',
+          audioBuffer: new ArrayBuffer(0),
+          mimeType: 'audio/wav',
+        };
+      },
+    };
+    const session = createOtterVoiceSession({
+      mode: 'half_duplex',
+      pipeline: 'audio_llm',
+      runtime: createMockRuntime(),
+      providers: {
+        asr: createMockASR({ transcripts: [] }),
+        audioLlm,
+      },
+    });
+
+    expect(session).toBeInstanceOf(VoiceSession);
+  });
+
   it('start() rejects unless idle', async () => {
     const { session } = makeSession({ policy: { autoStartListening: false } });
     await session.start('hi');
@@ -235,6 +278,141 @@ describe('VoiceSession lifecycle', () => {
 });
 
 describe('VoiceSession turn loop', () => {
+  it('emits complete user and assistant audio snapshots with stable turn ids', async () => {
+    const audioLlm: AudioLLMProvider = {
+      name: 'archivable-audio-llm',
+      async generate() {
+        return {
+          text: 'archived reply',
+          audioBuffer: new Uint8Array([8, 9]).buffer,
+          mimeType: 'audio/wav',
+        };
+      },
+    };
+    const { session, runtime, events } = makeSession({
+      pipeline: 'audio_llm',
+      providers: { audioLlm } as any,
+    });
+    await session.start();
+    runtime.audioInput.emitChunk({
+      data: new Uint8Array([1, 2]).buffer,
+      timestamp: 1,
+      durationMs: 100,
+      encoding: 'audio/webm;codecs=opus',
+    });
+    runtime.audioInput.emitChunk({
+      data: new Uint8Array([3, 4]).buffer,
+      timestamp: 2,
+      durationMs: 100,
+      encoding: 'audio/webm;codecs=opus',
+    });
+    const answered = nextState(session, 'assistant_speaking');
+    await session.endUserTurn();
+    await answered;
+
+    const userAudio = events.find(([name]) => name === 'user_audio_final')?.[1] as {
+      turnId: string;
+      audio: ArrayBuffer;
+      format: string;
+      durationMs: number;
+    };
+    const userText = events.find(([name]) => name === 'asr_final')?.[1] as {
+      turnId: string;
+    };
+    expect([...new Uint8Array(userAudio.audio)]).toEqual([1, 2, 3, 4]);
+    expect(userAudio).toMatchObject({
+      turnId: userText.turnId,
+      format: 'audio/webm;codecs=opus',
+      durationMs: 200,
+    });
+
+    const assistantAudio = events.find(([name]) => name === 'assistant_audio')?.[1] as {
+      turnId: string;
+      audio: ArrayBuffer;
+      mimeType: string;
+    };
+    const assistantText = events.find(([name]) => name === 'assistant_text')?.[1] as {
+      turnId: string;
+    };
+    expect(assistantAudio.turnId).toBe(assistantText.turnId);
+    expect([...new Uint8Array(assistantAudio.audio)]).toEqual([8, 9]);
+    expect(assistantAudio.mimeType).toBe('audio/wav');
+  });
+
+  it('retries a retryable Audio LLM failure before any stream output', async () => {
+    let attempts = 0;
+    const audioLlm: AudioLLMProvider = {
+      name: 'retryable-audio-llm',
+      async generate() {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new VoiceError({
+            code: 'network_error',
+            message: 'temporary gateway failure',
+            retryable: true,
+          });
+        }
+        return {
+          text: 'retry succeeded',
+          audioBuffer: new ArrayBuffer(8),
+          mimeType: 'audio/wav',
+        };
+      },
+    };
+    const { session, runtime, events } = makeSession({
+      pipeline: 'audio_llm',
+      audioLlmRetry: { maxAttempts: 2, backoffMs: 0 },
+      providers: { audioLlm } as any,
+    });
+    await session.start();
+    emitChunk(runtime);
+    const answered = nextState(session, 'assistant_speaking');
+    await session.endUserTurn();
+    await answered;
+
+    expect(attempts).toBe(2);
+    expect(events.some(([name]) => name === 'error')).toBe(false);
+  });
+
+  it('can report exhausted Audio LLM retries and keep listening', async () => {
+    let attempts = 0;
+    const audioLlm: AudioLLMProvider = {
+      name: 'unavailable-audio-llm',
+      async generate() {
+        attempts += 1;
+        throw new VoiceError({
+          code: 'network_error',
+          message: 'provider unavailable',
+          retryable: true,
+        });
+      },
+    };
+    const { session, runtime, events } = makeSession({
+      pipeline: 'audio_llm',
+      audioLlmRetry: {
+        maxAttempts: 2,
+        backoffMs: 0,
+        continueSessionOnFailure: true,
+      },
+      providers: { audioLlm } as any,
+    });
+    await session.start();
+    emitChunk(runtime);
+    const reported = new Promise<void>((resolve) => session.once('error', () => resolve()));
+    const listening = nextState(session, 'listening');
+    await session.endUserTurn();
+    await reported;
+    await listening;
+
+    expect(attempts).toBe(2);
+    expect(session.state).toBe('listening');
+    expect(events.find(([name]) => name === 'error')?.[1]).toMatchObject({
+      provider: 'unavailable-audio-llm',
+      stage: 'provider',
+      fatal: false,
+    });
+  });
+
   it('runs native audio LLM output while keeping ASR for the user transcript', async () => {
     let audioCalls = 0;
     const audioLlm: AudioLLMProvider = {
@@ -369,10 +547,12 @@ describe('VoiceSession turn loop', () => {
     // partial + final + audio events fired
     expect(events.some(([n]) => n === 'asr_partial')).toBe(true);
     expect(events.some(([n]) => n === 'asr_final')).toBe(true);
+    expect(events.some(([n]) => n === 'user_audio_final')).toBe(true);
     const deltas = events.filter(([n]) => n === 'assistant_text_delta');
     expect(deltas.length).toBeGreaterThan(0);
     expect((deltas.at(-1)?.[1] as { text: string }).text.trim()).toBe('assistant reply');
     expect(events.some(([n]) => n === 'assistant_audio_start')).toBe(true);
+    expect(events.some(([n]) => n === 'assistant_audio')).toBe(true);
     expect(events.some(([n]) => n === 'assistant_audio_end')).toBe(true);
   });
 
@@ -483,6 +663,26 @@ describe('VoiceSession manual turn control', () => {
 });
 
 describe('VoiceSession error handling', () => {
+  it('classifies browser playback failures separately from provider generation', async () => {
+    const runtime = createMockRuntime({
+      output: {
+        failWith: {
+          code: 'audio_playback_failed',
+          message: 'HTMLAudioElement rejected playback',
+        },
+      },
+    });
+    const { session, events } = makeSession({ runtime });
+    await session.start('hello');
+
+    expect(events.find(([name]) => name === 'error')?.[1]).toMatchObject({
+      code: 'audio_playback_failed',
+      stage: 'playback',
+      fatal: true,
+      safeMessage: 'The generated audio could not be played.',
+    });
+  });
+
   it('fails when the ASR session cannot be created', async () => {
     const badAsr: ASRProvider = {
       name: 'bad_asr',

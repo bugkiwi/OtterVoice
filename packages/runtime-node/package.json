@@ -1,6 +1,6 @@
 {
   "name": "@ottervoice/runtime-node",
-  "version": "0.2.0-alpha.0",
+  "version": "0.2.0-alpha.1",
   "type": "module",
   "description": "Node.js runtime adapter for OtterVoice: fetch/WebSocket network, stream-based audio I/O, console logger.",
   "license": "MIT",

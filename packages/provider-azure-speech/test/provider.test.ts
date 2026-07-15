@@ -77,7 +77,13 @@ describe('createAzureTTS', () => {
       voice: 'v',
       fetch: async () => audioResponse(401),
     });
-    await expect(tts.synthesize({ text: 'x' })).rejects.toMatchObject({ code: 'tts_failed' });
+    await expect(tts.synthesize({ text: 'x' })).rejects.toMatchObject({
+      code: 'tts_failed',
+      provider: 'azure_speech',
+      stage: 'provider',
+      httpStatus: 401,
+      retryable: false,
+    });
   });
 
   it('advertises capabilities', () => {

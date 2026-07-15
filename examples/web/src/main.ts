@@ -347,6 +347,7 @@ const audioLlmBase = createOpenRouterAudioLLM({
   model: MODELS.audioLlm,
   voice: 'alloy',
   defaultTemperature: 0.45,
+  requireDoneSentinel: true,
   // Base64 expands PCM by one third. A 16 kHz / 90 s mono WAV remains below
   // Vercel's 4.5 MB function payload limit with room for the JSON envelope.
   prepareAudio: (audio, format) => prepareBrowserAudio(audio, format, {

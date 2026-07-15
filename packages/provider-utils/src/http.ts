@@ -2,6 +2,7 @@ import {
   createVoiceError,
   type NormalizedVoiceError,
   type VoiceErrorCode,
+  type VoiceErrorStage,
 } from '@ottervoice/core';
 
 /**
@@ -32,6 +33,8 @@ export interface HttpErrorOptions {
   provider?: string;
   /** Code to use for ordinary 4xx failures (e.g. `llm_failed`, `tts_failed`). */
   failureCode?: VoiceErrorCode;
+  /** Request boundary that returned the response. Defaults to `provider`. */
+  stage?: Extract<VoiceErrorStage, 'gateway' | 'provider'>;
 }
 
 /**
@@ -51,26 +54,49 @@ export function normalizeHttpError(
   const message = `HTTP ${status}: ${body}`;
   const raw = { status, body };
   const provider = options.provider;
+  const common = {
+    provider,
+    stage: options.stage ?? 'provider' as const,
+    httpStatus: status,
+    raw,
+  };
+  if (status === 401 || status === 403) {
+    return createVoiceError(options.failureCode ?? 'unknown', message, {
+      ...common,
+      retryable: false,
+      safeMessage: 'The voice gateway or provider rejected the credentials.',
+    });
+  }
   if (status === 429) {
     return createVoiceError('provider_rate_limited', message, {
-      provider,
+      ...common,
       retryable: true,
-      raw,
+      safeMessage: 'The voice provider is rate-limiting requests. Try again shortly.',
     });
   }
   if (status === 402) {
-    return createVoiceError('provider_quota_exceeded', message, { provider, raw });
+    return createVoiceError('provider_quota_exceeded', message, {
+      ...common,
+      retryable: false,
+      safeMessage: 'The voice provider quota or credit is exhausted.',
+    });
   }
   if (status >= 500) {
     return createVoiceError('network_error', message, {
-      provider,
+      ...common,
       retryable: true,
-      raw,
+      safeMessage:
+        options.stage === 'gateway'
+          ? 'The voice gateway could not complete the request.'
+          : 'The voice provider is temporarily unavailable.',
     });
   }
   return createVoiceError(options.failureCode ?? 'unknown', message, {
-    provider,
-    raw,
+    ...common,
+    safeMessage:
+      options.stage === 'gateway'
+        ? 'The voice gateway rejected the request.'
+        : 'The voice provider rejected the request.',
   });
 }
 

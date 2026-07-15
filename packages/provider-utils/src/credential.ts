@@ -1,4 +1,4 @@
-import { VoiceError } from '@ottervoice/core';
+import { normalizeError, VoiceError } from '@ottervoice/core';
 import { normalizeHttpError, readBody, resolveFetch, type FetchLike } from './http.js';
 
 /**
@@ -75,6 +75,7 @@ export function createCredentialResolver(
         code: 'unsupported_runtime',
         message: `${request.provider}: provide either apiKey or tokenBrokerUrl`,
         provider: request.provider,
+        stage: 'session',
         retryable: false,
       });
     }
@@ -85,27 +86,46 @@ export function createCredentialResolver(
       return cached;
     }
 
-    const res = await fetchImpl(options.tokenBrokerUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(request),
-    });
+    let res: Response;
+    try {
+      res = await fetchImpl(options.tokenBrokerUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(request),
+      });
+    } catch (error) {
+      throw new VoiceError(
+        normalizeError(error, 'network_error', request.provider, 'gateway'),
+      );
+    }
     if (!res.ok) {
       throw new VoiceError(
         normalizeHttpError(res.status, await readBody(res), {
           provider: request.provider,
           failureCode: 'network_error',
+          stage: 'gateway',
         }),
       );
     }
 
-    const json = (await res.json()) as Partial<BrokerToken> | null;
+    let json: Partial<BrokerToken> | null;
+    try {
+      json = (await res.json()) as Partial<BrokerToken> | null;
+    } catch (error) {
+      throw new VoiceError({
+        ...normalizeError(error, 'network_error', request.provider, 'gateway'),
+        stage: 'gateway',
+        safeMessage: 'The token broker returned an invalid response.',
+      });
+    }
     if (!json || typeof json.token !== 'string') {
       throw new VoiceError({
         code: 'network_error',
         message: `${request.provider}: token broker returned no token`,
         provider: request.provider,
+        stage: 'gateway',
         retryable: true,
+        safeMessage: 'The token broker returned no usable credential.',
       });
     }
     cached = json as BrokerToken;

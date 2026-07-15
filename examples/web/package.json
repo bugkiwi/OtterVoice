@@ -8,6 +8,7 @@
     "benchmark": "bun run benchmark.ts",
     "probe:audio-sse": "bun run probe-audio-sse.ts",
     "test:audio-story": "bun run test-audio-story.ts",
+    "test:audio-llm-smoke": "bun test audio-llm-smoke.test.ts",
     "test:acoustic": "bun run acoustic-loopback.ts"
   },
   "dependencies": {

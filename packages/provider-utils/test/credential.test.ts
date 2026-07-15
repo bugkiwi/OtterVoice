@@ -68,7 +68,11 @@ describe('createCredentialResolver', () => {
       { tokenBrokerUrl: 'https://broker', fetch: fetchImpl },
       request,
     );
-    await expect(resolve()).rejects.toMatchObject({ code: 'network_error' });
+    await expect(resolve()).rejects.toMatchObject({
+      code: 'network_error',
+      stage: 'gateway',
+      httpStatus: 500,
+    });
   });
 
   it('throws when the broker returns no token', async () => {
@@ -77,7 +81,11 @@ describe('createCredentialResolver', () => {
       { tokenBrokerUrl: 'https://broker', fetch: fetchImpl },
       request,
     );
-    await expect(resolve()).rejects.toMatchObject({ code: 'network_error' });
+    await expect(resolve()).rejects.toMatchObject({
+      code: 'network_error',
+      stage: 'gateway',
+      safeMessage: 'The token broker returned no usable credential.',
+    });
   });
 
   it('throws when the broker returns null json', async () => {

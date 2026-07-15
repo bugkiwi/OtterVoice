@@ -63,6 +63,20 @@ export type VoiceErrorCode =
   | 'unknown';
 
 /**
+ * Processing stage where a {@link NormalizedVoiceError} originated.
+ * Use this with {@link NormalizedVoiceError.code} to route diagnostics without
+ * parsing provider messages.
+ */
+export type VoiceErrorStage =
+  | 'capture'
+  | 'audio_prepare'
+  | 'gateway'
+  | 'provider'
+  | 'stream'
+  | 'playback'
+  | 'session';
+
+/**
  * Vendor-neutral error shape used by session events, providers, and {@link VoiceError}.
  * Construct via {@link createVoiceError} when possible so `retryable` defaults apply.
  */
@@ -73,9 +87,19 @@ export interface NormalizedVoiceError {
   message: string;
   /** Provider name when the failure originated in an adapter. */
   provider?: string;
+  /** Processing boundary where the failure occurred. */
+  stage?: VoiceErrorStage;
+  /** Upstream HTTP status when an HTTP response was received. */
+  httpStatus?: number;
   /** Hint for UI retry; not enforced by the session. */
   retryable?: boolean;
-  /** Original thrown value or HTTP body, when available. */
+  /** Whether the session entered its terminal `error` state. Session events populate this. */
+  fatal?: boolean;
+  /** Sanitized summary safe for user-facing diagnostics and production logs. */
+  safeMessage?: string;
+  /** Original thrown value, when available. May contain user or provider data. */
+  cause?: unknown;
+  /** Original provider payload or HTTP body. Development-only; it may contain sensitive data. */
   raw?: unknown;
 }
 
@@ -166,6 +190,17 @@ export type VoiceSessionEventMap = {
     turnId: string;
     at: number;
   };
+  /** Complete VAD-delimited user recording, emitted after capture is stopped and flushed. */
+  user_audio_final: {
+    /** User turn shared with `asr_final`. */
+    turnId: string;
+    /** Complete encoded recording assembled in capture order. */
+    audio: ArrayBuffer;
+    /** Runtime-reported container, codec, or MIME type of the recording. */
+    format: string;
+    /** Approximate captured duration when the runtime reports chunk durations. */
+    durationMs?: number;
+  };
   /** Final assistant text for the turn (may normalize streaming text). */
   assistant_text: {
     text: string;
@@ -186,6 +221,19 @@ export type VoiceSessionEventMap = {
   /** Assistant audio playback ended (completed or interrupted). */
   assistant_audio_end: {
     turnId: string;
+  };
+  /** Complete assistant audio snapshot for persistence, emitted before playback completes. */
+  assistant_audio: {
+    /** Assistant turn shared with text and playback events. */
+    turnId: string;
+    /** In-memory audio bytes when the provider returned a buffer. */
+    audio?: ArrayBuffer;
+    /** Remote audio URL when the provider returned a URL instead of bytes. */
+    audioUrl?: string;
+    /** MIME type of `audio` or `audioUrl`. */
+    mimeType: string;
+    /** Provider-estimated duration when available. */
+    durationMs?: number;
   };
   /** A committed {@link VoiceTurn} was added to history. */
   turn: {
@@ -1079,7 +1127,26 @@ export interface VoiceSessionPolicy {
 }
 
 /**
- * Top-level configuration for {@link createVoiceSession} / {@link VoiceSession}.
+ * Retry and recovery policy for one native Audio LLM turn.
+ * Use this when a transient gateway/provider failure should not terminate the
+ * surrounding {@link VoiceSession}.
+ */
+export interface AudioLLMRetryPolicy {
+  /** Total attempts including the first request. Defaults to `1`; values above `10` are clamped. */
+  maxAttempts?: number;
+  /** Delay before the second attempt in milliseconds. Defaults to `250`; each delay is capped at 30 seconds. */
+  backoffMs?: number;
+  /** Multiply `backoffMs` by `2^(attempt - 2)`. Defaults to `true`. */
+  exponentialBackoff?: boolean;
+  /** Retry only errors marked `retryable`. Defaults to `true`. */
+  retryableOnly?: boolean;
+  /** Emit `error` and resume listening after exhaustion instead of entering the terminal `error` state. */
+  continueSessionOnFailure?: boolean;
+}
+
+/**
+ * Top-level configuration for {@link createVoiceSession},
+ * {@link createOtterVoiceSession}, or {@link VoiceSession}.
  * Create at the application composition root; keep provider credentials out of UI code.
  */
 export interface VoiceSessionConfig {
@@ -1109,6 +1176,8 @@ export interface VoiceSessionConfig {
    * Defaults to `after_asr_final`.
    */
   audioLlmStartTiming?: 'after_audio' | 'after_asr_final';
+  /** Retry/recovery behavior for each native Audio LLM turn. See {@link AudioLLMRetryPolicy}. */
+  audioLlmRetry?: AudioLLMRetryPolicy;
   /** Preferred ASR language; omit to let compatible providers auto-detect. */
   language?: string;
   /** Platform audio (and optional network/storage/logger) adapter. */
@@ -1144,3 +1213,26 @@ export interface VoiceSessionConfig {
   /** Opaque app metadata (not interpreted by core). */
   metadata?: Record<string, unknown>;
 }
+
+/**
+ * Audio LLM-only configuration accepted by {@link createOtterVoiceSession}.
+ * Use this additive config shape when no text-only {@link LLMProvider} is needed;
+ * {@link VoiceSessionConfig} remains unchanged for existing callers.
+ */
+export type AudioLLMOnlyVoiceSessionConfig = Omit<
+  VoiceSessionConfig,
+  'pipeline' | 'providers'
+> & {
+  /** Select the native speech-to-speech pipeline. */
+  pipeline: 'audio_llm';
+  /** Providers required by an Audio LLM-only session. */
+  providers: Omit<
+    VoiceSessionConfig['providers'],
+    'llm' | 'audioLlm'
+  > & {
+    /** Text-only LLMs are intentionally omitted from this minimal configuration. */
+    llm?: never;
+    /** Native audio model used to understand and answer the captured turn. */
+    audioLlm: AudioLLMProvider;
+  };
+};

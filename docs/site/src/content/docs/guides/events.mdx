@@ -28,14 +28,54 @@ session.on('assistant_text', ({ turnId, text }) => {
 | `asr_partial` | ASR 临时结果 | 更新用户行 + live 光标 |
 | `asr_final` | 用户轮次确认 | 覆盖临时文本 |
 | `user_audio_end` | VAD 结束用户说话 | 可作延迟计时起点 |
+| `user_audio_final` | 录音停止且最终字节已 flush | 私有上传 / 审计 |
 | `assistant_text_delta` | 模型增量文本 | 原位更新助手行（优先用累计 `text`） |
 | `assistant_text` | 回复确认 | 收口最终文本 |
 | `assistant_audio_start` / `_end` | 播放起止 | 首音频延迟、播放态 |
+| `assistant_audio` | 完整助手音频快照 | 私有上传 / 回放 |
 | `turn` | 轮次落库 | 历史列表 |
 | `usage` | 用量快照 | 指标 |
 | `finished` | 会话结束 | 收尾 UI |
 | `error` | 归一化错误 | Toast / 重试 |
 
-`assistant_text_delta.delta` 是本次新增片段；渲染用累计字段 `text`。`asr_final` / `assistant_text` 可能修正标点。
+`assistant_text_delta.delta` 是本次新增片段；渲染用累计字段 `text`。`asr_final` / `assistant_text` 可能修正标点。同一说话方的音频与文本事件共用 `turnId`。
+
+## 状态与事件顺序
+
+```text
+idle → starting → listening → user_speaking → processing
+                         ↑                        ↓
+                         └── assistant_speaking ─┘
+                                  │
+                                  └── user_speaking（确认插话）
+
+任意活动状态 → paused / finished / error
+paused → listening
+```
+
+默认 `audioLlmStartTiming: 'after_asr_final'` 的常见顺序：
+
+| 顺序 | 事件 | 保证 |
+| ---: | --- | --- |
+| 1 | `user_audio_end` | VAD/手动分轮边界；开始 flush 录音 |
+| 2 | `user_audio_final` | 完整编码后的用户录音可用 |
+| 3 | `asr_final` | 权威字幕，允许为空 |
+| 4 | `assistant_text_delta` | 0 到多次累计回复更新 |
+| 5 | `assistant_text` / `assistant_audio` | 完整快照；缓冲播放在播放前发出，PCM 流式播放可能在开始播放后才收口 |
+| 6 | `assistant_audio_start` | 已开始播放；流式 PCM 下它可能早于第 5 步，可用于响应延迟 |
+| 7 | `assistant_audio_end` | 播放完成或被打断 |
+
+使用 `audioLlmStartTiming: 'after_audio'` 时，助手文本/音频可能早于 `asr_final`。UI 和持久化必须依赖 `turnId`，不能依赖全局临时变量。
+
+## 生命周期保证
+
+| 调用 / 事件 | 约定 |
+| --- | --- |
+| `start()` | 只能从 `idle` 调用一次。Provider/Runtime 启动失败会发 `error`；非法重复调用以 `invalid_state` reject。 |
+| `finish()` | 优雅且幂等：取消未完成任务、停止 I/O，然后发 `usage` 和且仅一次 `finished`；在 `idle` 调用是 no-op。 |
+| `dispose()` | 硬销毁且幂等：移除监听，不发 `finished`；产品统计需要完成事件时先调用 `finish()`。 |
+| `error` | `fatal: true` 表示进入 `error` 状态；`fatal: false` 是配置允许恢复的 Audio LLM 单轮失败，随后恢复监听。 |
+
+只有 `safeMessage` 适合生产日志/UI。`message`、`cause`、`raw` 可能包含供应商或用户数据。
 
 完整载荷见 [API 参考](/docs/reference/) 中的 `VoiceSessionEventMap`。

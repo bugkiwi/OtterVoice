@@ -5,6 +5,8 @@ description: 使用 runtime-web 做全双工采集、VAD 与 barge-in。
 
 对应示例：[`examples/web`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web)
 
+只需要原生音频输入/输出时，直接从更小的 [`examples/web-audio-llm-only`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web-audio-llm-only) 开始；它不配置文本 LLM 和 TTS。
+
 ```bash
 cd examples/web
 bun run start   # http://localhost:5173
@@ -47,11 +49,25 @@ const session = createVoiceSession({
 await session.start();
 ```
 
+## VAD 默认值与起步配置
+
+Core 默认值是 `hybrid`、`minSpeechMs: 500`、`silenceTimeoutMs: 1200`、`maxTurnMs: 120000`、`volumeThreshold: 0.02`，属于偏保守的跨运行时配置。产品调优可从下表起步，并用真实设备和声学环境验证：
+
+| 浏览器 | 策略 | `minSpeechMs` | `silenceTimeoutMs` | `volumeThreshold` | 采集建议 |
+| --- | --- | ---: | ---: | ---: | --- |
+| 桌面 Chrome | `hybrid` | 180 | 650 | 0.02–0.03 | 100 ms timeslice；500 ms 插话 pre-roll |
+| Android Chrome | `hybrid` | 220 | 850 | 0.025–0.04 | 100 ms timeslice；600 ms pre-roll；单轮限制 60–90 秒 |
+| Safari（macOS/iOS） | `hybrid` | 250 | 900 | 0.025–0.04 | WebM 不可用时让 `MediaRecorder` 选择受支持 MIME |
+
+环境噪声导致误触发时提高 `volumeThreshold`，轻声用户漏检时降低它。普通 VAD 与 `interruptionDetection` 要独立调参，插话检测应更严格。上线前必须覆盖内置麦克风、耳机、外放回声，以及权限/自动播放恢复场景。
+
 ## 浏览器注意点
 
 - 页面需 HTTPS 或 `localhost`
 - 在用户手势里请求麦克风，并尽量 `audioOutput.unlock?.()`
 - autoplay 解锁失败不应阻断 ASR
 - 离开页面时 `await session.dispose()`
+
+模型锁定、录音存储与删除、安全日志、重试策略见[生产接入](/docs/guides/production-integration/)。
 
 选项说明见 [@ottervoice/runtime-web](/docs/packages/runtime-web/)。

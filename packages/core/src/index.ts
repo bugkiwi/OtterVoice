@@ -37,7 +37,11 @@ export type {
   RegisteredProviders,
   ResolvedProviders,
 } from './provider-router.js';
-export { VoiceSession, createVoiceSession } from './session.js';
+export {
+  VoiceSession,
+  createVoiceSession,
+  createOtterVoiceSession,
+} from './session.js';
 export { createIdGenerator, defaultNow } from './internal/ids.js';
 
 // Built-in mock providers & runtime (testing + developer profile).
