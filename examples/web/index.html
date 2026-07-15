@@ -182,13 +182,45 @@
       .feature-list b { display: block; margin-bottom: 6px; color: var(--coral); font-size: .72rem; letter-spacing: .12em; }
       .feature-list h3 { margin: 0 0 5px; font: 500 1.15rem Georgia, serif; }
       .feature-list p { margin: 0; color: var(--muted); font-size: .82rem; }
-      .install-card { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 24px; align-items: center; margin: 34px 0 18px; padding: 22px; border: 1px solid var(--ink); border-radius: 20px; background: var(--paper-high); box-shadow: 8px 9px 0 var(--mint); }
-      .install-qr { display: block; padding: 9px; border: 1px solid var(--ink); border-radius: 14px; background: white; }
-      .install-qr img { display: block; width: 100%; aspect-ratio: 1; }
+      .install-card {
+        margin: 34px 0 18px;
+        padding: 22px 24px;
+        border: 1px solid var(--ink);
+        border-radius: 20px;
+        background: var(--paper-high);
+        box-shadow: 8px 9px 0 var(--mint);
+      }
+      .install-top {
+        display: flex;
+        gap: 22px;
+        align-items: flex-start;
+      }
+      .install-qr {
+        display: block;
+        flex: none;
+        width: 108px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: white;
+        text-decoration: none;
+        transition: border-color 160ms ease, transform 160ms ease;
+      }
+      .install-qr:hover {
+        border-color: var(--ink);
+        transform: translateY(-1px);
+      }
+      .install-qr img {
+        display: block;
+        width: 88px;
+        height: 88px;
+        aspect-ratio: 1;
+      }
+      .install-head { min-width: 0; flex: 1; }
       .install-label { margin: 0 0 7px; color: var(--coral); font-size: .68rem; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
-      .install-copy h3 { margin: 0 0 7px; font: 500 1.35rem Georgia, serif; }
-      .install-copy p { max-width: 48ch; margin: 0; color: var(--muted); font-size: .8rem; }
-      .install-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 17px; }
+      .install-head h3 { margin: 0 0 7px; font: 500 1.35rem Georgia, serif; }
+      .install-head p { max-width: 48ch; margin: 0; color: var(--muted); font-size: .8rem; }
+      .install-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
       .install-actions .pill { min-height: 38px; padding: 0 16px; }
       .release-link { color: var(--ink); font-size: .75rem; font-weight: 800; text-decoration: underline; text-underline-offset: 4px; }
       .quickstart { overflow: hidden; border: 1px solid var(--ink); border-radius: 20px; background: var(--code); color: oklch(93% .016 154); }
@@ -236,8 +268,9 @@
         .section-note { margin-top: 18px; }
         .feature-list { grid-template-columns: 1fr; }
         .feature-list article:nth-child(even) { padding-left: 0; border-left: 0; }
-        .install-card { grid-template-columns: 1fr; }
-        .install-qr { width: min(100%, 190px); }
+        .install-top { flex-direction: column; align-items: flex-start; }
+        .install-qr { width: 120px; }
+        .install-qr img { width: 100px; height: 100px; }
         .flow, .package-grid { grid-template-columns: 1fr; }
         .flow article + article, .flow article:nth-child(4), .package:nth-child(even) { padding-left: 26px; border-top: 1px solid var(--line); border-left: 0; }
         .package, .package:nth-child(even) { padding-left: 0; }
@@ -328,17 +361,19 @@
               <article><b>IOS · ANDROID</b><h3 data-i18n="nativeFeature4Title">自动出包</h3><p data-i18n="nativeFeature4Copy">GitHub Releases 发布 Android APK；iOS 继续通过 EAS 或 TestFlight 分发。</p></article>
             </div>
             <div class="install-card">
-              <a class="install-qr" href="https://github.com/bugkiwi/OtterVoice/releases/download/rn-latest/ottervoice-demo-android.apk" data-i18n-aria="installQrLabel" aria-label="扫码或打开链接安装最新版 Android APK">
-                <img src="/assets/ottervoice-android-latest.svg" width="320" height="320" alt="" />
-              </a>
-              <div class="install-copy">
-                <p class="install-label">ANDROID APK · LATEST</p>
-                <h3 data-i18n="installTitle">扫码安装最新版</h3>
-                <p data-i18n="installCopy">二维码固定指向 GitHub Releases 的 latest APK；每次发布同时保留带版本号的历史产物。</p>
-                <div class="install-actions">
-                  <a class="pill" href="https://github.com/bugkiwi/OtterVoice/releases/download/rn-latest/ottervoice-demo-android.apk" data-i18n="installDownload">下载 Android APK</a>
-                  <a class="release-link" href="https://github.com/bugkiwi/OtterVoice/releases" target="_blank" rel="noreferrer" data-i18n="installVersions">查看所有版本 →</a>
+              <div class="install-top">
+                <a class="install-qr" href="https://github.com/bugkiwi/OtterVoice/releases/download/rn-latest/ottervoice-demo-android.apk" data-i18n-aria="installQrLabel" aria-label="扫码或打开链接安装最新版 Android APK">
+                  <img src="/assets/ottervoice-android-latest.svg" width="88" height="88" alt="" />
+                </a>
+                <div class="install-head">
+                  <p class="install-label">ANDROID APK · LATEST</p>
+                  <h3 data-i18n="installTitle">扫码安装最新版</h3>
+                  <p data-i18n="installCopy">二维码固定指向 GitHub Releases 的 latest APK；每次发布同时保留带版本号的历史产物。</p>
                 </div>
+              </div>
+              <div class="install-actions">
+                <a class="pill" href="https://github.com/bugkiwi/OtterVoice/releases/download/rn-latest/ottervoice-demo-android.apk" data-i18n="installDownload">下载 Android APK</a>
+                <a class="release-link" href="https://github.com/bugkiwi/OtterVoice/releases" target="_blank" rel="noreferrer" data-i18n="installVersions">查看所有版本 →</a>
               </div>
             </div>
             <div class="quickstart">
