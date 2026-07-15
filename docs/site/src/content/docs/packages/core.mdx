@@ -21,6 +21,7 @@ description: VoiceSession、配置、事件、Mock 与状态机。
 | `interruptionDetection` | 助手播放时的更严 VAD（barge-in） |
 | `policy` | 自动听、允许打断、误打断恢复等 |
 | `audioLlmSystemPrompt` / `audioLlmMaxTokens` | Audio LLM 专用 |
+| `audioLlmStartTiming` | `after_audio` 并行降首响；默认 `after_asr_final` |
 
 完整字段见 [API 参考](/docs/reference/)。源码：[`types.ts`](https://github.com/bugkiwi/OtterVoice/blob/main/packages/core/src/types.ts)。
 

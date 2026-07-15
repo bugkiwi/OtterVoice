@@ -301,7 +301,7 @@ A runtime may retain a bounded barge-in pre-roll internally.
 
 ### ExpoAudioOutput
 
-Defined in: [runtime-react-native/src/audio-output.ts:120](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L120)
+Defined in: [runtime-react-native/src/audio-output.ts:122](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L122)
 
 Expo audio playback with an optional gapless PCM response queue. The latter
 lets React Native start speaking as soon as OpenRouter's first SSE audio
@@ -319,7 +319,7 @@ delta arrives instead of waiting for the complete WAV response.
 new ExpoAudioOutput(options): ExpoAudioOutput;
 ```
 
-Defined in: [runtime-react-native/src/audio-output.ts:131](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L131)
+Defined in: [runtime-react-native/src/audio-output.ts:133](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L133)
 
 ###### Parameters
 
@@ -335,7 +335,7 @@ Defined in: [runtime-react-native/src/audio-output.ts:131](https://github.com/bu
 
 | Property | Modifier | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-| <a id="startpcmstream"></a> `startPcmStream?` | `readonly` | (`options`) => `Promise`\<[`AudioOutputStream`](/docs/reference/api/ottervoice-core/#audiooutputstream)\> | Begin incremental raw-PCM playback for low-latency speech streaming. | [runtime-react-native/src/audio-output.ts:127](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L127) |
+| <a id="startpcmstream"></a> `startPcmStream?` | `readonly` | (`options`) => `Promise`\<[`AudioOutputStream`](/docs/reference/api/ottervoice-core/#audiooutputstream)\> | Begin incremental raw-PCM playback for low-latency speech streaming. | [runtime-react-native/src/audio-output.ts:129](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L129) |
 
 #### Methods
 
@@ -345,7 +345,7 @@ Defined in: [runtime-react-native/src/audio-output.ts:131](https://github.com/bu
 onEnd(cb): () => void;
 ```
 
-Defined in: [runtime-react-native/src/audio-output.ts:356](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L356)
+Defined in: [runtime-react-native/src/audio-output.ts:427](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L427)
 
 Subscribe to playback end (natural finish or stop).
 
@@ -371,7 +371,7 @@ Unsubscribe function.
 onError(cb): () => void;
 ```
 
-Defined in: [runtime-react-native/src/audio-output.ts:361](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L361)
+Defined in: [runtime-react-native/src/audio-output.ts:432](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L432)
 
 Subscribe to playback failures.
 
@@ -397,7 +397,7 @@ Unsubscribe function.
 onStart(cb): () => void;
 ```
 
-Defined in: [runtime-react-native/src/audio-output.ts:351](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L351)
+Defined in: [runtime-react-native/src/audio-output.ts:422](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L422)
 
 Subscribe to playback start.
 
@@ -423,7 +423,7 @@ Unsubscribe function.
 onVolume(cb): () => void;
 ```
 
-Defined in: [runtime-react-native/src/audio-output.ts:346](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L346)
+Defined in: [runtime-react-native/src/audio-output.ts:417](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L417)
 
 Subscribe to normalized RMS of the assistant audio currently being played
 (used as an acoustic echo reference for barge-in).
@@ -450,7 +450,7 @@ Unsubscribe function.
 pause(): Promise<void>;
 ```
 
-Defined in: [runtime-react-native/src/audio-output.ts:322](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L322)
+Defined in: [runtime-react-native/src/audio-output.ts:393](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L393)
 
 Pause playback without discarding the current utterance (optional).
 
@@ -468,7 +468,7 @@ Pause playback without discarding the current utterance (optional).
 play(input): Promise<void>;
 ```
 
-Defined in: [runtime-react-native/src/audio-output.ts:137](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L137)
+Defined in: [runtime-react-native/src/audio-output.ts:139](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L139)
 
 Play a complete encoded buffer or URL.
 
@@ -492,7 +492,7 @@ Play a complete encoded buffer or URL.
 resume(): Promise<void>;
 ```
 
-Defined in: [runtime-react-native/src/audio-output.ts:330](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L330)
+Defined in: [runtime-react-native/src/audio-output.ts:401](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L401)
 
 Resume after [AudioOutputAdapter.pause](/docs/reference/api/ottervoice-core/#pause-4).
 
@@ -510,7 +510,7 @@ Resume after [AudioOutputAdapter.pause](/docs/reference/api/ottervoice-core/#pau
 stop(): Promise<void>;
 ```
 
-Defined in: [runtime-react-native/src/audio-output.ts:311](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L311)
+Defined in: [runtime-react-native/src/audio-output.ts:382](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L382)
 
 Stop current playback and cancel any open PCM stream.
 
@@ -547,7 +547,7 @@ Wired by [createExpoRuntime](/docs/reference/api/ottervoice-runtime-react-native
 
 ### ExpoAudioOutputOptions
 
-Defined in: [runtime-react-native/src/audio-output.ts:69](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L69)
+Defined in: [runtime-react-native/src/audio-output.ts:71](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L71)
 
 Injected playback / file helpers for [ExpoAudioOutput](/docs/reference/api/ottervoice-runtime-react-native/#expoaudiooutput).
 Provide [ExpoAudioOutputOptions.createPcmPlaylist](/docs/reference/api/ottervoice-runtime-react-native/#createpcmplaylist) plus
@@ -559,17 +559,17 @@ Wired by [createExpoRuntime](/docs/reference/api/ottervoice-runtime-react-native
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="createpcmplaylist"></a> `createPcmPlaylist?` | () => \| [`ExpoPcmPlaylist`](/docs/reference/api/ottervoice-runtime-react-native/#expopcmplaylist) \| `Promise`\<[`ExpoPcmPlaylist`](/docs/reference/api/ottervoice-runtime-react-native/#expopcmplaylist)\> | Create an Expo `AudioPlaylist` configured for frequent status updates. | [runtime-react-native/src/audio-output.ts:75](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L75) |
-| <a id="createsound"></a> `createSound` | (`uri`) => `Promise`\<[`ExpoSound`](/docs/reference/api/ottervoice-runtime-react-native/#exposound)\> | Load a sound from a URI (wrap `createAudioPlayer`). | [runtime-react-native/src/audio-output.ts:71](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L71) |
-| <a id="deleteaudiofile"></a> `deleteAudioFile?` | (`uri`) => `void` \| `Promise`\<`void`\> | Best-effort cleanup for temporary response chunk files. | [runtime-react-native/src/audio-output.ts:79](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L79) |
-| <a id="writeaudiofile"></a> `writeAudioFile?` | (`buffer`, `mimeType`) => `Promise`\<`string`\> | Persist a complete audio buffer to a file URI. | [runtime-react-native/src/audio-output.ts:73](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L73) |
-| <a id="writepcmchunk"></a> `writePcmChunk?` | (`input`) => `Promise`\<`string`\> | Wrap and persist one PCM16 response chunk as a small WAV file. | [runtime-react-native/src/audio-output.ts:77](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L77) |
+| <a id="createpcmplaylist"></a> `createPcmPlaylist?` | () => \| [`ExpoPcmPlaylist`](/docs/reference/api/ottervoice-runtime-react-native/#expopcmplaylist) \| `Promise`\<[`ExpoPcmPlaylist`](/docs/reference/api/ottervoice-runtime-react-native/#expopcmplaylist)\> | Create an Expo `AudioPlaylist` configured for frequent status updates. | [runtime-react-native/src/audio-output.ts:77](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L77) |
+| <a id="createsound"></a> `createSound` | (`uri`) => `Promise`\<[`ExpoSound`](/docs/reference/api/ottervoice-runtime-react-native/#exposound)\> | Load a sound from a URI (wrap `createAudioPlayer`). | [runtime-react-native/src/audio-output.ts:73](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L73) |
+| <a id="deleteaudiofile"></a> `deleteAudioFile?` | (`uri`) => `void` \| `Promise`\<`void`\> | Best-effort cleanup for temporary response chunk files. | [runtime-react-native/src/audio-output.ts:81](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L81) |
+| <a id="writeaudiofile"></a> `writeAudioFile?` | (`buffer`, `mimeType`) => `Promise`\<`string`\> | Persist a complete audio buffer to a file URI. | [runtime-react-native/src/audio-output.ts:75](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L75) |
+| <a id="writepcmchunk"></a> `writePcmChunk?` | (`input`) => `Promise`\<`string`\> | Wrap and persist one PCM16 response chunk as a small WAV file. | [runtime-react-native/src/audio-output.ts:79](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L79) |
 
 ***
 
 ### ExpoPcmChunkFileInput
 
-Defined in: [runtime-react-native/src/audio-output.ts:55](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L55)
+Defined in: [runtime-react-native/src/audio-output.ts:57](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L57)
 
 One PCM16 fragment to persist as a WAV URI for playlist playback.
 
@@ -582,9 +582,9 @@ One PCM16 fragment to persist as a WAV URI for playlist playback.
 | Property | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
 | <a id="channels"></a> `channels` | `number` | Channel count of subsequent `write` payloads. | [`PcmAudioStreamOptions`](/docs/reference/api/ottervoice-core/#pcmaudiostreamoptions).[`channels`](/docs/reference/api/ottervoice-core/#channels-4) | core/dist/types.d.ts:678 |
-| <a id="data"></a> `data` | `ArrayBuffer` | Interleaved PCM16 bytes for this chunk. | - | [runtime-react-native/src/audio-output.ts:57](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L57) |
+| <a id="data"></a> `data` | `ArrayBuffer` | Interleaved PCM16 bytes for this chunk. | - | [runtime-react-native/src/audio-output.ts:59](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L59) |
 | <a id="encoding"></a> `encoding` | `"pcm_s16le"` | Always linear 16-bit PCM for incremental streams. | [`PcmAudioStreamOptions`](/docs/reference/api/ottervoice-core/#pcmaudiostreamoptions).[`encoding`](/docs/reference/api/ottervoice-core/#encoding-4) | core/dist/types.d.ts:674 |
-| <a id="index"></a> `index` | `number` | Monotonic chunk index used for temp filenames. | - | [runtime-react-native/src/audio-output.ts:59](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L59) |
+| <a id="index"></a> `index` | `number` | Monotonic chunk index used for temp filenames. | - | [runtime-react-native/src/audio-output.ts:61](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L61) |
 | <a id="samplerate"></a> `sampleRate` | `number` | Sample rate of subsequent `write` payloads in Hz. | [`PcmAudioStreamOptions`](/docs/reference/api/ottervoice-core/#pcmaudiostreamoptions).[`sampleRate`](/docs/reference/api/ottervoice-core/#samplerate-4) | core/dist/types.d.ts:676 |
 | <a id="volume"></a> `volume?` | `number` | Playback gain in `[0, 1]`. | [`PcmAudioStreamOptions`](/docs/reference/api/ottervoice-core/#pcmaudiostreamoptions).[`volume`](/docs/reference/api/ottervoice-core/#volume-1) | core/dist/types.d.ts:680 |
 
@@ -659,7 +659,7 @@ Sample format requested when creating [ExpoPcmInputStream](/docs/reference/api/o
 
 ### ExpoPcmPlaylist
 
-Defined in: [runtime-react-native/src/audio-output.ts:44](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L44)
+Defined in: [runtime-react-native/src/audio-output.ts:46](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L46)
 
 Gapless Expo AudioPlaylist surface used for incremental PCM playback.
 
@@ -671,7 +671,7 @@ Gapless Expo AudioPlaylist surface used for incremental PCM playback.
 add(uri): void;
 ```
 
-Defined in: [runtime-react-native/src/audio-output.ts:45](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L45)
+Defined in: [runtime-react-native/src/audio-output.ts:47](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L47)
 
 ###### Parameters
 
@@ -689,7 +689,7 @@ Defined in: [runtime-react-native/src/audio-output.ts:45](https://github.com/bug
 clear(): void;
 ```
 
-Defined in: [runtime-react-native/src/audio-output.ts:49](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L49)
+Defined in: [runtime-react-native/src/audio-output.ts:51](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L51)
 
 ###### Returns
 
@@ -701,7 +701,7 @@ Defined in: [runtime-react-native/src/audio-output.ts:49](https://github.com/bug
 destroy(): void;
 ```
 
-Defined in: [runtime-react-native/src/audio-output.ts:50](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L50)
+Defined in: [runtime-react-native/src/audio-output.ts:52](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L52)
 
 ###### Returns
 
@@ -713,7 +713,7 @@ Defined in: [runtime-react-native/src/audio-output.ts:50](https://github.com/bug
 next(): void;
 ```
 
-Defined in: [runtime-react-native/src/audio-output.ts:46](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L46)
+Defined in: [runtime-react-native/src/audio-output.ts:48](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L48)
 
 ###### Returns
 
@@ -725,7 +725,7 @@ Defined in: [runtime-react-native/src/audio-output.ts:46](https://github.com/bug
 pause(): void | Promise<void>;
 ```
 
-Defined in: [runtime-react-native/src/audio-output.ts:48](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L48)
+Defined in: [runtime-react-native/src/audio-output.ts:50](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L50)
 
 ###### Returns
 
@@ -737,7 +737,7 @@ Defined in: [runtime-react-native/src/audio-output.ts:48](https://github.com/bug
 play(): void | Promise<void>;
 ```
 
-Defined in: [runtime-react-native/src/audio-output.ts:47](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L47)
+Defined in: [runtime-react-native/src/audio-output.ts:49](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L49)
 
 ###### Returns
 
@@ -749,7 +749,7 @@ Defined in: [runtime-react-native/src/audio-output.ts:47](https://github.com/bug
 setOnPlaybackStatusUpdate(cb): () => void;
 ```
 
-Defined in: [runtime-react-native/src/audio-output.ts:51](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L51)
+Defined in: [runtime-react-native/src/audio-output.ts:53](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L53)
 
 ###### Parameters
 
@@ -776,9 +776,10 @@ Status callback payload from an [ExpoPcmPlaylist](/docs/reference/api/ottervoice
 | <a id="currentindex"></a> `currentIndex` | `number` | Index of the track currently playing or last finished. | [runtime-react-native/src/audio-output.ts:30](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L30) |
 | <a id="currenttime"></a> `currentTime` | `number` | Playback position of the current track, in seconds. | [runtime-react-native/src/audio-output.ts:32](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L32) |
 | <a id="didjustfinish"></a> `didJustFinish` | `boolean` | `true` when the playlist reached its end. | [runtime-react-native/src/audio-output.ts:34](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L34) |
-| <a id="error"></a> `error?` | `string` \| `null` | Native error string when playback failed. | [runtime-react-native/src/audio-output.ts:40](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L40) |
+| <a id="error"></a> `error?` | `string` \| `null` | Native error string when playback failed. | [runtime-react-native/src/audio-output.ts:42](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L42) |
+| <a id="isbuffering"></a> `isBuffering?` | `boolean` | Whether playback is waiting for the current local track to become ready. | [runtime-react-native/src/audio-output.ts:38](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L38) |
 | <a id="playing"></a> `playing` | `boolean` | Whether audio is currently audible. | [runtime-react-native/src/audio-output.ts:36](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L36) |
-| <a id="trackcount"></a> `trackCount` | `number` | Number of URIs queued in the playlist. | [runtime-react-native/src/audio-output.ts:38](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L38) |
+| <a id="trackcount"></a> `trackCount` | `number` | Number of URIs queued in the playlist. | [runtime-react-native/src/audio-output.ts:40](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/runtime-react-native/src/audio-output.ts#L40) |
 
 ***
 

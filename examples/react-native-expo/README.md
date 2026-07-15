@@ -12,9 +12,13 @@
 
 ```text
 原生 PCM 麦克风
-  └─→ 流式 / 滚动 ASR → asr_partial（仅字幕）→ asr_final
-                                                └─→ Audio LLM → assistant_text_delta + PCM 分片播放
+  ├─→ 流式 / 滚动 ASR → asr_partial（仅字幕）→ asr_final
+  └─→ VAD 完成整轮 WAV → Audio LLM → assistant_text_delta + PCM 分片播放
 ```
+
+Audio LLM 与终句 ASR 并行请求，降低停顿到首个音频分片的延迟；`asr_final`
+仍负责修正屏幕上的最终用户字幕。
+示例不设置 `audioLlmMaxTokens`：音频与字幕共享输出 token 预算，较小上限会直接截断语音。
 
 Demo 当前在服务端选择 OpenRouter 适配器，但 UI、`VoiceSession` 和 Runtime 不依赖它。可以替换 ASR、LLM、TTS 或 Audio LLM Provider，而无需修改会话交互代码。客户端只看到通用 `/api/voice` 网关，不包含 Provider 长期密钥或具体上游地址。
 
@@ -32,7 +36,7 @@ bun run start
 bunx expo start --go --lan
 ```
 
-点击“开始语音对话”后会请求麦克风权限。输入字幕在识别到 partial 后原位更新；助手字幕和 PCM 音频在模型返回分片时立即更新。当前移动端 VAD 在约 450 ms 静音后提交轮次，实际产品应针对目标设备与噪声环境调参。
+点击“开始语音对话”后会请求麦克风权限。输入字幕在识别到 partial 后原位更新；助手字幕和 PCM 音频在模型返回分片时立即更新。示例使用 hybrid 轮次检测：本地 RMS 负责快速触发，滚动 ASR 可以确认未越过固定阈值的轻声输入，随后约 450 ms 本地静音提交轮次。
 
 ### 网关配置
 
@@ -95,9 +99,9 @@ Web 展示页的二维码只编码专用的 `rn-latest` 地址，因此无需随
 
 ## English
 
-This Expo SDK 57 example demonstrates full-duplex Audio LLM sessions with continuous 16 kHz mono PCM capture. Input captions update on `asr_partial`, but generation starts only after `asr_final` confirms the turn. Assistant captions update on `assistant_text_delta`; PCM playback starts as chunks arrive.
+This Expo SDK 57 example demonstrates full-duplex Audio LLM sessions with continuous 16 kHz mono PCM capture. Once VAD finalizes the user audio, the Audio LLM request starts in parallel with authoritative caption ASR. Input captions update on `asr_partial` and are corrected by `asr_final`; assistant captions update on `assistant_text_delta`, and PCM playback starts as chunks arrive. The example leaves `audioLlmMaxTokens` unset because audio and transcript share the output-token budget, so a small cap truncates speech.
 
-The demo currently selects an OpenRouter adapter on the server, but its UI, `VoiceSession`, and runtime are provider-independent. Replace the ASR, LLM, TTS, or Audio LLM adapters in [`src/providers.ts`](src/providers.ts) without changing session interaction code. The client sees only a generic `/api/voice` gateway and contains no long-lived provider key or upstream URL.
+The demo uses hybrid turn detection: local RMS provides the fast path, rolling ASR can confirm quiet speech that stays below the fixed threshold, and about 450 ms of local silence then submits the turn. It currently selects an OpenRouter adapter on the server, but its UI, `VoiceSession`, and runtime are provider-independent. Replace the ASR, LLM, TTS, or Audio LLM adapters in [`src/providers.ts`](src/providers.ts) without changing session interaction code. The client sees only a generic `/api/voice` gateway and contains no long-lived provider key or upstream URL.
 
 Run it with `bun run start`, scan the Expo Go QR code, or press `i` / `a`. Configure `EXPO_PUBLIC_OTTERVOICE_API_URL` only with a gateway you control. The value is public by design; never place provider credentials in an `EXPO_PUBLIC_*` variable.
 

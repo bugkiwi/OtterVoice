@@ -45,6 +45,7 @@ interface TurnCapture {
   interruptionVoicedFrames: number;
   generation?: number;
   replyAbort?: AbortController;
+  audioReply?: Promise<AudioLLMGenerateOutput>;
   streamingPlayback?: StreamingAssistantPlayback;
   streamingPlaybackDisabled: boolean;
   streamingTranscript: string;
@@ -297,7 +298,7 @@ export class VoiceSession {
       interruptedAssistant: false,
       interimResultsGated:
         this.config.asrPartial !== false &&
-        this.detector.options.strategy !== 'manual' &&
+        this.detector.options.strategy === 'volume' &&
         this.config.mode !== 'push_to_talk' &&
         this.config.runtime.audioInput.onVolume !== undefined,
       verifiedSpeechText: false,
@@ -310,6 +311,7 @@ export class VoiceSession {
         if (capture.cancelled) return;
         capture.cancelled = true;
         capture.replyAbort?.abort();
+        void Promise.resolve(capture.asrSession.close()).catch(() => {});
         resolveCancel();
       },
     };
@@ -557,6 +559,16 @@ export class VoiceSession {
       this.confirmInterruption(this.now());
     }
     capture.verifiedSpeechText = true;
+    if (
+      this.detector.options.strategy === 'hybrid' &&
+      !capture.interruptedAssistant &&
+      !this.detector.isSpeaking
+    ) {
+      // Hybrid detection lets ASR rescue quiet speech that never crosses the
+      // local RMS threshold. Once text confirms speech, local silence still
+      // closes the turn without waiting for provider endpointing.
+      this.detector.forceSpeechStart(this.now());
+    }
     this.beginUserSpeech();
     this.emit('asr_partial', {
       text: result.text,
@@ -668,7 +680,7 @@ export class VoiceSession {
     try {
       // Finalize the current WebM before handing its bytes to either model.
       // The next recorder opens immediately while caption ASR confirms the
-      // turn. A reply request is intentionally deferred until that final.
+      // turn. Low-latency audio-LLM sessions may start their reply in parallel.
       await this.config.runtime.audioInput.stop();
     } catch (err) {
       this.fail(err);
@@ -695,6 +707,20 @@ export class VoiceSession {
       ? this.startListeningInternal(true)
       : Promise.resolve();
     capture.nextCaptureReady = nextCaptureReady;
+    if (
+      this.config.pipeline === 'audio_llm' &&
+      this.config.audioLlmStartTiming === 'after_audio' &&
+      capture.audioChunks.length > 0 &&
+      this.hasReliableInterruptedSpeech(capture)
+    ) {
+      capture.replyAbort = new AbortController();
+      capture.audioReply = this.generateAudioReply(
+        capture.audioChunks,
+        capture,
+        capture.replyAbort.signal,
+      );
+      void capture.audioReply.catch(() => {});
+    }
     const stopPromise = Promise.resolve(capture.asrSession.stop());
     capture.stopPromise = stopPromise;
     this.scheduleCaptureProcessing(capture);
@@ -1135,17 +1161,18 @@ export class VoiceSession {
     }
 
     if (this.config.pipeline === 'audio_llm') {
-      // Partial captions are presentation-only. Start the paid Audio LLM
-      // request only after caption ASR has finalized this still-current turn.
-      // If the user resumes during a natural pause, beginUserSpeech cancels
-      // this capture before execution reaches this point, preventing a stale
-      // answer request rather than merely suppressing its playback.
-      capture.replyAbort = new AbortController();
-      const replyPromise = this.generateAudioReply(
-        capture.audioChunks,
-        capture,
-        capture.replyAbort.signal,
-      );
+      // The compatible default starts here, after authoritative caption ASR.
+      // Low-latency sessions may already have a request running from
+      // finalizeCapture; both paths share the same cancellation signal.
+      if (!capture.audioReply) {
+        capture.replyAbort = new AbortController();
+        capture.audioReply = this.generateAudioReply(
+          capture.audioChunks,
+          capture,
+          capture.replyAbort.signal,
+        );
+      }
+      const replyPromise = capture.audioReply;
       const outcome = await this.waitForCaptureReply(capture, replyPromise);
       if (outcome.kind === 'cancelled') return;
       if (outcome.kind === 'error') {

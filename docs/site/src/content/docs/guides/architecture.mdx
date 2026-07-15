@@ -25,6 +25,6 @@ runtime-web | rn | node      ASR · LLM · TTS · Audio LLM
 ## 两条流水线
 
 - **`asr_llm_tts`（默认）**：ASR 出文本 → LLM 流式文本 → TTS 播放。
-- **`audio_llm`**：ASR partial 更新字幕；`asr_final` 确认后，整轮音频进 Audio LLM，文本与 PCM 流式返回。
+- **`audio_llm`**：ASR 负责字幕，整轮音频进入 Audio LLM；通过 `audioLlmStartTiming` 选择两者并行或等待 `asr_final`，文本与 PCM 流式返回。
 
 组合根创建 Session 一次，UI 只订阅事件。换 Runtime / Provider 不必改 UI。

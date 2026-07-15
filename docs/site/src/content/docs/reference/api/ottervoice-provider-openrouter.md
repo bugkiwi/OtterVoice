@@ -393,7 +393,7 @@ come from a static `apiKey` (server) or a `tokenBrokerUrl` (client-safe).
 function createOpenRouterTTS(options): TTSProvider;
 ```
 
-Defined in: [provider-openrouter/src/audio.ts:404](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-openrouter/src/audio.ts#L404)
+Defined in: [provider-openrouter/src/audio.ts:424](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/provider-openrouter/src/audio.ts#L424)
 
 OpenRouter TTS through the OpenAI-compatible `/audio/speech` endpoint.
 

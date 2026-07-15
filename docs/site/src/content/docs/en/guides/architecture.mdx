@@ -25,6 +25,6 @@ runtime-web | rn | node      ASR · LLM · TTS · Audio LLM
 ## Pipelines
 
 - **`asr_llm_tts` (default)**: ASR text → streaming LLM → TTS.
-- **`audio_llm`**: ASR partials for captions; after `asr_final`, turn audio enters an Audio LLM; text and PCM stream back.
+- **`audio_llm`**: ASR supplies captions while turn audio enters an Audio LLM; use `audioLlmStartTiming` to run both in parallel or wait for `asr_final`. Text and PCM stream back.
 
 Create the session once at the composition root. Swap runtime or providers without rewriting UI.

@@ -86,6 +86,7 @@ function pcmPlaylist() {
         currentTime: 0,
         didJustFinish: false,
         playing: true,
+        isBuffering: false,
         trackCount: this.sources.length,
         ...status,
       });
@@ -227,6 +228,107 @@ describe('ExpoAudioOutput.startPcmStream', () => {
     expect(events).toEqual(['start', 'end']);
     expect(playlist.destroyed).toBe(true);
     expect(deleted).toEqual(['file://chunk-0.wav', 'file://chunk-1.wav']);
+  });
+
+  it('rebuilds an exhausted native queue when a later SSE chunk arrives', async () => {
+    const playlist = pcmPlaylist();
+    const output = new ExpoAudioOutput({
+      createSound: async () => sound(),
+      createPcmPlaylist: () => playlist,
+      writePcmChunk: async ({ index }) => `file://chunk-${index}.wav`,
+    });
+    const levels: number[] = [];
+    output.onVolume((level) => levels.push(level));
+    const stream = await output.startPcmStream?.({
+      encoding: 'pcm_s16le',
+      sampleRate: 24_000,
+      channels: 1,
+    });
+
+    await stream!.write(new Int16Array([16_384, -16_384]).buffer);
+    playlist.update({ didJustFinish: true, playing: false, trackCount: 1 });
+    await stream!.write(new Int16Array([8_192, -8_192]).buffer);
+
+    expect(playlist.sources).toEqual(['file://chunk-1.wav']);
+    playlist.update({ currentTime: 0, trackCount: 1 });
+    expect(levels.at(-1)).toBeCloseTo(0.25, 3);
+
+    playlist.update({ didJustFinish: true, playing: false, trackCount: 1 });
+    // Expo emits didJustFinish only once, then periodic callbacks reset it.
+    playlist.update({ didJustFinish: false, playing: false, trackCount: 1 });
+    await stream!.close();
+    expect(playlist.destroyed).toBe(true);
+  });
+
+  it('closes after iOS replaces a missed finish event with an exhausted status', async () => {
+    const playlist = pcmPlaylist();
+    const output = new ExpoAudioOutput({
+      createSound: async () => sound(),
+      createPcmPlaylist: () => playlist,
+      writePcmChunk: async ({ index }) => `file://chunk-${index}.wav`,
+    });
+    const stream = await output.startPcmStream?.({
+      encoding: 'pcm_s16le',
+      sampleRate: 24_000,
+      channels: 1,
+    });
+
+    await stream!.write(new Int16Array([1, 2]).buffer);
+    playlist.update({ currentTime: 0.005, playing: true, trackCount: 1 });
+    // AVQueuePlayer has no current item after the last track, so Expo's next
+    // periodic status is stopped even if didJustFinish was missed.
+    playlist.update({ currentTime: 0.01, playing: false, trackCount: 1 });
+    await stream!.close();
+
+    expect(playlist.destroyed).toBe(true);
+  });
+
+  it('uses PCM duration as a final close fallback when iOS emits no terminal status', async () => {
+    const playlist = pcmPlaylist();
+    const output = new ExpoAudioOutput({
+      createSound: async () => sound(),
+      createPcmPlaylist: () => playlist,
+      writePcmChunk: async ({ index }) => `file://chunk-${index}.wav`,
+    });
+    const stream = await output.startPcmStream?.({
+      encoding: 'pcm_s16le',
+      sampleRate: 24_000,
+      channels: 1,
+    });
+
+    await stream!.write(new Int16Array([1, 2]).buffer);
+    const startedAt = Date.now();
+    await stream!.close();
+
+    expect(Date.now() - startedAt).toBeLessThan(1_200);
+    expect(playlist.destroyed).toBe(true);
+  });
+
+  it('does not treat a deliberately paused final track as exhausted', async () => {
+    const playlist = pcmPlaylist();
+    const output = new ExpoAudioOutput({
+      createSound: async () => sound(),
+      createPcmPlaylist: () => playlist,
+      writePcmChunk: async ({ index }) => `file://chunk-${index}.wav`,
+    });
+    const stream = await output.startPcmStream?.({
+      encoding: 'pcm_s16le',
+      sampleRate: 24_000,
+      channels: 1,
+    });
+
+    await stream!.write(new Int16Array([1, 2]).buffer);
+    playlist.update({ currentTime: 0.005, playing: true, trackCount: 1 });
+    await output.pause();
+    const closing = stream!.close();
+    playlist.update({ currentTime: 0.005, playing: false, trackCount: 1 });
+    await tick();
+    expect(playlist.destroyed).toBe(false);
+
+    await output.resume();
+    playlist.update({ currentTime: 0.01, playing: false, trackCount: 1 });
+    await closing;
+    expect(playlist.destroyed).toBe(true);
   });
 
   it('pauses, resumes, and cancels an active PCM queue', async () => {

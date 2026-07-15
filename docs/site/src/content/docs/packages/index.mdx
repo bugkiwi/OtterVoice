@@ -32,6 +32,6 @@ provider-deepgram | elevenlabs | openrouter | azure-speech | 自研
 | `pipeline` | 路径 | 适用 |
 | --- | --- | --- |
 | `asr_llm_tts`（默认） | ASR 文本 → LLM 流式文本 → TTS | 经典级联，易换件 |
-| `audio_llm` | ASR 字幕 + final 确认 → Audio LLM 出文本/PCM | 低延迟一体模型 |
+| `audio_llm` | ASR 字幕 ∥ Audio LLM 文本/PCM（时机可配置） | 低延迟一体模型 |
 
 OpenRouter 等只是仓库附带适配器，不是固定线上通路。

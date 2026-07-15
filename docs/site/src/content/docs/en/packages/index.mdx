@@ -32,6 +32,6 @@ provider-deepgram | elevenlabs | openrouter | azure-speech | custom
 | `pipeline` | Path | Fit |
 | --- | --- | --- |
 | `asr_llm_tts` (default) | ASR text → streaming LLM → TTS | Classic cascade |
-| `audio_llm` | ASR captions + final → Audio LLM text/PCM | Lower-latency native audio models |
+| `audio_llm` | ASR captions ∥ Audio LLM text/PCM (timing configurable) | Lower-latency native audio models |
 
 Bundled OpenRouter adapters are optional demos, not a fixed production route.

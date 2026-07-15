@@ -203,6 +203,8 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
       let stopped = false;
       let generation = 0;
       let partialInFlight = false;
+      let partialAbort: AbortController | undefined;
+      let finalAbort: AbortController | undefined;
       let interimResultsEnabled = sessionOptions.interimResults !== false;
       let nextPartialAt = now() + partialDelayMs;
 
@@ -229,7 +231,10 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
         return { bytes: joined, uploadFormat: format };
       };
 
-      const transcribe = async (source: readonly ArrayBuffer[]): Promise<ASRResult> => {
+      const transcribe = async (
+        source: readonly ArrayBuffer[],
+        signal?: AbortSignal,
+      ): Promise<ASRResult> => {
         const { bytes, uploadFormat } = toUpload(source);
         const { token } = await resolveCredential();
         const res = await fetchImpl(`${baseUrl}/audio/transcriptions`, {
@@ -244,6 +249,7 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
             language: sessionOptions.language ?? options.language,
             temperature: 0,
           }),
+          signal,
         });
         if (!res.ok) {
           throw new VoiceError(
@@ -268,11 +274,13 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
           return;
         }
         partialInFlight = true;
+        const controller = new AbortController();
+        partialAbort = controller;
         nextPartialAt = now() + partialDelayMs;
         const requestGeneration = generation;
         const snapshot = chunks.map((chunk) => chunk.slice(0));
         try {
-          const result = await transcribe(snapshot);
+          const result = await transcribe(snapshot, controller.signal);
           if (requestGeneration !== generation || closed || stopped) {
             return;
           }
@@ -288,6 +296,7 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
           // A short rolling snapshot may be rejected by a batch ASR model.
           // The complete final request remains authoritative and reports errors.
         } finally {
+          if (partialAbort === controller) partialAbort = undefined;
           partialInFlight = false;
         }
       };
@@ -348,14 +357,19 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
           if (closed || stopped) return;
           stopped = true;
           generation += 1;
+          partialAbort?.abort();
+          partialAbort = undefined;
           if (chunks.length === 0) {
             for (const cb of [...finalCbs]) cb({ text: '' });
             return;
           }
+          const controller = new AbortController();
+          finalAbort = controller;
           try {
-            const result = await transcribe(chunks);
+            const result = await transcribe(chunks, controller.signal);
             for (const cb of [...finalCbs]) cb(result);
           } catch (error) {
+            if (closed && controller.signal.aborted) throw error;
             const normalized =
               error instanceof VoiceError
                 ? error.toNormalized()
@@ -367,11 +381,17 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
                   };
             for (const cb of [...errorCbs]) cb(normalized);
             throw error;
+          } finally {
+            if (finalAbort === controller) finalAbort = undefined;
           }
         },
         async close() {
           closed = true;
           generation += 1;
+          partialAbort?.abort();
+          finalAbort?.abort();
+          partialAbort = undefined;
+          finalAbort = undefined;
           chunks.length = 0;
         },
         onPartial(cb) {

@@ -34,6 +34,8 @@ export interface ExpoPcmPlaylistStatus {
   didJustFinish: boolean;
   /** Whether audio is currently audible. */
   playing: boolean;
+  /** Whether playback is waiting for the current local track to become ready. */
+  isBuffering?: boolean;
   /** Number of URIs queued in the playlist. */
   trackCount: number;
   /** Native error string when playback failed. */
@@ -200,11 +202,18 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
     const playlist = await createPlaylist();
     const files: string[] = [];
     const envelopes: number[][] = [];
+    const durationStartsMs: number[] = [];
     let started = false;
     let closing = false;
     let finished = false;
     let waitingAtEnd = false;
+    let paused = false;
+    let lastObservedFileIndex = -1;
+    let playlistFileOffset = 0;
+    let queuedDurationMs = 0;
+    let playedThroughMs = 0;
     let lastStatus: ExpoPcmPlaylistStatus | undefined;
+    let closeTimer: ReturnType<typeof setTimeout> | undefined;
     let resolveDone!: () => void;
     let rejectDone!: (error: unknown) => void;
     const done = new Promise<void>((resolve, reject) => {
@@ -223,6 +232,7 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
     const finish = async (natural: boolean, error?: unknown) => {
       if (finished) return;
       finished = true;
+      if (closeTimer !== undefined) clearTimeout(closeTimer);
       offStatus();
       playlist.clear();
       playlist.destroy();
@@ -232,15 +242,36 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
       if (error) rejectDone(error);
       else resolveDone();
     };
+    const scheduleCloseFallback = () => {
+      if (finished || !closing || paused || closeTimer !== undefined) return;
+      const remainingMs = Math.max(0, queuedDurationMs - playedThroughMs);
+      closeTimer = setTimeout(() => {
+        void finish(true);
+      }, Math.ceil(remainingMs + 750));
+    };
     offStatus = playlist.setOnPlaybackStatusUpdate((status) => {
       lastStatus = status;
+      const globalFileIndex = playlistFileOffset + status.currentIndex;
+      if (status.playing || status.currentTime > 0) {
+        lastObservedFileIndex = Math.max(
+          lastObservedFileIndex,
+          globalFileIndex,
+        );
+        const durationStartMs = durationStartsMs[globalFileIndex];
+        if (durationStartMs !== undefined) {
+          playedThroughMs = Math.max(
+            playedThroughMs,
+            durationStartMs + status.currentTime * 1_000,
+          );
+        }
+      }
       if (status.error) {
         const error = createVoiceError('audio_playback_failed', status.error);
         this.emitError(error);
         void finish(false, error);
         return;
       }
-      const envelope = envelopes[status.currentIndex];
+      const envelope = envelopes[playlistFileOffset + status.currentIndex];
       if (envelope) {
         const frame = Math.min(
           envelope.length - 1,
@@ -248,6 +279,21 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
         );
         const level = envelope[frame] ?? 0;
         for (const cb of [...this.volumeCbs]) cb(level, Date.now());
+      }
+      // Expo's iOS AudioPlaylist can publish the one-shot didJustFinish event
+      // before JavaScript starts closing the stream. A later periodic update
+      // then reports the exhausted AVQueuePlayer as stopped at time zero. Keep
+      // that terminal state observable so close() cannot wait forever.
+      if (
+        closing &&
+        lastObservedFileIndex >= files.length - 1 &&
+        !status.playing &&
+        !status.isBuffering &&
+        !paused &&
+        status.trackCount > 0
+      ) {
+        void finish(true);
+        return;
       }
       if (!status.didJustFinish) return;
       const atQueueEnd = status.currentIndex >= status.trackCount - 1;
@@ -260,10 +306,13 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
         await finish(false);
       },
       pause: async () => {
+        paused = true;
         await playlist.pause();
       },
       resume: async () => {
+        paused = false;
         await playlist.play();
+        scheduleCloseFallback();
       },
     };
     this.activePcm = control;
@@ -278,14 +327,22 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
           return;
         }
         files.push(uri);
+        durationStartsMs.push(queuedDurationMs);
+        queuedDurationMs +=
+          (data.byteLength * 1_000) /
+          (2 * streamOptions.sampleRate * streamOptions.channels);
         envelopes.push(
           pcm16Envelope(data, streamOptions.sampleRate, streamOptions.channels),
         );
-        playlist.add(uri);
         if (waitingAtEnd) {
+          // AVQueuePlayer has already removed its final item. Appending and
+          // calling next() would discard the newly inserted item on iOS, so
+          // rebuild the exhausted native queue around the new chunk instead.
           waitingAtEnd = false;
-          playlist.next();
+          playlist.clear();
+          playlistFileOffset = index;
         }
+        playlist.add(uri);
         if (!started) {
           started = true;
           this.fire(this.startCbs);
@@ -298,10 +355,24 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
         if (!started) {
           await finish(false);
         } else if (
-          lastStatus?.didJustFinish &&
-          lastStatus.currentIndex >= lastStatus.trackCount - 1
+          waitingAtEnd ||
+          (lastStatus?.didJustFinish &&
+            lastStatus.currentIndex >= lastStatus.trackCount - 1) ||
+          (lastObservedFileIndex >= files.length - 1 &&
+            lastStatus !== undefined &&
+            !lastStatus.playing &&
+            !lastStatus.isBuffering &&
+            !paused &&
+            lastStatus.trackCount > 0)
         ) {
           await finish(true);
+        } else {
+          // AudioPlaylist's terminal callback is not reliable on iOS when a
+          // rapidly changing AVQueuePlayer reaches its last short PCM file.
+          // The PCM byte count gives us a conservative upper bound for the
+          // remaining local playback, so never leave the session waiting on a
+          // native event forever.
+          scheduleCloseFallback();
         }
         await done;
       },

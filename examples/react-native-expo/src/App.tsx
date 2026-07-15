@@ -22,6 +22,8 @@ import { createMobileProviders } from './providers';
 
 type TurnRow = { id: string; role: 'user' | 'assistant'; text: string };
 
+const TURN_VOLUME_THRESHOLD = 0.035;
+
 function upsertTurn(current: TurnRow[], next: TurnRow): TurnRow[] {
   const index = current.findIndex((turn) => turn.id === next.id);
   if (index === -1) return [...current, next];
@@ -77,12 +79,21 @@ function DemoScreen() {
   const [partial, setPartial] = useState('');
   const [liveTurnId, setLiveTurnId] = useState<string | undefined>(undefined);
   const [level, setLevel] = useState(0);
+  const [rawLevel, setRawLevel] = useState(0);
+  const [peakLevel, setPeakLevel] = useState(0);
   const [latencyMs, setLatencyMs] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
   const t = copy[language];
   const active = !['idle', 'finished', 'error'].includes(state);
 
-  useEffect(() => runtime.audioInput.onVolume((value) => setLevel(Math.min(1, value / 0.1))), [runtime]);
+  useEffect(
+    () => runtime.audioInput.onVolume((value) => {
+      setRawLevel(value);
+      setPeakLevel((current) => Math.max(current, value));
+      setLevel(Math.min(1, value / 0.1));
+    }),
+    [runtime],
+  );
 
   const releaseSession = useCallback(async () => {
     for (const off of cleanupsRef.current) off();
@@ -106,6 +117,8 @@ function DemoScreen() {
     setLiveTurnId(undefined);
     liveAssistantTurnIdRef.current = undefined;
     setLatencyMs(undefined);
+    setRawLevel(0);
+    setPeakLevel(0);
     await releaseSession();
     const granted = await runtime.audioInput.requestPermission();
     if (!granted) {
@@ -126,12 +139,12 @@ function DemoScreen() {
       audioLlmSystemPrompt:
         '你是一个反应快、语气自然的语音对话助手。默认用中文回复；如果用户明显使用其他语言，则跟随用户。' +
         '每次只回复 1–2 个简短句子，不使用 Markdown，不列表，适合直接语音播放。',
-      audioLlmMaxTokens: 80,
+      audioLlmStartTiming: 'after_audio',
       turnDetection: {
-        strategy: 'volume',
+        strategy: 'hybrid',
         minSpeechMs: 180,
         silenceTimeoutMs: 450,
-        volumeThreshold: 0.025,
+        volumeThreshold: TURN_VOLUME_THRESHOLD,
       },
       interruptionDetection: {
         minSpeechMs: 160,
@@ -356,6 +369,11 @@ function DemoScreen() {
         <View style={{ height: 28, flexDirection: 'row', alignItems: 'flex-end', gap: 6 }}>
           {meterBars}
         </View>
+        {__DEV__ ? (
+          <Text selectable style={{ color: colors.muted, fontSize: 11, fontVariant: ['tabular-nums'] }}>
+            {`RMS ${rawLevel.toFixed(4)} · PEAK ${peakLevel.toFixed(4)} · VAD ${TURN_VOLUME_THRESHOLD.toFixed(4)}`}
+          </Text>
+        ) : null}
 
         {partial ? (
           <View style={{ gap: 4 }}>

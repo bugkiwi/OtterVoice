@@ -21,6 +21,7 @@ Entry point: `createVoiceSession(config)`.
 | `interruptionDetection` | Stricter VAD during playback |
 | `policy` | Auto-listen, barge-in, false-interrupt recovery |
 | `audioLlmSystemPrompt` / `audioLlmMaxTokens` | Audio LLM only |
+| `audioLlmStartTiming` | `after_audio` for parallel low latency; default `after_asr_final` |
 
 Full fields: [API reference](/docs/en/reference/). Source: [`types.ts`](https://github.com/bugkiwi/OtterVoice/blob/main/packages/core/src/types.ts).
 

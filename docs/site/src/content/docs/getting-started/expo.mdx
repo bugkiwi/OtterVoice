@@ -29,6 +29,7 @@ const runtime = createExpoRuntime({
 const session = createVoiceSession({
   mode: 'full_duplex',
   pipeline: 'audio_llm', // 示例默认走 Audio LLM
+  audioLlmStartTiming: 'after_audio', // 终句字幕 ASR 与回复并行。
   runtime,
   providers: { asr, llm, audioLlm },
 });
@@ -38,5 +39,9 @@ const session = createVoiceSession({
 
 - `delivery: 'stream'` — 小 PCM 缓冲 → 流式 ASR
 - `delivery: 'turn'` — 完整 WAV → batch ASR / Audio LLM
+
+追求最低语音首响时使用 `audioLlmStartTiming: 'after_audio'`。兼容默认值
+`after_asr_final` 会先等待权威终句字幕，以免自然停顿被后续语音覆盖时仍产生
+一次付费回复请求。
 
 助手播放期间可暂停编码采集，但保留音量回调以继续 barge-in。细节见 [runtime-react-native](/docs/packages/runtime-react-native/)。

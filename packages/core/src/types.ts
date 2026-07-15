@@ -1011,7 +1011,7 @@ export interface VoiceAgentPlugin {
  * - `volume` — local RMS VAD ({@link TurnDetectionConfig.volumeThreshold})
  * - `asr_endpointing` — trust provider utterance-end signals
  * - `manual` — caller drives {@link VoiceSession.endUserTurn}
- * - `hybrid` — combine volume silence with ASR endpointing when available
+ * - `hybrid` — combine ASR speech confirmation / endpointing with local silence
  */
 export type TurnDetectionStrategy =
   | 'volume'
@@ -1101,6 +1101,14 @@ export interface VoiceSessionConfig {
    * Omit to use the model's default maximum — required for long-form speech.
    */
   audioLlmMaxTokens?: number;
+  /**
+   * Choose when an Audio LLM request begins. `after_audio` starts as soon as
+   * VAD finalizes the user audio and runs caption ASR in parallel for the
+   * lowest response latency. `after_asr_final` waits for the authoritative
+   * caption first, avoiding provider spend when a natural pause is superseded.
+   * Defaults to `after_asr_final`.
+   */
+  audioLlmStartTiming?: 'after_audio' | 'after_asr_final';
   /** Preferred ASR language; omit to let compatible providers auto-detect. */
   language?: string;
   /** Platform audio (and optional network/storage/logger) adapter. */
@@ -1112,7 +1120,7 @@ export interface VoiceSessionConfig {
     llm: LLMProvider;
     /** Text-to-speech; required when `pipeline` is `asr_llm_tts`. */
     tts?: TTSProvider;
-    /** Required when `pipeline` is `audio_llm`; ASR partials provide captions and final confirms the turn before generation. */
+    /** Required when `pipeline` is `audio_llm`; ASR supplies captions while request timing follows {@link VoiceSessionConfig.audioLlmStartTiming}. */
     audioLlm?: AudioLLMProvider;
     /** Optional pronunciation scoring after a user turn. */
     pronunciation?: PronunciationProvider;

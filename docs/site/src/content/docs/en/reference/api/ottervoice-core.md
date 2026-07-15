@@ -1880,7 +1880,7 @@ Error.prepareStackTrace
 
 ### VoiceSession
 
-Defined in: [packages/core/src/session.ts:68](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L68)
+Defined in: [packages/core/src/session.ts:69](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L69)
 
 Voice conversation session with automatic turn-taking and optional
 full-duplex barge-in.
@@ -1898,7 +1898,7 @@ supplied through [VoiceSessionConfig](/docs/en/reference/api/ottervoice-core/#vo
 new VoiceSession(config): VoiceSession;
 ```
 
-Defined in: [packages/core/src/session.ts:106](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L106)
+Defined in: [packages/core/src/session.ts:107](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L107)
 
 ###### Parameters
 
@@ -1920,7 +1920,7 @@ Defined in: [packages/core/src/session.ts:106](https://github.com/bugkiwi/OtterV
 get state(): VoiceSessionState;
 ```
 
-Defined in: [packages/core/src/session.ts:155](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L155)
+Defined in: [packages/core/src/session.ts:156](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L156)
 
 Current finite-state machine value (see [VoiceSessionState](/docs/en/reference/api/ottervoice-core/#voicesessionstate-1)).
 
@@ -1936,7 +1936,7 @@ Current finite-state machine value (see [VoiceSessionState](/docs/en/reference/a
 dispose(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/session.ts:462](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L462)
+Defined in: [packages/core/src/session.ts:464](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L464)
 
 Tear everything down and drop all listeners. Safe to call multiple times.
 Prefer [VoiceSession.finish](/docs/en/reference/api/ottervoice-core/#finish) for a graceful end that emits `finished`.
@@ -1951,7 +1951,7 @@ Prefer [VoiceSession.finish](/docs/en/reference/api/ottervoice-core/#finish) for
 endUserTurn(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/session.ts:406](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L406)
+Defined in: [packages/core/src/session.ts:408](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L408)
 
 Manually end the current user turn (push-to-talk release, or a UI "done"
 button). Flushes the ASR session so its final result drives the loop.
@@ -1966,7 +1966,7 @@ button). Flushes the ASR session so its final result drives the loop.
 finish(reason?): Promise<void>;
 ```
 
-Defined in: [packages/core/src/session.ts:454](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L454)
+Defined in: [packages/core/src/session.ts:456](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L456)
 
 End the session normally, emitting a final usage snapshot and `finished`.
 
@@ -1986,7 +1986,7 @@ End the session normally, emitting a final usage snapshot and `finished`.
 getTurns(): VoiceTurn[];
 ```
 
-Defined in: [packages/core/src/session.ts:199](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L199)
+Defined in: [packages/core/src/session.ts:200](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L200)
 
 Committed user/assistant turns recorded so far.
 
@@ -2000,7 +2000,7 @@ Committed user/assistant turns recorded so far.
 getUsage(): VoiceUsageSnapshot;
 ```
 
-Defined in: [packages/core/src/session.ts:204](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L204)
+Defined in: [packages/core/src/session.ts:205](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L205)
 
 Aggregate usage meters for the active (or last) session.
 
@@ -2014,7 +2014,7 @@ Aggregate usage meters for the active (or last) session.
 off<K>(event, cb): void;
 ```
 
-Defined in: [packages/core/src/session.ts:191](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L191)
+Defined in: [packages/core/src/session.ts:192](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L192)
 
 Remove a previously registered handler.
 
@@ -2041,7 +2041,7 @@ Remove a previously registered handler.
 on<K>(event, cb): () => void;
 ```
 
-Defined in: [packages/core/src/session.ts:165](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L165)
+Defined in: [packages/core/src/session.ts:166](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L166)
 
 Subscribe to a session event. Returns an unsubscribe function.
 
@@ -2068,7 +2068,7 @@ Subscribe to a session event. Returns an unsubscribe function.
 once<K>(event, cb): () => void;
 ```
 
-Defined in: [packages/core/src/session.ts:178](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L178)
+Defined in: [packages/core/src/session.ts:179](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L179)
 
 Subscribe for a single delivery, then auto-unsubscribe.
 
@@ -2095,7 +2095,7 @@ Subscribe for a single delivery, then auto-unsubscribe.
 pause(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/session.ts:433](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L433)
+Defined in: [packages/core/src/session.ts:435](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L435)
 
 Pause the session: cancel in-flight replies, stop mic/ASR/playback, and
 enter the `paused` state. No-op if the transition is illegal.
@@ -2110,7 +2110,7 @@ enter the `paused` state. No-op if the transition is illegal.
 resume(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/session.ts:444](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L444)
+Defined in: [packages/core/src/session.ts:446](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L446)
 
 Resume from `paused` by reopening the microphone for the next user turn.
 
@@ -2124,7 +2124,7 @@ Resume from `paused` by reopening the microphone for the next user turn.
 start(initialPrompt?): Promise<void>;
 ```
 
-Defined in: [packages/core/src/session.ts:216](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L216)
+Defined in: [packages/core/src/session.ts:217](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L217)
 
 Begin the session. Speaks the initial assistant message (from the agent
 plugin or `initialPrompt`) and then, unless disabled, opens the mic.
@@ -2145,7 +2145,7 @@ plugin or `initialPrompt`) and then, unless disabled, opens the mic.
 startListening(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/session.ts:245](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L245)
+Defined in: [packages/core/src/session.ts:246](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L246)
 
 Open the microphone and wire ASR for the next user turn.
 
@@ -2159,7 +2159,7 @@ Open the microphone and wire ASR for the next user turn.
 submitUserText(text): Promise<void>;
 ```
 
-Defined in: [packages/core/src/session.ts:424](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L424)
+Defined in: [packages/core/src/session.ts:426](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L426)
 
 Inject user text directly, bypassing audio/ASR. Useful for text fallback
 and deterministic flows.
@@ -4223,26 +4223,27 @@ Create at the application composition root; keep provider credentials out of UI 
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="agent"></a> `agent?` | [`VoiceAgentPlugin`](/docs/en/reference/api/ottervoice-core/#voiceagentplugin) | Optional higher-level dialog plugin (opening line, next line, finish rule). | [packages/core/src/types.ts:1121](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1121) |
+| <a id="agent"></a> `agent?` | [`VoiceAgentPlugin`](/docs/en/reference/api/ottervoice-core/#voiceagentplugin) | Optional higher-level dialog plugin (opening line, next line, finish rule). | [packages/core/src/types.ts:1129](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1129) |
 | <a id="asrpartial"></a> `asrPartial?` | `boolean` | Emit provisional `asr_partial` results. Defaults to true. Disabling this does not affect the authoritative `asr_final` transcript. | [packages/core/src/types.ts:1096](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1096) |
 | <a id="audiollmmaxtokens"></a> `audioLlmMaxTokens?` | `number` | Cap native audio LLM output tokens (audio + transcript share this budget). Omit to use the model's default maximum — required for long-form speech. | [packages/core/src/types.ts:1103](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1103) |
+| <a id="audiollmstarttiming"></a> `audioLlmStartTiming?` | `"after_audio"` \| `"after_asr_final"` | Choose when an Audio LLM request begins. `after_audio` starts as soon as VAD finalizes the user audio and runs caption ASR in parallel for the lowest response latency. `after_asr_final` waits for the authoritative caption first, avoiding provider spend when a natural pause is superseded. Defaults to `after_asr_final`. | [packages/core/src/types.ts:1111](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1111) |
 | <a id="audiollmsystemprompt"></a> `audioLlmSystemPrompt?` | `string` | Optional system instruction forwarded to a native audio LLM. | [packages/core/src/types.ts:1098](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1098) |
-| <a id="generateid"></a> `generateId?` | () => `string` | Override id generation (useful for deterministic tests). | [packages/core/src/types.ts:1133](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1133) |
-| <a id="interruptiondetection"></a> `interruptionDetection?` | `Partial`\<`Omit`\<[`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig), `"strategy"`\>\> | Stricter VAD used only while assistant audio is playing. Keeping this separate prevents taps and playback echo from triggering barge-in without making normal listening less sensitive. | [packages/core/src/types.ts:1129](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1129) |
-| <a id="language-4"></a> `language?` | `string` | Preferred ASR language; omit to let compatible providers auto-detect. | [packages/core/src/types.ts:1105](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1105) |
-| <a id="metadata-6"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque app metadata (not interpreted by core). | [packages/core/src/types.ts:1137](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1137) |
+| <a id="generateid"></a> `generateId?` | () => `string` | Override id generation (useful for deterministic tests). | [packages/core/src/types.ts:1141](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1141) |
+| <a id="interruptiondetection"></a> `interruptionDetection?` | `Partial`\<`Omit`\<[`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig), `"strategy"`\>\> | Stricter VAD used only while assistant audio is playing. Keeping this separate prevents taps and playback echo from triggering barge-in without making normal listening less sensitive. | [packages/core/src/types.ts:1137](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1137) |
+| <a id="language-4"></a> `language?` | `string` | Preferred ASR language; omit to let compatible providers auto-detect. | [packages/core/src/types.ts:1113](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1113) |
+| <a id="metadata-6"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque app metadata (not interpreted by core). | [packages/core/src/types.ts:1145](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1145) |
 | <a id="mode"></a> `mode` | [`VoiceSessionMode`](/docs/en/reference/api/ottervoice-core/#voicesessionmode) | Duplex / PTT mode. See [VoiceSessionMode](/docs/en/reference/api/ottervoice-core/#voicesessionmode). | [packages/core/src/types.ts:1089](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1089) |
-| <a id="now"></a> `now?` | () => `number` | Override the clock (useful for deterministic tests). | [packages/core/src/types.ts:1135](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1135) |
+| <a id="now"></a> `now?` | () => `number` | Override the clock (useful for deterministic tests). | [packages/core/src/types.ts:1143](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1143) |
 | <a id="pipeline"></a> `pipeline?` | `"asr_llm_tts"` \| `"audio_llm"` | Defaults to the classic ASR -\> LLM -\> TTS cascade. | [packages/core/src/types.ts:1091](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1091) |
-| <a id="policy"></a> `policy?` | [`VoiceSessionPolicy`](/docs/en/reference/api/ottervoice-core/#voicesessionpolicy) | Session-level timers and barge-in recovery knobs. | [packages/core/src/types.ts:1131](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1131) |
-| <a id="providers"></a> `providers` | \{ `asr`: [`ASRProvider`](/docs/en/reference/api/ottervoice-core/#asrprovider); `audioLlm?`: [`AudioLLMProvider`](/docs/en/reference/api/ottervoice-core/#audiollmprovider); `llm`: [`LLMProvider`](/docs/en/reference/api/ottervoice-core/#llmprovider); `pronunciation?`: [`PronunciationProvider`](/docs/en/reference/api/ottervoice-core/#pronunciationprovider); `tts?`: [`TTSProvider`](/docs/en/reference/api/ottervoice-core/#ttsprovider); \} | - | [packages/core/src/types.ts:1108](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1108) |
-| `providers.asr` | [`ASRProvider`](/docs/en/reference/api/ottervoice-core/#asrprovider) | Speech-to-text provider (required for live captions / classic pipeline). | [packages/core/src/types.ts:1110](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1110) |
-| `providers.audioLlm?` | [`AudioLLMProvider`](/docs/en/reference/api/ottervoice-core/#audiollmprovider) | Required when `pipeline` is `audio_llm`; ASR partials provide captions and final confirms the turn before generation. | [packages/core/src/types.ts:1116](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1116) |
-| `providers.llm` | [`LLMProvider`](/docs/en/reference/api/ottervoice-core/#llmprovider) | Text LLM used by `asr_llm_tts` (and optional agents). | [packages/core/src/types.ts:1112](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1112) |
-| `providers.pronunciation?` | [`PronunciationProvider`](/docs/en/reference/api/ottervoice-core/#pronunciationprovider) | Optional pronunciation scoring after a user turn. | [packages/core/src/types.ts:1118](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1118) |
-| `providers.tts?` | [`TTSProvider`](/docs/en/reference/api/ottervoice-core/#ttsprovider) | Text-to-speech; required when `pipeline` is `asr_llm_tts`. | [packages/core/src/types.ts:1114](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1114) |
-| <a id="runtime"></a> `runtime` | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter) | Platform audio (and optional network/storage/logger) adapter. | [packages/core/src/types.ts:1107](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1107) |
-| <a id="turndetection"></a> `turnDetection?` | [`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig) | VAD / endpointing while listening for the user. | [packages/core/src/types.ts:1123](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1123) |
+| <a id="policy"></a> `policy?` | [`VoiceSessionPolicy`](/docs/en/reference/api/ottervoice-core/#voicesessionpolicy) | Session-level timers and barge-in recovery knobs. | [packages/core/src/types.ts:1139](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1139) |
+| <a id="providers"></a> `providers` | \{ `asr`: [`ASRProvider`](/docs/en/reference/api/ottervoice-core/#asrprovider); `audioLlm?`: [`AudioLLMProvider`](/docs/en/reference/api/ottervoice-core/#audiollmprovider); `llm`: [`LLMProvider`](/docs/en/reference/api/ottervoice-core/#llmprovider); `pronunciation?`: [`PronunciationProvider`](/docs/en/reference/api/ottervoice-core/#pronunciationprovider); `tts?`: [`TTSProvider`](/docs/en/reference/api/ottervoice-core/#ttsprovider); \} | - | [packages/core/src/types.ts:1116](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1116) |
+| `providers.asr` | [`ASRProvider`](/docs/en/reference/api/ottervoice-core/#asrprovider) | Speech-to-text provider (required for live captions / classic pipeline). | [packages/core/src/types.ts:1118](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1118) |
+| `providers.audioLlm?` | [`AudioLLMProvider`](/docs/en/reference/api/ottervoice-core/#audiollmprovider) | Required when `pipeline` is `audio_llm`; ASR supplies captions while request timing follows [VoiceSessionConfig.audioLlmStartTiming](/docs/en/reference/api/ottervoice-core/#audiollmstarttiming). | [packages/core/src/types.ts:1124](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1124) |
+| `providers.llm` | [`LLMProvider`](/docs/en/reference/api/ottervoice-core/#llmprovider) | Text LLM used by `asr_llm_tts` (and optional agents). | [packages/core/src/types.ts:1120](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1120) |
+| `providers.pronunciation?` | [`PronunciationProvider`](/docs/en/reference/api/ottervoice-core/#pronunciationprovider) | Optional pronunciation scoring after a user turn. | [packages/core/src/types.ts:1126](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1126) |
+| `providers.tts?` | [`TTSProvider`](/docs/en/reference/api/ottervoice-core/#ttsprovider) | Text-to-speech; required when `pipeline` is `asr_llm_tts`. | [packages/core/src/types.ts:1122](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1122) |
+| <a id="runtime"></a> `runtime` | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter) | Platform audio (and optional network/storage/logger) adapter. | [packages/core/src/types.ts:1115](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1115) |
+| <a id="turndetection"></a> `turnDetection?` | [`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig) | VAD / endpointing while listening for the user. | [packages/core/src/types.ts:1131](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/types.ts#L1131) |
 
 ***
 
@@ -4414,7 +4415,7 @@ How end-of-utterance is decided while listening:
 - `volume` — local RMS VAD ([TurnDetectionConfig.volumeThreshold](/docs/en/reference/api/ottervoice-core/#volumethreshold-1))
 - `asr_endpointing` — trust provider utterance-end signals
 - `manual` — caller drives [VoiceSession.endUserTurn](/docs/en/reference/api/ottervoice-core/#enduserturn)
-- `hybrid` — combine volume silence with ASR endpointing when available
+- `hybrid` — combine ASR speech confirmation / endpointing with local silence
 
 ***
 
@@ -4906,7 +4907,7 @@ A plain [NormalizedVoiceError](/docs/en/reference/api/ottervoice-core/#normalize
 function createVoiceSession(config): VoiceSession;
 ```
 
-Defined in: [packages/core/src/session.ts:1676](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L1676)
+Defined in: [packages/core/src/session.ts:1703](https://github.com/bugkiwi/OtterVoice/blob/38d35fd4265628fb518c48aee7e4049fa48cc69f/packages/core/src/session.ts#L1703)
 
 Create a [VoiceSession](/docs/en/reference/api/ottervoice-core/#voicesession) from a fully wired [VoiceSessionConfig](/docs/en/reference/api/ottervoice-core/#voicesessionconfig).
 

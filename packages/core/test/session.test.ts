@@ -1320,6 +1320,38 @@ describe('VoiceSession full_duplex', () => {
     await session.dispose();
   });
 
+  it('uses an ASR partial to rescue quiet speech in hybrid detection', async () => {
+    const time = clock(0);
+    const { provider: asr, ctl } = controllableASR({
+      finalOnStop: 'quiet but confirmed',
+    });
+    const { session, runtime } = makeSession({
+      now: time.now,
+      providers: { asr } as any,
+      turnDetection: {
+        strategy: 'hybrid',
+        minSpeechMs: 180,
+        silenceTimeoutMs: 450,
+        volumeThreshold: 0.5,
+      },
+    });
+    await session.start();
+
+    expect(ctl.options?.interimResults).toBe(true);
+    expect(ctl.interimResultsEnabled).toEqual([]);
+    ctl.emitPartial({ text: 'quiet speech' });
+    expect(session.state).toBe('user_speaking');
+
+    time.set(500);
+    runtime.audioInput.emitVolume(0.01);
+    time.set(1_000);
+    runtime.audioInput.emitVolume(0.01);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(ctl.stop).toHaveBeenCalledTimes(1);
+    await session.dispose();
+  });
+
   it('aborts a final-confirmed provider request when a newer turn supersedes it', async () => {
     const runtime = createMockRuntime();
     const { provider: asr } = controllableASR({ finalOnStop: 'first question' });
@@ -1375,7 +1407,7 @@ describe('VoiceSession full_duplex', () => {
     await session.dispose();
   });
 
-  it('waits for caption ASR final before requesting and streaming an audio reply', async () => {
+  it('can request and stream an audio reply before caption ASR final', async () => {
     const runtime = createMockRuntime();
     const streamedChunks: number[][] = [];
     const startPcmStream = mock(async () => ({
@@ -1462,6 +1494,7 @@ describe('VoiceSession full_duplex', () => {
     const { session, events } = makeSession({
       mode: 'full_duplex',
       pipeline: 'audio_llm',
+      audioLlmStartTiming: 'after_audio',
       runtime,
       providers: { asr, audioLlm } as any,
     });
@@ -1469,13 +1502,9 @@ describe('VoiceSession full_duplex', () => {
     emitChunk(runtime);
     const ending = session.endUserTurn();
 
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(audioLlmStarted).toBe(false);
-    expect(startPcmStream).toHaveBeenCalledTimes(0);
-
-    releaseAsr();
     await firstChunk;
 
+    expect(audioLlmStarted).toBe(true);
     expect(session.state).toBe('assistant_speaking');
     expect(streamedChunks).toEqual([[1, 2, 3, 4]]);
     expect(events).toContainEqual([
@@ -1485,6 +1514,7 @@ describe('VoiceSession full_duplex', () => {
     expect(events.some(([name]) => name === 'assistant_text')).toBe(false);
     expect(runtime.audioOutput.played).toHaveLength(0);
 
+    releaseAsr();
     releaseReply();
     await ending;
     await new Promise((resolve) => setTimeout(resolve, 0));

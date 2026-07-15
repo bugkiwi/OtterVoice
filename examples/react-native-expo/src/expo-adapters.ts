@@ -147,6 +147,7 @@ export function useExpoAudioRuntime(): ExpoRuntime {
                     currentTime: status.currentTime,
                     didJustFinish: status.didJustFinish,
                     playing: status.playing,
+                    isBuffering: status.isBuffering,
                     trackCount: status.trackCount,
                   }),
                 );

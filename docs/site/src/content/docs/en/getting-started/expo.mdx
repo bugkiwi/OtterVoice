@@ -29,6 +29,7 @@ const runtime = createExpoRuntime({
 const session = createVoiceSession({
   mode: 'full_duplex',
   pipeline: 'audio_llm',
+  audioLlmStartTiming: 'after_audio', // Run final caption ASR in parallel.
   runtime,
   providers: { asr, llm, audioLlm },
 });
@@ -38,5 +39,9 @@ Dual delivery:
 
 - `delivery: 'stream'` — small PCM buffers → streaming ASR
 - `delivery: 'turn'` — complete WAV → batch ASR / Audio LLM
+
+Use `audioLlmStartTiming: 'after_audio'` for the lowest speech-to-speech
+latency. The compatible default, `after_asr_final`, avoids starting a paid
+reply request until authoritative caption ASR confirms the turn.
 
 Suspend encoded capture during assistant playback while keeping volume callbacks for barge-in. See [runtime-react-native](/docs/en/packages/runtime-react-native/).

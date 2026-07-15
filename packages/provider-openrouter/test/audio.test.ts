@@ -85,6 +85,44 @@ describe('createOpenRouterASR', () => {
     expect(bodies[0].input_audio.data.startsWith('UklGR')).toBe(true);
   });
 
+  it('aborts an in-flight rolling partial before sending the final request', async () => {
+    let request = 0;
+    let partialStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      partialStarted = resolve;
+    });
+    let partialSignal: AbortSignal | null | undefined;
+    const session = await createOpenRouterASR({
+      apiKey: 'secret',
+      model: 'qwen/asr',
+      partialIntervalMs: 0,
+      fetch: async (_url, init) => {
+        request += 1;
+        if (request === 1) {
+          partialSignal = init?.signal;
+          partialStarted();
+          return new Promise<Response>((_resolve, reject) => {
+            partialSignal?.addEventListener('abort', () => reject(new Error('aborted')));
+          });
+        }
+        return Response.json({ text: 'authoritative final' });
+      },
+    }).createSession({ encoding: 'pcm_s16le' });
+    const finals: string[] = [];
+    session.onFinal(({ text }) => finals.push(text));
+
+    const sending = Promise.resolve(
+      session.sendAudio(new Int16Array([1_000, -1_000]).buffer),
+    );
+    await started;
+    const stopping = session.stop();
+
+    expect(partialSignal?.aborted).toBe(true);
+    await sending;
+    await stopping;
+    expect(finals).toEqual(['authoritative final']);
+  });
+
   it('honors the session interim-results switch while keeping the final request', async () => {
     let requests = 0;
     const provider = createOpenRouterASR({
@@ -338,6 +376,36 @@ describe('createOpenRouterASR', () => {
     off();
     await session.close();
     session.sendAudio(new Uint8Array([2]).buffer);
+  });
+
+  it('aborts a pending final transcription when the session closes', async () => {
+    let requestStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      requestStarted = resolve;
+    });
+    let requestSignal: AbortSignal | null | undefined;
+    const session = await createOpenRouterASR({
+      apiKey: 'k',
+      model: 'm',
+      fetch: async (_url, init) => {
+        requestSignal = init?.signal;
+        requestStarted();
+        return new Promise<Response>((_resolve, reject) => {
+          requestSignal?.addEventListener('abort', () => reject(new Error('aborted')));
+        });
+      },
+    }).createSession({});
+    const errors: NormalizedVoiceError[] = [];
+    session.onError((error) => errors.push(error));
+    session.sendAudio(new Uint8Array([1]).buffer);
+
+    const stopping = session.stop();
+    await started;
+    await session.close();
+
+    expect(requestSignal?.aborted).toBe(true);
+    await expect(stopping).rejects.toThrow('aborted');
+    expect(errors).toEqual([]);
   });
 
   it('normalizes a transport exception for ASR listeners', async () => {
