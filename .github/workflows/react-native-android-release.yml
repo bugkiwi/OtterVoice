@@ -1,0 +1,154 @@
+name: React Native Android Release
+
+on:
+  push:
+    tags:
+      - 'rn-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version matching examples/react-native-expo/app.json (for example: 0.2.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: react-native-android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    name: Build and publish Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      EXPO_PUBLIC_OTTERVOICE_API_URL: ${{ vars.OTTERVOICE_API_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Resolve and verify release version
+        id: release
+        shell: bash
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
+        run: |
+          APP_VERSION="$(node -p "require('./examples/react-native-expo/app.json').expo.version")"
+          PACKAGE_VERSION="$(node -p "require('./examples/react-native-expo/package.json').version")"
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#rn-v}"
+          else
+            VERSION="${DISPATCH_VERSION#rn-v}"
+            VERSION="${VERSION#v}"
+          fi
+
+          if [[ -z "${VERSION}" ]]; then
+            echo "Release version is required." >&2
+            exit 1
+          fi
+
+          if [[ "${APP_VERSION}" != "${PACKAGE_VERSION}" || "${VERSION}" != "${APP_VERSION}" ]]; then
+            echo "Version mismatch: workflow=${VERSION}, app.json=${APP_VERSION}, package.json=${PACKAGE_VERSION}." >&2
+            exit 1
+          fi
+
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "tag=rn-v${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Typecheck Expo example
+        run: bun run --cwd examples/react-native-expo typecheck
+
+      - name: Generate Android project
+        working-directory: examples/react-native-expo
+        run: bunx expo prebuild --platform android --clean --no-install
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Build installable release APK
+        working-directory: examples/react-native-expo/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:assembleRelease --no-daemon
+
+      - name: Prepare release assets
+        id: assets
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          APK="examples/react-native-expo/android/app/build/outputs/apk/release/app-release.apk"
+          test -s "${APK}"
+
+          mkdir -p release
+          install -m 0644 "${APK}" release/ottervoice-demo-android.apk
+          install -m 0644 "${APK}" "release/ottervoice-demo-android-${VERSION}.apk"
+          (
+            cd release
+            sha256sum ottervoice-demo-android.apk > SHA256SUMS.txt
+            sha256sum "ottervoice-demo-android-${VERSION}.apk" > "SHA256SUMS-${VERSION}.txt"
+          )
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" \
+              "release/ottervoice-demo-android-${VERSION}.apk#Android APK v${VERSION}" \
+              "release/SHA256SUMS-${VERSION}.txt#SHA-256 checksum" \
+              --clobber
+          else
+            gh release create "${TAG}" \
+              "release/ottervoice-demo-android-${VERSION}.apk#Android APK v${VERSION}" \
+              "release/SHA256SUMS-${VERSION}.txt#SHA-256 checksum" \
+              --target "${GITHUB_SHA}" \
+              --title "OtterVoice RN Demo v${VERSION}" \
+              --notes "Installable Android preview built from the React Native / Expo example. This demo package is not a Play Store production build." \
+              --generate-notes
+          fi
+
+          LATEST_TAG="rn-latest"
+          git tag --force "${LATEST_TAG}" "${GITHUB_SHA}"
+          git push origin "refs/tags/${LATEST_TAG}" --force
+
+          if gh release view "${LATEST_TAG}" >/dev/null 2>&1; then
+            gh release upload "${LATEST_TAG}" \
+              "release/ottervoice-demo-android.apk#Android APK (latest)" \
+              "release/SHA256SUMS.txt#SHA-256 checksum" \
+              --clobber
+          else
+            gh release create "${LATEST_TAG}" \
+              "release/ottervoice-demo-android.apk#Android APK (latest)" \
+              "release/SHA256SUMS.txt#SHA-256 checksum" \
+              --title "OtterVoice RN Demo (latest)" \
+              --notes "Stable download alias for the newest installable Android preview. Versioned releases use rn-v* tags." \
+              --latest=false
+          fi
+
+          gh release edit "${TAG}" --latest
+
+          LATEST_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${LATEST_TAG}/ottervoice-demo-android.apk"
+          VERSION_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/ottervoice-demo-android-${VERSION}.apk"
+          {
+            echo "## Android APK published"
+            echo
+            echo "- Latest: ${LATEST_URL}"
+            echo "- Version: ${VERSION_URL}"
+          } >> "${GITHUB_STEP_SUMMARY}"
