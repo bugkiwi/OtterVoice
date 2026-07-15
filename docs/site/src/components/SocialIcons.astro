@@ -1,0 +1,41 @@
+---
+import Default from '@astrojs/starlight/components/SocialIcons.astro';
+
+const lang = Astro.locals.starlightRoute.lang;
+const label = lang.startsWith('zh') ? '在线 Demo' : 'Live demo';
+---
+
+<a
+	class="ov-demo-link"
+	href="https://ottervoice.vercel.app/"
+	target="_blank"
+	rel="noopener noreferrer"
+>
+	{label}
+</a>
+<Default><slot /></Default>
+
+<style>
+	@layer starlight.core {
+		.ov-demo-link {
+			display: inline-flex;
+			align-items: center;
+			margin-inline-end: 0.35rem;
+			padding: 0.35rem 0.65rem;
+			border: 1px solid var(--sl-color-hairline);
+			border-radius: 0.35rem;
+			color: var(--sl-color-text);
+			font-size: 0.875rem;
+			font-weight: 600;
+			letter-spacing: -0.01em;
+			line-height: 1;
+			text-decoration: none;
+			white-space: nowrap;
+		}
+
+		.ov-demo-link:hover {
+			border-color: var(--sl-color-accent);
+			color: var(--sl-color-text-accent);
+		}
+	}
+</style>
