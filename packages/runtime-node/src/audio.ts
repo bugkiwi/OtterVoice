@@ -16,14 +16,22 @@ function toArrayBuffer(chunk: Uint8Array | ArrayBuffer): ArrayBuffer {
   ) as ArrayBuffer;
 }
 
+/**
+ * Options for {@link NodeAudioInput}. Pass a {@link NodeAudioInputOptions.source}
+ * to stream bytes from a subprocess or file; omit it for a no-op / caller-driven
+ * input under {@link createNodeRuntime}.
+ */
 export interface NodeAudioInputOptions {
   /**
    * The PCM/byte source — e.g. a child process stdout exposed as an async
    * iterable. When omitted, the input produces nothing (caller-driven).
    */
   source?: AsyncIterable<Uint8Array | ArrayBuffer>;
+  /** Override clock used for {@link AudioChunk.timestamp} (tests). */
   now?: () => number;
+  /** Default sample rate stamped on chunks when `start` does not override. */
   sampleRate?: number;
+  /** Default encoding stamped on chunks when `start` does not override. */
   encoding?: string;
 }
 
@@ -107,6 +115,11 @@ export class NodeAudioInput implements AudioInputAdapter {
   }
 }
 
+/**
+ * Options for {@link NodeAudioOutput}. Supply a {@link NodeAudioOutputOptions.sink}
+ * to emit audio; otherwise played inputs accumulate in
+ * {@link NodeAudioOutput.played} for inspection.
+ */
 export interface NodeAudioOutputOptions {
   /**
    * Where to send synthesized audio — write a file, pipe to a speaker process,

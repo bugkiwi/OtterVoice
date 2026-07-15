@@ -1,0 +1,37 @@
+---
+title: 模块怎么选
+description: OtterVoice 包一览：装什么、各管什么。
+---
+
+## 一张图
+
+```
+UI / App
+   ↕ events
+@ottervoice/core          ← 会话、状态机、VAD、打断、用量
+   ↕ RuntimeAdapter
+runtime-web | react-native | node
+   ↕ Provider interfaces
+provider-deepgram | elevenlabs | openrouter | azure-speech | 自研
+```
+
+## 选型表
+
+| 包 | 何时用 |
+| --- | --- |
+| [`@ottervoice/core`](/docs/packages/core/) | 始终需要。`createVoiceSession`、事件、Mock。 |
+| [`@ottervoice/runtime-web`](/docs/packages/runtime-web/) | 浏览器麦克风 + 播放。 |
+| [`@ottervoice/runtime-react-native`](/docs/packages/runtime-react-native/) | Expo / RN，注入原生音频能力。 |
+| [`@ottervoice/runtime-node`](/docs/packages/runtime-node/) | CLI / 服务端音频与网络。 |
+| [`Providers`](/docs/packages/providers/) | 按云厂商选；也可实现同一接口自研。 |
+| [`@ottervoice/protocol`](/docs/packages/protocol/) | 跨进程 / 跨端转发 Session 事件时。 |
+| [`@ottervoice/provider-utils`](/docs/packages/provider-utils/) | 写自定义 Provider：凭证、SSE、WebSocket ASR。 |
+
+## 两条流水线
+
+| `pipeline` | 路径 | 适用 |
+| --- | --- | --- |
+| `asr_llm_tts`（默认） | ASR 文本 → LLM 流式文本 → TTS | 经典级联，易换件 |
+| `audio_llm` | ASR 字幕 + final 确认 → Audio LLM 出文本/PCM | 低延迟一体模型 |
+
+OpenRouter 等只是仓库附带适配器，不是固定线上通路。

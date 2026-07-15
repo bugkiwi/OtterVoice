@@ -17,17 +17,26 @@ import {
   azureOutputFormat,
   buildSSML,
   mimeTypeForFormat,
-} from './ssml';
+} from './ssml.js';
 
-export * from './ssml';
+export * from './ssml.js';
 
+/**
+ * Options for {@link createAzureTTS}. Region and neural voice are required;
+ * authenticate with `subscriptionKey` (server) or `tokenBrokerUrl` (client-safe).
+ * Shares broker/`fetch` fields from {@link CredentialOptions} (use `subscriptionKey`
+ * instead of `apiKey`).
+ */
 export interface AzureTTSOptions extends Omit<CredentialOptions, 'apiKey'> {
   /** Azure region, e.g. `eastus`. */
   region: string;
   /** Subscription key (server-side). Mutually exclusive with `tokenBrokerUrl`. */
   subscriptionKey?: string;
+  /** Neural voice name, e.g. `zh-CN-XiaoxiaoNeural`. */
   voice: string;
+  /** BCP-47 language tag for SSML. Defaults to `en-US`. */
   language?: string;
+  /** Default audio container when the request omits `format`. */
   defaultFormat?: TTSFormat;
   /** Override the synthesis endpoint (defaults to the region host). */
   endpoint?: string;
@@ -42,7 +51,11 @@ const CAPABILITIES: TTSCapabilities = {
   languages: [],
 };
 
-/** Azure Cognitive Services Text-to-Speech provider (REST + SSML). */
+/**
+ * Azure Cognitive Services Text-to-Speech provider (REST + SSML).
+ *
+ * @param options - Region, voice, and credentials (`subscriptionKey` or broker).
+ */
 export function createAzureTTS(options: AzureTTSOptions): TTSProvider {
   const fetchImpl = resolveFetch(options.fetch);
   const language = options.language ?? 'en-US';

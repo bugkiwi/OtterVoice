@@ -1,5 +1,9 @@
 import type { LoggerAdapter } from '@ottervoice/core';
 
+/**
+ * Minimal console surface accepted by {@link ConsoleLogger} and
+ * {@link NodeRuntimeOptions.logger}.
+ */
 export interface ConsoleLike {
   debug(...args: unknown[]): void;
   info(...args: unknown[]): void;

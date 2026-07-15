@@ -1,19 +1,35 @@
 import type { ASRDecodeResult } from '@ottervoice/provider-utils';
 import type { ASRSessionOptions } from '@ottervoice/core';
 
+/** Default Deepgram live listen WebSocket endpoint. */
 export const DEFAULT_BASE_URL = 'wss://api.deepgram.com/v1/listen';
 
+/** Query knobs mapped onto Deepgram's `/v1/listen` WebSocket URL. */
 export interface DeepgramQueryOptions {
+  /** Deepgram model id (e.g. `nova-2`, `nova-3`). */
   model?: string;
+  /** BCP-47 language; overridden by {@link ASRSessionOptions.language} when set. */
   language?: string;
+  /** Raw audio encoding when not inferred from the runtime (e.g. `linear16`). */
   encoding?: string;
+  /** Sample rate in Hz for PCM encodings; overridden by session options when set. */
   sampleRate?: number;
+  /** Request interim (`is_final: false`) Results; default from session options. */
   interimResults?: boolean;
+  /** Ask Deepgram to add punctuation to transcripts. */
   punctuate?: boolean;
+  /** Enable Deepgram smart formatting (numbers, dates, etc.). */
   smartFormat?: boolean;
 }
 
-/** Build the Deepgram listen WebSocket URL with query parameters. */
+/**
+ * Build the Deepgram listen WebSocket URL with query parameters.
+ *
+ * @param baseUrl - Listen endpoint; usually {@link DEFAULT_BASE_URL} or a broker-signed URL.
+ * @param options - Provider defaults for model / formatting.
+ * @param asr - Per-session overrides from {@link ASRSessionOptions}.
+ * @returns Fully qualified `wss://` URL including search params.
+ */
 export function buildDeepgramUrl(
   baseUrl: string,
   options: DeepgramQueryOptions,

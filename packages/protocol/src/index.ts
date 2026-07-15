@@ -11,6 +11,7 @@ import type { VoiceSessionEventMap } from '@ottervoice/core';
 /** Bumped when the envelope shape or payload contracts change incompatibly. */
 export const PROTOCOL_VERSION = 1 as const;
 
+/** Event name carried in {@link ProtocolEnvelope.type} (mirrors core session events). */
 export type ProtocolMessageType = keyof VoiceSessionEventMap;
 
 /** Every event type that may appear on the wire, in a stable order. */
@@ -31,11 +32,19 @@ export const PROTOCOL_MESSAGE_TYPES: readonly ProtocolMessageType[] = [
 
 const KNOWN_TYPES: ReadonlySet<string> = new Set(PROTOCOL_MESSAGE_TYPES);
 
+/**
+ * Versioned JSON envelope for one session event on the wire.
+ *
+ * @typeParam T - Event name; narrows {@link ProtocolEnvelope.payload}.
+ */
 export interface ProtocolEnvelope<
   T extends ProtocolMessageType = ProtocolMessageType,
 > {
+  /** Protocol schema version; must equal {@link PROTOCOL_VERSION}. */
   v: typeof PROTOCOL_VERSION;
+  /** Event name (same keys as core {@link VoiceSessionEventMap}). */
   type: T;
+  /** Event payload matching the core session event map. */
   payload: VoiceSessionEventMap[T];
 }
 
@@ -44,14 +53,24 @@ export type VoiceProtocolMessage = {
   [T in ProtocolMessageType]: ProtocolEnvelope<T>;
 }[ProtocolMessageType];
 
+/** Thrown when JSON is malformed or fails protocol validation. */
 export class ProtocolError extends Error {
+  /**
+   * @param message - Human-readable validation / parse failure.
+   */
   constructor(message: string) {
     super(message);
     this.name = 'ProtocolError';
   }
 }
 
-/** Build a typed envelope for an event. */
+/**
+ * Build a typed envelope for an event.
+ *
+ * @param type - Event name.
+ * @param payload - Payload for that event.
+ * @returns Envelope ready for {@link serializeMessage}.
+ */
 export function encodeMessage<T extends ProtocolMessageType>(
   type: T,
   payload: VoiceSessionEventMap[T],
@@ -59,7 +78,12 @@ export function encodeMessage<T extends ProtocolMessageType>(
   return { v: PROTOCOL_VERSION, type, payload };
 }
 
-/** Serialize an envelope (or any event via {@link encodeMessage}) to JSON. */
+/**
+ * Serialize an envelope (or any event via {@link encodeMessage}) to JSON.
+ *
+ * @param message - Validated {@link VoiceProtocolMessage}.
+ * @returns JSON string for transport.
+ */
 export function serializeMessage(message: VoiceProtocolMessage): string {
   return JSON.stringify(message);
 }
@@ -88,6 +112,9 @@ export function isProtocolMessage(value: unknown): value is VoiceProtocolMessage
  *
  * Throws {@link ProtocolError} on malformed JSON, an unknown/old version, an
  * unknown message type, or a missing payload.
+ *
+ * @param raw - JSON string from the wire.
+ * @returns A typed {@link VoiceProtocolMessage}.
  */
 export function parseMessage(raw: string): VoiceProtocolMessage {
   let decoded: unknown;

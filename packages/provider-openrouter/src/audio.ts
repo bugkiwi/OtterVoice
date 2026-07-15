@@ -14,11 +14,13 @@ import {
   resolveFetch,
   type CredentialOptions,
 } from '@ottervoice/provider-utils';
-import { buildHeaders, DEFAULT_BASE_URL, type HeaderOptions } from './chat';
+import { buildHeaders, DEFAULT_BASE_URL, type HeaderOptions } from './chat.js';
 
 const PROVIDER = 'openrouter';
 
+/** Options for OpenRouter HTTP transcription (batch / rolling partial ASR). */
 export interface OpenRouterASROptions extends CredentialOptions, HeaderOptions {
+  /** OpenRouter / OpenAI-compatible transcription model id. */
   model: string;
   /** Browser MediaRecorder defaults to WebM. */
   format?: Extract<AudioEncoding, 'webm' | 'wav' | 'mp3' | 'opus'>;
@@ -32,16 +34,23 @@ export interface OpenRouterASROptions extends CredentialOptions, HeaderOptions {
    * Defaults to the greater of 3x `partialIntervalMs` and 3 seconds.
    */
   emptyPartialBackoffMs?: number;
+  /** BCP-47 language hint sent to the transcription API when supported. */
   language?: string;
+  /** API root; defaults to OpenRouter's chat-compatible base URL. */
   baseUrl?: string;
   /** Test hook for partial-result scheduling. */
   now?: () => number;
 }
 
+/** Options for OpenRouter HTTP speech synthesis. */
 export interface OpenRouterTTSOptions extends CredentialOptions, HeaderOptions {
+  /** OpenRouter / OpenAI-compatible TTS model id. */
   model: string;
+  /** Voice name accepted by the selected model. */
   voice: string;
+  /** API root; defaults to OpenRouter's chat-compatible base URL. */
   baseUrl?: string;
+  /** Speaking rate multiplier when the upstream model supports it. */
   speed?: number;
 }
 
@@ -157,6 +166,9 @@ export function bytesToBase64(bytes: Uint8Array): string {
  * The default remains one request at turn end. Setting `partialIntervalMs`
  * adds rolling, best-effort snapshots for low-latency partial text while the
  * final request still covers the complete turn.
+ *
+ * @param options - Model, credentials, and optional rolling-partial interval.
+ * @returns An {@link ASRProvider} for {@link VoiceSessionConfig.providers.asr}.
  */
 export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider {
   const fetchImpl = resolveFetch(options.fetch);
@@ -283,6 +295,18 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
       return {
         sendAudio(chunk) {
           if (closed || stopped || chunk.byteLength === 0) return;
+          // A Web runtime can rotate MediaRecorder after assistant playback.
+          // The fresh EBML header starts a replacement WebM container; keeping
+          // the older header would create two concatenated containers and make
+          // final ASR decoding unreliable on Android Chrome.
+          if (
+            chunks.length > 0 &&
+            detectContainerFormat(new Uint8Array(chunk)) === 'webm'
+          ) {
+            chunks.length = 0;
+            generation += 1;
+            nextPartialAt = now() + partialDelayMs;
+          }
           chunks.push(chunk.slice(0));
           if (
             incremental &&
@@ -371,7 +395,12 @@ function resolveSpeechFormat(format: TTSFormat | undefined): 'mp3' | 'pcm' {
   return format === 'pcm' ? 'pcm' : 'mp3';
 }
 
-/** OpenRouter TTS through the OpenAI-compatible `/audio/speech` endpoint. */
+/**
+ * OpenRouter TTS through the OpenAI-compatible `/audio/speech` endpoint.
+ *
+ * @param options - Model, voice, credentials, and optional speed.
+ * @returns A {@link TTSProvider} for the classic `asr_llm_tts` pipeline.
+ */
 export function createOpenRouterTTS(options: OpenRouterTTSOptions): TTSProvider {
   const fetchImpl = resolveFetch(options.fetch);
   const resolveCredential = createCredentialResolver(options, {

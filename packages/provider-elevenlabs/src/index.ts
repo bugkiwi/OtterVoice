@@ -11,12 +11,18 @@ import {
   decodeElevenLabs,
   DEFAULT_BASE_URL,
   type ElevenLabsQueryOptions,
-} from './decode';
+} from './decode.js';
 
-export * from './decode';
+export * from './decode.js';
 
+/**
+ * Options for {@link createElevenLabsASR}. Extends {@link CredentialOptions} and
+ * {@link ElevenLabsQueryOptions}; prefer `tokenBrokerUrl` on clients over a static key.
+ */
 export interface ElevenLabsASROptions extends CredentialOptions, ElevenLabsQueryOptions {
+  /** Override the realtime listen endpoint. */
   baseUrl?: string;
+  /** Inject a WebSocket constructor (defaults to the global). */
   webSocket?: WebSocketCtor;
 }
 
@@ -34,6 +40,8 @@ const CAPABILITIES: ASRCapabilities = {
 /**
  * ElevenLabs Scribe realtime ASR provider over WebSocket. Prefer a
  * `tokenBrokerUrl` so the signed URL/credential is minted server-side.
+ *
+ * @param options - Credentials and optional listen endpoint / query overrides.
  */
 export function createElevenLabsASR(options: ElevenLabsASROptions): ASRProvider {
   const WS = resolveWebSocket(options.webSocket);

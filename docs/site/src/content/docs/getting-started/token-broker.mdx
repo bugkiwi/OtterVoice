@@ -1,0 +1,46 @@
+---
+title: Token Broker
+description: 为客户端签发短期 Provider 凭证，避免长期 Key 下发。
+---
+
+对应示例：[`examples/token-broker`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/token-broker)
+
+```bash
+# 在环境变量中配置上游 Provider Key
+bun run examples/token-broker/server.ts
+```
+
+## 协议
+
+请求：
+
+```http
+POST /api/voice/token
+Content-Type: application/json
+
+{
+  "provider": "deepgram",
+  "purpose": "asr",
+  "sessionId": "optional"
+}
+```
+
+响应：
+
+```json
+{
+  "token": "short-lived-token",
+  "url": "wss://optional-signed-endpoint",
+  "expiresAt": 1784000000000
+}
+```
+
+客户端 Provider：
+
+```ts
+createDeepgramASR({
+  tokenBrokerUrl: 'https://your.app/api/voice/token',
+});
+```
+
+网关应做：用户鉴权、Provider/模型白名单、配额、速率限制、体积与超时、审计 ID。默认不要记原始音频、完整 transcript、上游凭证。更多见 [安全指南](/docs/guides/security/)。

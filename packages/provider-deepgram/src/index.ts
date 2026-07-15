@@ -11,10 +11,14 @@ import {
   decodeDeepgram,
   DEFAULT_BASE_URL,
   type DeepgramQueryOptions,
-} from './decode';
+} from './decode.js';
 
-export * from './decode';
+export * from './decode.js';
 
+/**
+ * Options for {@link createDeepgramASR}. Extends {@link CredentialOptions} and
+ * {@link DeepgramQueryOptions}; prefer `tokenBrokerUrl` on clients over a static key.
+ */
 export interface DeepgramOptions extends CredentialOptions, DeepgramQueryOptions {
   /** Override the listen endpoint. */
   baseUrl?: string;
@@ -33,7 +37,11 @@ const CAPABILITIES: ASRCapabilities = {
   languages: [],
 };
 
-/** Deepgram streaming ASR provider over WebSocket. */
+/** Deepgram streaming ASR provider over WebSocket.
+ *
+ * @param options - Credentials plus listen URL / query options. Prefer
+ *   `tokenBrokerUrl` on clients.
+ */
 export function createDeepgramASR(options: DeepgramOptions): ASRProvider {
   const WS = resolveWebSocket(options.webSocket);
   const resolveCredential = createCredentialResolver(options, {

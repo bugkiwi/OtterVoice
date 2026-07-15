@@ -1,0 +1,55 @@
+---
+title: "@ottervoice/runtime-node"
+description: Node audio I/O and fetch/WebSocket networking.
+---
+
+Use for CLI, server-side orchestration, and environments without browser or Expo audio APIs.
+
+```ts
+import { createNodeRuntime } from '@ottervoice/runtime-node';
+
+const runtime = createNodeRuntime({
+  audioInput: {
+    // Optional AsyncIterable (subprocess mic stdout, file stream, …)
+    // source: subprocess.stdout,
+    sampleRate: 16_000,
+    encoding: 'pcm_s16le',
+  },
+  audioOutput: {
+    // Optional sink (file / speaker process); otherwise buffers in .played
+    // sink: async (input) => { … },
+  },
+  network: {
+    // Optional fetch / WebSocket injection for tests
+  },
+  logger: console, // or false to omit
+});
+```
+
+## `NodeRuntimeOptions`
+
+| Field | Notes |
+| --- | --- |
+| `audioInput` | See below; default has no byte source (caller-driven chunks) |
+| `audioOutput` | Defaults to recording `played`; supply `sink` to emit audio |
+| `network` | Override global `fetch` / `WebSocket` |
+| `logger` | Console-like object, or `false` to disable |
+
+### `NodeAudioInputOptions`
+
+| Field | Notes |
+| --- | --- |
+| `source` | `AsyncIterable` of bytes (mic subprocess, file stream) |
+| `sampleRate` / `encoding` | Default labels stamped on chunks |
+| `now` | Clock for timestamps (tests) |
+
+### `NodeAudioOutputOptions` / `NodeNetworkOptions`
+
+| Field | Notes |
+| --- | --- |
+| `sink` | `(input) => void \| Promise<void>` — real play or write |
+| `fetch` / `webSocket` | Network adapter injection |
+
+No microphone permission model (`requestPermission` is always `true`). No built-in UI playback — omit `sink` for orchestration-only runs.
+
+Examples: [`node-cli`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/node-cli), [`node-openrouter`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/node-openrouter) (both use `createMockRuntime`; switch to this package for real byte streams). Full fields: [API reference](/docs/en/reference/api/ottervoice-runtime-node/).

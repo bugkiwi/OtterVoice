@@ -11,4 +11,5 @@ export function createIdGenerator(prefix = 'id'): () => string {
   };
 }
 
+/** Default wall-clock used by sessions when no `now` override is injected. */
 export const defaultNow = (): number => Date.now();

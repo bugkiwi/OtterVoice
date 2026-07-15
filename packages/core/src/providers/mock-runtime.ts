@@ -6,8 +6,12 @@ import type {
   AudioPlaybackInput,
   NormalizedVoiceError,
   RuntimeAdapter,
-} from '../types';
+} from '../types.js';
 
+/**
+ * Options for {@link MockAudioInput}.
+ * Use when constructing a mock mic for tests without a real capture device.
+ */
 export interface MockAudioInputOptions {
   /** Permission result returned by `requestPermission`. Default true. */
   permission?: boolean;
@@ -81,6 +85,10 @@ export class MockAudioInput implements AudioInputAdapter {
   }
 }
 
+/**
+ * Options for {@link MockAudioOutput}.
+ * Use when tests need to control whether `play` auto-completes or fails.
+ */
 export interface MockAudioOutputOptions {
   /** Auto-fire start/end around `play`. Default true. */
   autoComplete?: boolean;
@@ -168,17 +176,34 @@ export class MockAudioOutput implements AudioOutputAdapter {
   }
 }
 
+/**
+ * Options for {@link createMockRuntime}.
+ * Forwards into {@link MockAudioInput} / {@link MockAudioOutput} constructors.
+ */
 export interface MockRuntimeOptions {
+  /** Microphone mock options. See {@link MockAudioInputOptions}. */
   input?: MockAudioInputOptions;
+  /** Speaker mock options. See {@link MockAudioOutputOptions}. */
   output?: MockAudioOutputOptions;
 }
 
+/**
+ * In-memory {@link RuntimeAdapter} with typed mock input/output adapters.
+ * Prefer {@link createMockRuntime} over constructing this shape by hand.
+ */
 export interface MockRuntime extends RuntimeAdapter {
+  /** Controllable mock microphone. */
   audioInput: MockAudioInput;
+  /** Controllable mock speaker. */
   audioOutput: MockAudioOutput;
 }
 
-/** Assemble a fully in-memory {@link RuntimeAdapter} for tests and Node demos. */
+/**
+ * Assemble a fully in-memory {@link RuntimeAdapter} for tests and Node demos.
+ *
+ * @param options - Optional input/output mock knobs. See {@link MockRuntimeOptions}.
+ * @returns A {@link MockRuntime} with {@link MockAudioInput} and {@link MockAudioOutput}.
+ */
 export function createMockRuntime(options: MockRuntimeOptions = {}): MockRuntime {
   return {
     audioInput: new MockAudioInput(options.input),

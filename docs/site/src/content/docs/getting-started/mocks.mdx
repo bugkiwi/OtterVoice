@@ -1,0 +1,50 @@
+---
+title: Mock 快速接入
+description: 用 Mock Runtime / Providers 验证 UI 与会话逻辑，无需 API Key。
+---
+
+对应示例：[`examples/node-cli`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/node-cli)
+
+Mock 与真实 Provider 共享同一套事件协议，UI 只需写一套逻辑。
+
+```ts
+import {
+  createMockASR,
+  createMockLLM,
+  createMockRuntime,
+  createMockTTS,
+  createVoiceSession,
+} from '@ottervoice/core';
+
+const runtime = createMockRuntime();
+const session = createVoiceSession({
+  mode: 'half_duplex',
+  runtime,
+  providers: {
+    asr: createMockASR({ transcripts: ['Hello Otter'] }),
+    llm: createMockLLM({ reply: () => 'Hello! How can I help?' }),
+    tts: createMockTTS(),
+  },
+});
+
+session.on('asr_partial', ({ text }) => console.log('user:', text));
+session.on('assistant_text_delta', ({ text }) => console.log('assistant:', text));
+
+await session.start();
+
+// 向 mock 输入推一条假音频分片，触发 ASR → LLM → TTS
+runtime.audioInput.emitChunk({
+  data: new ArrayBuffer(8),
+  timestamp: Date.now(),
+  durationMs: 800,
+});
+```
+
+运行：
+
+```bash
+bun run demo
+# 等同于 bun run examples/node-cli/index.ts
+```
+
+生产环境只替换 `runtime` 与 `providers`，Session 与事件订阅保持不变。

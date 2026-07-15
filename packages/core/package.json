@@ -4,6 +4,9 @@
   "type": "module",
   "description": "Platform-agnostic core for OtterVoice: VoiceSession, state machine, provider router, events, and mock providers.",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,11 +19,20 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "src", "README.md"],
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
   "sideEffects": false,
   "scripts": {
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "build": "rm -rf dist tsconfig.tsbuildinfo && tsc -p tsconfig.json",
     "test": "bun test"
+  },
+  "typedoc": {
+    "entryPoints": [
+      "./src/index.ts"
+    ]
   }
 }

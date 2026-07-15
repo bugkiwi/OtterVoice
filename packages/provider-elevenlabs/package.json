@@ -4,6 +4,9 @@
   "type": "module",
   "description": "ElevenLabs streaming ASR provider for OtterVoice (WebSocket).",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -14,7 +17,11 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "src", "README.md"],
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
   "sideEffects": false,
   "scripts": {
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
@@ -22,13 +29,18 @@
     "test": "bun test"
   },
   "peerDependencies": {
-    "@ottervoice/core": "workspace:*"
+    "@ottervoice/core": "workspace:^"
   },
   "devDependencies": {
-    "@ottervoice/core": "workspace:*",
-    "@ottervoice/provider-utils": "workspace:*"
+    "@ottervoice/core": "workspace:^",
+    "@ottervoice/provider-utils": "workspace:^"
   },
   "dependencies": {
-    "@ottervoice/provider-utils": "workspace:*"
+    "@ottervoice/provider-utils": "workspace:^"
+  },
+  "typedoc": {
+    "entryPoints": [
+      "./src/index.ts"
+    ]
   }
 }

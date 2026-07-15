@@ -1,11 +1,11 @@
-import { TypedEmitter } from './emitter';
-import { normalizeError, VoiceError } from './errors';
-import { StateMachine } from './state-machine';
-import { TranscriptBuffer } from './transcript-buffer';
-import { TurnDetector } from './turn-detector';
-import { UsageMeter } from './usage-meter';
-import { BargeInSpeechGate, PlaybackEchoFilter } from './playback-echo-filter';
-import { createIdGenerator, defaultNow } from './internal/ids';
+import { TypedEmitter } from './emitter.js';
+import { normalizeError, VoiceError } from './errors.js';
+import { StateMachine } from './state-machine.js';
+import { TranscriptBuffer } from './transcript-buffer.js';
+import { TurnDetector } from './turn-detector.js';
+import { UsageMeter } from './usage-meter.js';
+import { BargeInSpeechGate, PlaybackEchoFilter } from './playback-echo-filter.js';
+import { createIdGenerator, defaultNow } from './internal/ids.js';
 import type {
   AudioLLMAudioChunk,
   AudioLLMInputFormat,
@@ -20,7 +20,7 @@ import type {
   VoiceSessionState,
   VoiceTurn,
   VoiceUsageSnapshot,
-} from './types';
+} from './types.js';
 
 interface StreamingAssistantPlayback {
   output: AudioOutputStream;
@@ -151,10 +151,17 @@ export class VoiceSession {
 
   // -- public observation -------------------------------------------------
 
+  /** Current finite-state machine value (see {@link VoiceSessionState}). */
   get state(): VoiceSessionState {
     return this.machine.state;
   }
 
+  /**
+   * Subscribe to a session event. Returns an unsubscribe function.
+   *
+   * @param event - Event name from {@link VoiceSessionEventMap}.
+   * @param cb - Handler invoked with the typed payload for that event.
+   */
   on<K extends keyof VoiceSessionEventMap>(
     event: K,
     cb: (payload: VoiceSessionEventMap[K]) => void,
@@ -162,6 +169,12 @@ export class VoiceSession {
     return this.emitter.on(event, cb);
   }
 
+  /**
+   * Subscribe for a single delivery, then auto-unsubscribe.
+   *
+   * @param event - Event name from {@link VoiceSessionEventMap}.
+   * @param cb - Handler invoked once with the typed payload.
+   */
   once<K extends keyof VoiceSessionEventMap>(
     event: K,
     cb: (payload: VoiceSessionEventMap[K]) => void,
@@ -169,6 +182,12 @@ export class VoiceSession {
     return this.emitter.once(event, cb);
   }
 
+  /**
+   * Remove a previously registered handler.
+   *
+   * @param event - Event name from {@link VoiceSessionEventMap}.
+   * @param cb - The same function reference passed to {@link VoiceSession.on}.
+   */
   off<K extends keyof VoiceSessionEventMap>(
     event: K,
     cb: (payload: VoiceSessionEventMap[K]) => void,
@@ -176,10 +195,12 @@ export class VoiceSession {
     this.emitter.off(event, cb);
   }
 
+  /** Committed user/assistant turns recorded so far. */
   getTurns(): VoiceTurn[] {
     return this.transcript.all();
   }
 
+  /** Aggregate usage meters for the active (or last) session. */
   getUsage(): VoiceUsageSnapshot {
     return this.usage.snapshot();
   }
@@ -189,6 +210,8 @@ export class VoiceSession {
   /**
    * Begin the session. Speaks the initial assistant message (from the agent
    * plugin or `initialPrompt`) and then, unless disabled, opens the mic.
+   *
+   * @param initialPrompt - Optional opening line when no agent plugin supplies one.
    */
   async start(initialPrompt?: string): Promise<void> {
     if (this.state !== 'idle') {
@@ -313,17 +336,29 @@ export class VoiceSession {
       audioInput.onChunk((chunk) => {
         const streamOnly = chunk.delivery === 'stream';
         const turnOnly = chunk.delivery === 'turn';
+        const startsNewWebmContainer = this.isWebmContainerHeader(chunk.data);
         if (
           this.config.pipeline === 'audio_llm' &&
           !streamOnly &&
           chunk.data.byteLength > 0
         ) {
+          // Web runtimes may restart MediaRecorder after assistant playback so
+          // Android receives a fresh container instead of a WebM timeline with
+          // dropped clusters. A new EBML header supersedes the preserved header
+          // and any pre-playback bytes already buffered for this capture.
+          if (
+            startsNewWebmContainer &&
+            capture.audioChunks.length > 0
+          ) {
+            capture.audioChunks = [];
+            capture.asrContainerHeaderForwarded = false;
+          }
           capture.audioChunks.push(chunk.data.slice(0));
           capture.audioFormat ??= this.audioLlmFormat(chunk.encoding);
         }
         const isWebmHeader =
           !capture.asrContainerHeaderForwarded &&
-          this.isWebmEncoding(chunk.encoding);
+          (startsNewWebmContainer || this.isWebmEncoding(chunk.encoding));
         if (isWebmHeader) capture.asrContainerHeaderForwarded = true;
         // A MediaRecorder WebM stream only contains its container header in
         // the first chunk. Preserve that one chunk for batch ASR even while
@@ -391,6 +426,10 @@ export class VoiceSession {
     await this.handleUserFinalTranscript(text);
   }
 
+  /**
+   * Pause the session: cancel in-flight replies, stop mic/ASR/playback, and
+   * enter the `paused` state. No-op if the transition is illegal.
+   */
   async pause(): Promise<void> {
     if (!this.machine.can('paused')) return;
     this.transition('paused');
@@ -401,17 +440,25 @@ export class VoiceSession {
     await this.safeStopAudioOutput();
   }
 
+  /** Resume from `paused` by reopening the microphone for the next user turn. */
   async resume(): Promise<void> {
     if (this.state !== 'paused') return;
     await this.startListening();
   }
 
-  /** End the session normally, emitting a final usage snapshot. */
+  /**
+   * End the session normally, emitting a final usage snapshot and `finished`.
+   *
+   * @param reason - Opaque reason string forwarded on the state transition.
+   */
   async finish(reason = 'finished'): Promise<void> {
     await this.finishInternal(reason);
   }
 
-  /** Tear everything down and drop all listeners. */
+  /**
+   * Tear everything down and drop all listeners. Safe to call multiple times.
+   * Prefer {@link VoiceSession.finish} for a graceful end that emits `finished`.
+   */
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
@@ -896,6 +943,17 @@ export class VoiceSession {
 
   private isWebmEncoding(encoding: string | undefined): boolean {
     return encoding?.toLowerCase().includes('webm') ?? false;
+  }
+
+  private isWebmContainerHeader(data: ArrayBuffer): boolean {
+    const bytes = new Uint8Array(data);
+    return (
+      bytes.length >= 4 &&
+      bytes[0] === 0x1a &&
+      bytes[1] === 0x45 &&
+      bytes[2] === 0xdf &&
+      bytes[3] === 0xa3
+    );
   }
 
   private audioLlmFormat(encoding: string | undefined): AudioLLMInputFormat {
@@ -1609,7 +1667,12 @@ export class VoiceSession {
   }
 }
 
-/** Factory mirroring the documented public API. */
+/**
+ * Create a {@link VoiceSession} from a fully wired {@link VoiceSessionConfig}.
+ *
+ * @param config - Runtime adapter, providers, mode/pipeline, VAD, and policy.
+ * @returns A session that must be {@link VoiceSession.dispose | dispose()}d when finished.
+ */
 export function createVoiceSession(config: VoiceSessionConfig): VoiceSession {
   return new VoiceSession(config);
 }

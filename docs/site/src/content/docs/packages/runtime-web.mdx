@@ -1,0 +1,40 @@
+---
+title: "@ottervoice/runtime-web"
+description: getUserMedia、MediaRecorder、Web Audio 播放与 barge-in 预录。
+---
+
+浏览器 Runtime：麦克风编码分片、音量 VAD、助手播放，以及确认插话前的编码预录。
+
+```ts
+import { createWebRuntime } from '@ottervoice/runtime-web';
+
+const runtime = createWebRuntime({
+  mimeType: 'audio/webm;codecs=opus',
+  timesliceMs: 100,
+  volumePollMs: 50,
+  bargeInPreRollMs: 500,
+});
+```
+
+## `WebRuntimeOptions`
+
+| 选项 | 默认 | 说明 |
+| --- | --- | --- |
+| `mimeType` | 浏览器可用 Opus/WebM | MediaRecorder MIME |
+| `timesliceMs` | `100` | 编码分片间隔；流式 ASR 可直接消费 |
+| `volumePollMs` | `50` | RMS 采样间隔（供 VAD / barge-in） |
+| `bargeInPreRollMs` | `500` | 播放过滤期间保留的编码预录；确认插话后释放开头音节 |
+| `getUserMedia` / `mediaRecorder` / … | 浏览器全局 | 可注入，便于测试 |
+
+也可拆开传 `audioInput` / `audioOutput`（见 `WebAudioInputOptions` / `WebAudioOutputOptions`）。
+
+## 浏览器要求
+
+- HTTPS 或 `localhost`
+- 用户手势里请求麦克风，并尝试解锁播放
+- autoplay 解锁失败**不应**阻断输入与 ASR
+- 离开页面时 `dispose()` 释放 track、AudioContext、播放器
+
+助手播放时可暂停编码上传但仍监测音量；只有确认 barge-in 才提交预录，从而保住开头音节并过滤普通扬声器尾音。
+
+示例：[examples/web](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web)。字段详情：[API 参考](/docs/reference/api/ottervoice-runtime-web/)。

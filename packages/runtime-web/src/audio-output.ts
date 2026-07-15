@@ -6,21 +6,31 @@ import {
   type NormalizedVoiceError,
   type PcmAudioStreamOptions,
 } from '@ottervoice/core';
-import type { AudioEnvelope } from './audio-conversion';
+import type { AudioEnvelope } from './audio-conversion.js';
 
+/**
+ * Minimal `HTMLAudioElement` / `Audio` surface for one-shot encoded playback.
+ * Injected via {@link WebAudioOutputOptions.createAudio}.
+ */
 export interface AudioElementLike {
+  /** Object URL or remote URL to play. */
   src: string;
+  /** Playback gain in `[0, 1]`. */
   volume: number;
   play(): Promise<void>;
   pause(): void;
   addEventListener(type: string, listener: () => void): void;
 }
 
+/** Minimal `AudioBuffer` surface for scheduling PCM frames. */
 export interface PcmAudioBufferLike {
+  /** Mutable float samples for one channel. */
   getChannelData(channel: number): Float32Array;
 }
 
+/** Minimal `AudioBufferSourceNode` surface for gapless PCM streaming. */
 export interface PcmAudioBufferSourceLike {
+  /** Buffer to play, or `null` before assignment. */
   buffer: PcmAudioBufferLike | null;
   connect(destination: unknown): unknown;
   start(when?: number): void;
@@ -28,8 +38,14 @@ export interface PcmAudioBufferSourceLike {
   addEventListener(type: 'ended', listener: () => void): void;
 }
 
+/**
+ * Minimal Web Audio context used for incremental PCM playback and echo reference.
+ * Distinct from the mic-metering context shim on {@link WebAudioInput}.
+ */
 export interface PcmAudioContextLike {
+  /** AudioContext clock in seconds. */
   currentTime: number;
+  /** Default output destination. */
   destination: unknown;
   resume(): Promise<void>;
   suspend(): Promise<void>;
@@ -41,16 +57,23 @@ export interface PcmAudioContextLike {
   createBufferSource(): PcmAudioBufferSourceLike;
 }
 
+/**
+ * Injected playback primitives for {@link WebAudioOutput}.
+ * Prefer {@link createWebRuntime} to wire browser `Audio` / `URL` / `AudioContext`;
+ * pass stubs when testing or embedding outside a full DOM.
+ */
 export interface WebAudioOutputOptions {
   /** Create a playback element (default `() => new Audio()` in the browser). */
   createAudio: () => AudioElementLike;
   /** Required for `audioBuffer` playback; turns a Blob into a URL. */
   createObjectURL?: (blob: Blob) => string;
+  /** Release an object URL from {@link WebAudioOutputOptions.createObjectURL}. */
   revokeObjectURL?: (url: string) => void;
   /** Decode encoded audio into RMS frames used as an acoustic echo reference. */
   measureAudio?: (audio: ArrayBuffer) => Promise<AudioEnvelope>;
   /** Create a Web Audio context used for gapless incremental PCM playback. */
   createPcmAudioContext?: () => PcmAudioContextLike;
+  /** Override clock used for envelope timing (tests). */
   now?: () => number;
 }
 

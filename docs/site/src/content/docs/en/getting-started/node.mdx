@@ -1,0 +1,38 @@
+---
+title: Node.js
+description: Use runtime-node for CLI and server-side sessions.
+---
+
+Examples:
+
+- Mock loop: [`examples/node-cli`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/node-cli)
+- Live LLM: [`examples/node-openrouter`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/node-openrouter)
+
+```bash
+bun run examples/node-openrouter/index.ts
+# optional: export OPENROUTER_API_KEY=...
+```
+
+```ts
+import { createVoiceSession, createMockASR, createMockTTS } from '@ottervoice/core';
+import { createNodeRuntime } from '@ottervoice/runtime-node';
+import { createOpenRouterLLM } from '@ottervoice/provider-openrouter';
+
+const runtime = createNodeRuntime();
+const session = createVoiceSession({
+  mode: 'half_duplex',
+  runtime,
+  providers: {
+    asr: createMockASR({ transcripts: ['Say hello'] }),
+    llm: createOpenRouterLLM({
+      apiKey: process.env.OPENROUTER_API_KEY!,
+      model: 'openai/gpt-4o-mini',
+    }),
+    tts: createMockTTS(),
+  },
+});
+
+await session.start();
+```
+
+Servers may use `apiKey` directly. Browsers and apps must use the [token broker](/docs/en/getting-started/token-broker/).

@@ -1,0 +1,58 @@
+---
+title: "@ottervoice/runtime-react-native"
+description: Expo PCM capture and streaming playback without a hard Expo dependency.
+---
+
+The React Native runtime **does not hard-depend** on Expo packages: you inject recording/playback primitives so the adapter stays testable and Expo Go–friendly.
+
+```ts
+import { createExpoRuntime } from '@ottervoice/runtime-react-native';
+
+const runtime = createExpoRuntime({
+  input: {
+    requestPermission: () => /* requestRecordingPermissionsAsync */,
+    createPcmStream: (options, onBuffer) => /* useAudioStream bridge */,
+  },
+  output: {
+    createSound: (uri) => /* createAudioPlayer */,
+    createPcmPlaylist: () => /* AudioPlaylist */,
+    writePcmChunk: (input) => /* PCM16 → temp WAV URI */,
+    deleteAudioFile: (uri) => /* cleanup */,
+  },
+});
+```
+
+Full binding: [`examples/react-native-expo/src/expo-adapters.ts`](https://github.com/bugkiwi/OtterVoice/blob/main/examples/react-native-expo/src/expo-adapters.ts).
+
+## `ExpoRuntimeOptions`
+
+| Field | Notes |
+| --- | --- |
+| `input` | Required — see `ExpoAudioInputOptions` |
+| `output` | Required — see `ExpoAudioOutputOptions` |
+
+No `network` adapter: providers use React Native’s global `fetch` / `WebSocket`.
+
+### `ExpoAudioInputOptions`
+
+| Field | Notes |
+| --- | --- |
+| `createPcmStream` | **Preferred**: native PCM mic (wrap Expo SDK 57 `useAudioStream`) |
+| `requestPermission` | Microphone permission |
+| `createRecording` / `readAudioFile` | Legacy whole-file recording; prefer PCM for full duplex |
+| `now` | Test clock |
+
+Prefer **16 kHz · mono · PCM16**. Chunks may set `delivery: 'stream' | 'turn'`: streaming ASR consumes small buffers; batch / Audio LLM consumes full-turn WAV.
+
+### `ExpoAudioOutputOptions`
+
+| Field | Notes |
+| --- | --- |
+| `createSound` | URI → playable sound |
+| `createPcmPlaylist` | Gapless PCM playlist for streamed replies |
+| `writePcmChunk` | One PCM16 slice → temp WAV URI |
+| `writeAudioFile` / `deleteAudioFile` | Full-buffer write and cleanup |
+
+During assistant playback, suspend encoded capture while keeping volume callbacks for real barge-in.
+
+Example: [examples/react-native-expo](https://github.com/bugkiwi/OtterVoice/tree/main/examples/react-native-expo). Types: [API reference](/docs/en/reference/api/ottervoice-runtime-react-native/).

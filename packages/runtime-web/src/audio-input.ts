@@ -6,45 +6,81 @@ import {
   type NormalizedVoiceError,
 } from '@ottervoice/core';
 
+/** Minimal `MediaStreamTrack` surface used to stop capture. */
 export interface MediaTrackLike {
+  /** End this track (releases the microphone). */
   stop(): void;
 }
+
+/** Minimal `MediaStream` surface used by {@link WebAudioInput}. */
 export interface MediaStreamLike {
+  /** Tracks belonging to the stream (mic, etc.). */
   getTracks(): MediaTrackLike[];
 }
+
+/** Minimal `Blob` surface for MediaRecorder `dataavailable` payloads. */
 export interface BlobLike {
+  /** Byte length of the blob. */
   size: number;
+  /** Copy blob contents into an ArrayBuffer. */
   arrayBuffer(): Promise<ArrayBuffer>;
 }
+
+/**
+ * Minimal `MediaRecorder` surface for chunked mic encoding.
+ * Injected via {@link WebAudioInputOptions.mediaRecorder} / browser global.
+ */
 export interface MediaRecorderLike {
+  /** Begin encoding; optional timeslice (ms) for periodic `dataavailable` events. */
   start(timeslice?: number): void;
+  /** Stop encoding and release the recorder. */
   stop(): void;
+  /** Pause encoding without ending the recording. */
   pause(): void;
+  /** Resume after {@link MediaRecorderLike.pause}. */
   resume(): void;
+  /** Subscribe to recorder events (e.g. `dataavailable`, `error`, `stop`). */
   addEventListener(type: string, listener: (event: any) => void): void;
 }
+
+/** Constructor for {@link MediaRecorderLike} (browser `MediaRecorder`). */
 export type MediaRecorderCtor = new (
   stream: MediaStreamLike,
   options?: { mimeType?: string },
 ) => MediaRecorderLike;
+
+/** `navigator.mediaDevices.getUserMedia`-compatible capture entry point. */
 export type GetUserMedia = (constraints: unknown) => Promise<MediaStreamLike>;
 
+/** Minimal `AnalyserNode` surface for time-domain RMS metering. */
 export interface AnalyserNodeLike {
+  /** FFT size controlling analyser resolution. */
   fftSize: number;
+  /** Number of bins available from {@link AnalyserNodeLike.getByteTimeDomainData}. */
   frequencyBinCount: number;
+  /** Fill `array` with uint8 time-domain samples. */
   getByteTimeDomainData(array: Uint8Array): void;
 }
 
+/** Minimal `AudioContext` surface for mic metering (not full Web Audio). */
 export interface AudioContextLike {
   createMediaStreamSource(stream: MediaStreamLike): { connect(node: AnalyserNodeLike): void };
   createAnalyser(): AnalyserNodeLike;
   close(): Promise<void>;
 }
 
+/** Constructor for {@link AudioContextLike} (browser `AudioContext`). */
 export type AudioContextCtor = new () => AudioContextLike;
 
+/**
+ * Injected primitives and timing knobs for {@link WebAudioInput}.
+ * Prefer {@link createWebRuntime} to wire browser globals; construct directly
+ * only when substituting stubs or a custom capture stack.
+ */
 export interface WebAudioInputOptions {
+  /** Microphone permission + stream factory (`getUserMedia`). */
   getUserMedia: GetUserMedia;
+  /** Encoder constructor (`MediaRecorder`). */
   mediaRecorder: MediaRecorderCtor;
   /** MIME type for the recorder, e.g. `audio/webm`. */
   mimeType?: string;
@@ -56,6 +92,7 @@ export interface WebAudioInputOptions {
   bargeInPreRollMs?: number;
   /** Override AudioContext (defaults to the browser global). */
   audioContext?: AudioContextCtor;
+  /** Override clock used for chunk timestamps and timers (tests). */
   now?: () => number;
 }
 
@@ -129,6 +166,12 @@ export class WebAudioInput implements AudioInputAdapter {
       });
     }
     this.stream = stream;
+    this.startRecorder(stream);
+    this.startVolumeMonitor(stream);
+  }
+
+  private startRecorder(stream: MediaStreamLike): void {
+    this.pendingData = Promise.resolve();
     const recorder = this.options.mimeType
       ? new this.options.mediaRecorder(stream, { mimeType: this.options.mimeType })
       : new this.options.mediaRecorder(stream);
@@ -163,7 +206,16 @@ export class WebAudioInput implements AudioInputAdapter {
     });
     recorder.start(this.timesliceMs);
     this.recorder = recorder;
-    this.startVolumeMonitor(stream);
+  }
+
+  private async stopRecorder(): Promise<void> {
+    const recorder = this.recorder;
+    const recorderStopped = this.recorderStopped;
+    this.recorder = undefined;
+    this.recorderStopped = undefined;
+    recorder?.stop();
+    await recorderStopped;
+    await this.pendingData;
   }
 
   private startVolumeMonitor(stream: MediaStreamLike): void {
@@ -226,19 +278,13 @@ export class WebAudioInput implements AudioInputAdapter {
       await this.audioContext.close();
       this.audioContext = undefined;
     }
-    const recorder = this.recorder;
-    const recorderStopped = this.recorderStopped;
     const stream = this.stream;
-    this.recorder = undefined;
-    this.recorderStopped = undefined;
     this.stream = undefined;
-    recorder?.stop();
     // MediaRecorder emits its last dataavailable event before stop. Wait for
     // that event and every ordered Blob.arrayBuffer() before stopping the
     // source tracks. Closing tracks first can truncate the final WebM cluster
     // on mobile Chrome.
-    await recorderStopped;
-    await this.pendingData;
+    await this.stopRecorder();
     if (stream) {
       for (const track of stream.getTracks()) track.stop();
     }
@@ -265,12 +311,26 @@ export class WebAudioInput implements AudioInputAdapter {
   }
 
   async resumeCapture(options: { includePreRoll?: boolean } = {}): Promise<void> {
-    // The first MediaRecorder chunk owns the WebM container header and must
-    // survive even a non-barge-in resume. Only the rolling audio tail is
-    // conditional; without the header, every later chunk is undecodable.
+    if (!this.captureSuspended) return;
+    if (!options.includePreRoll) {
+      // Dropping encoded clusters recorded during assistant playback leaves a
+      // timestamp hole after the original WebM header. Desktop Chromium often
+      // tolerates that splice, while Android Chrome's decoder may reject it.
+      // Finalize and discard the suspended recorder, then resume with a fresh,
+      // independently decodable WebM container on the same microphone stream.
+      await this.stopRecorder();
+      this.suspendedContainerHeader = undefined;
+      this.suspendedPreRoll = [];
+      this.hasDeliveredChunk = false;
+      this.captureSuspended = false;
+      if (this.stream) this.startRecorder(this.stream);
+      return;
+    }
+    // A confirmed barge-in keeps the current container header and bounded
+    // pre-roll so the user's opening syllables are not lost.
     const buffered = [
       ...(this.suspendedContainerHeader ? [this.suspendedContainerHeader] : []),
-      ...(options.includePreRoll ? this.suspendedPreRoll : []),
+      ...this.suspendedPreRoll,
     ];
     this.captureSuspended = false;
     this.suspendedContainerHeader = undefined;

@@ -1,0 +1,40 @@
+---
+title: Latency
+description: What shapes perceived latency, knobs to tune, and how to measure.
+---
+
+Perceived latency is not one HTTP round-trip. It is the full pipeline:
+
+**endpointing → upload → model TTFT / first PCM → player queueing**
+
+Typical turn:
+
+1. User speaks → Session listens with volume / hybrid VAD  
+2. Live chunks hit ASR; `asr_partial` keeps updating  
+3. `silenceTimeoutMs` ends the turn → `user_audio_end`  
+4. LLM stream / Audio LLM returns text or PCM  
+5. First packet enqueued → `assistant_audio_start`
+
+## Practical levers
+
+1. Prefer **streaming ASR** with partials so captions appear while the user speaks.
+2. After noise testing, tune `silenceTimeoutMs` to roughly **350–600 ms** (defaults are conservative — see [core](/docs/en/packages/core/)).
+3. Implement `LLMProvider.stream()`, or Audio LLM `onTranscriptDelta` / `onAudioChunk`, instead of waiting for a full reply.
+4. Reuse connections and playback; cap reply length and `maxTokens`.
+5. Use stricter `interruptionDetection` during playback so echo does not false-trigger, without delaying real barge-in.
+
+## How to measure
+
+| Interval | Events | Meaning |
+| --- | --- | --- |
+| Endpoint → first audio | `user_audio_end` → `assistant_audio_start` | **Perceived first-audio latency** (primary KPI) |
+| Endpoint → first text | `user_audio_end` → first `assistant_text_delta` | Text TTFT |
+| Live captions | First `asr_partial` | Input-side feel |
+
+Sample on target devices, speaker volume, and real noise — not only a quiet lab.
+
+## Compatibility path
+
+**Rolling partials** (batch ASR) re-upload accumulated audio — fine for demos. Prefer native WebSocket streaming ASR (Deepgram / ElevenLabs) in production.
+
+See [`TurnDetectionConfig`](/docs/en/packages/core/), [`policy`](/docs/en/packages/core/), and the [events guide](/docs/en/guides/events/).

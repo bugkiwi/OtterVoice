@@ -1,0 +1,46 @@
+---
+title: Token broker
+description: Mint short-lived provider credentials for clients.
+---
+
+Example: [`examples/token-broker`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/token-broker)
+
+```bash
+# put upstream provider keys in the environment
+bun run examples/token-broker/server.ts
+```
+
+## Contract
+
+Request:
+
+```http
+POST /api/voice/token
+Content-Type: application/json
+
+{
+  "provider": "deepgram",
+  "purpose": "asr",
+  "sessionId": "optional"
+}
+```
+
+Response:
+
+```json
+{
+  "token": "short-lived-token",
+  "url": "wss://optional-signed-endpoint",
+  "expiresAt": 1784000000000
+}
+```
+
+Client providers:
+
+```ts
+createDeepgramASR({
+  tokenBrokerUrl: 'https://your.app/api/voice/token',
+});
+```
+
+Gateways should enforce auth, allowlists, quotas, rate limits, payload limits, timeouts, and audit IDs. Do not log raw audio, full transcripts, or upstream credentials by default. See the [security guide](/docs/en/guides/security/).

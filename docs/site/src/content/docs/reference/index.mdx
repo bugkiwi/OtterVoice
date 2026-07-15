@@ -1,0 +1,18 @@
+---
+title: API 参考
+description: 由 TypeDoc 从源码 JSDoc 生成的参数与类型说明。
+---
+
+以下页面由 **TypeDoc** 从各包公开导出与 JSDoc **自动生成**。手写模块说明见 [模块怎么选](/docs/packages/)；这里以签名与字段表为准。
+
+## 读文档顺序
+
+1. [`@ottervoice/core`](/docs/reference/api/ottervoice-core/) — `VoiceSession`、`VoiceSessionConfig`、事件与 Provider 接口
+2. 对应 Runtime — `runtime-web` / `runtime-react-native` / `runtime-node`
+3. 选用的 `@ottervoice/provider-*` 与 `@ottervoice/provider-utils`
+
+缺少参数说明时，优先补**源码 JSDoc**，再跑 `bun run build:api`（见仓库根目录 [`AGENTS.md`](https://github.com/bugkiwi/OtterVoice/blob/main/AGENTS.md)）。
+
+:::note
+生成文档正文为英文（与源码注释一致）。中文站点侧导航与模块讲解仍用中文。
+:::

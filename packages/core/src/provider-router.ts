@@ -3,21 +3,35 @@ import type {
   LLMProvider,
   PronunciationProvider,
   TTSProvider,
-} from './types';
-import { VoiceError } from './errors';
+} from './types.js';
+import { VoiceError } from './errors.js';
 
+/**
+ * Built-in named stacks in {@link providerProfiles}.
+ * Pass to {@link ProviderRegistry.resolve} or {@link resolveProfile}.
+ */
 export type ProviderProfileName =
   | 'global_budget'
   | 'global_pro'
   | 'china_fallback'
   | 'developer_test';
 
+/**
+ * Provider-id recipe for one product mode. String values are registry keys
+ * resolved by {@link ProviderRegistry} into concrete adapters — never vendor SDK imports.
+ */
 export interface ProviderProfile {
+  /** Stable profile id (usually matches a {@link ProviderProfileName}). */
   name: string;
+  /** Registered ASR provider id. */
   asr: string;
+  /** Registered LLM used for conversational turns. */
   llmConversation: string;
+  /** Optional LLM used for scoring / reports; defaults to conversation LLM. */
   llmScoring?: string;
+  /** Optional TTS provider id for the classic pipeline. */
   tts?: string;
+  /** Optional pronunciation / assessment provider id. */
   pronunciation?: string;
 }
 
@@ -61,19 +75,35 @@ export const providerProfiles = {
   },
 } satisfies Record<ProviderProfileName, ProviderProfile>;
 
+/** Deployment region hint for {@link resolveProfile}. */
 export type ProviderRegion = 'global' | 'china' | 'unknown';
+/** Commercial plan hint for {@link resolveProfile}. */
 export type ProviderPlan = 'free' | 'basic' | 'pro';
+/**
+ * Feature being routed (reserved for finer policy; {@link resolveProfile}
+ * currently keys primarily on region / plan).
+ */
 export type ProviderFeature =
   | 'conversation'
   | 'transcription'
   | 'scoring'
   | 'pronunciation';
 
+/**
+ * Inputs for {@link resolveProfile}.
+ * Prefer setting {@link ProviderRoutingContext.region} and
+ * {@link ProviderRoutingContext.plan}; latency/cost are forward-compatible knobs.
+ */
 export interface ProviderRoutingContext {
+  /** User / deployment region. */
   region?: ProviderRegion;
+  /** Subscription tier. */
   plan?: ProviderPlan;
+  /** Feature being selected (optional; ignored by the default policy). */
   feature?: ProviderFeature;
+  /** Prefer lower latency when a future policy uses it. */
   latencyPreference?: 'low' | 'balanced' | 'quality';
+  /** Prefer lower cost when a future policy uses it. */
   costPreference?: 'low' | 'balanced' | 'quality';
 }
 
@@ -86,18 +116,35 @@ export function resolveProfile(
   return 'global_budget';
 }
 
+/**
+ * Initial map of provider ids → instances for the {@link ProviderRegistry}
+ * constructor. Keys must match those used in {@link ProviderProfile}.
+ */
 export interface RegisteredProviders {
+  /** ASR adapters keyed by profile `asr` id. */
   asr?: Record<string, ASRProvider>;
+  /** LLM adapters keyed by conversation / scoring ids. */
   llm?: Record<string, LLMProvider>;
+  /** TTS adapters keyed by profile `tts` id. */
   tts?: Record<string, TTSProvider>;
+  /** Pronunciation adapters keyed by profile `pronunciation` id. */
   pronunciation?: Record<string, PronunciationProvider>;
 }
 
+/**
+ * Concrete provider bundle produced by {@link ProviderRegistry.resolve}.
+ * Ready to pass into a {@link import('./session').VoiceSession} config.
+ */
 export interface ResolvedProviders {
+  /** Live ASR for the classic pipeline. */
   asr: ASRProvider;
+  /** Conversational text LLM. */
   llm: LLMProvider;
+  /** LLM used for scoring / reports (may alias {@link ResolvedProviders.llm}). */
   llmScoring: LLMProvider;
+  /** Optional TTS when synthesizing speech separately. */
   tts?: TTSProvider;
+  /** Optional pronunciation assessor. */
   pronunciation?: PronunciationProvider;
 }
 

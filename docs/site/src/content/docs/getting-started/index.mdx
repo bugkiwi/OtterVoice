@@ -1,0 +1,32 @@
+---
+title: 快速接入总览
+description: 按场景选择示例，从 Mock 验证到 Web / Expo / Node 上线。
+---
+
+OtterVoice 是**会话编排 SDK**，不是模型网关。你要做的是：选一个 Runtime、注入 Providers、监听 Session 事件。
+
+## 场景 → 示例
+
+| 场景 | 示例 | 命令 |
+| --- | --- | --- |
+| 最小闭环（无麦克风 / 无 Key） | [`examples/node-cli`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/node-cli) | `bun run demo` |
+| Node + 真实 LLM | [`examples/node-openrouter`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/node-openrouter) | `bun run examples/node-openrouter/index.ts` |
+| 浏览器全双工 | [`examples/web`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web) | `cd examples/web && bun run start` |
+| Expo App | [`examples/react-native-expo`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/react-native-expo) | `cd examples/react-native-expo && bun run start` |
+| 短期令牌网关 | [`examples/token-broker`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/token-broker) | `bun run examples/token-broker/server.ts` |
+
+仓库入口：[github.com/bugkiwi/OtterVoice](https://github.com/bugkiwi/OtterVoice)
+
+## 推荐路径
+
+1. 用 **[Mock](/docs/getting-started/mocks/)** 把 UI / 字幕 / 状态机跑通。
+2. 换成目标平台 Runtime（[Web](/docs/getting-started/web/) / [Expo](/docs/getting-started/expo/) / [Node](/docs/getting-started/node/)）。
+3. 客户端通过 **[Token Broker](/docs/getting-started/token-broker/)** 取短期凭证，不要把长期 Key 打进包。
+
+```bash
+bun add @ottervoice/core
+# Web:     bun add @ottervoice/runtime-web
+# Expo:    bun add @ottervoice/runtime-react-native
+# Node:    bun add @ottervoice/runtime-node
+# Providers: @ottervoice/provider-deepgram | elevenlabs | openrouter | azure-speech
+```

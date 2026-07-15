@@ -1,0 +1,56 @@
+---
+title: "@ottervoice/core"
+description: VoiceSession, config, events, mocks, and the state machine.
+---
+
+Entry point: `createVoiceSession(config)`.
+
+## `VoiceSessionConfig`
+
+| Field | Notes |
+| --- | --- |
+| `mode` | `half_duplex` · `full_duplex` · `push_to_talk` · `streaming_transcript` |
+| `pipeline` | `asr_llm_tts` (default) or `audio_llm` |
+| `runtime` | Platform adapter |
+| `providers.asr` / `llm` | Required |
+| `providers.tts` | Required for `asr_llm_tts` |
+| `providers.audioLlm` | Required for `audio_llm` |
+| `language` | Preferred ASR language |
+| `asrPartial` | Emit `asr_partial` (default `true`) |
+| `turnDetection` | VAD while listening |
+| `interruptionDetection` | Stricter VAD during playback |
+| `policy` | Auto-listen, barge-in, false-interrupt recovery |
+| `audioLlmSystemPrompt` / `audioLlmMaxTokens` | Audio LLM only |
+
+Full fields: [API reference](/docs/en/reference/). Source: [`types.ts`](https://github.com/bugkiwi/OtterVoice/blob/main/packages/core/src/types.ts).
+
+## `TurnDetectionConfig`
+
+| Field | Default (resolved) | Meaning |
+| --- | --- | --- |
+| `strategy` | `hybrid` | `volume` · `asr_endpointing` · `manual` · `hybrid` |
+| `minSpeechMs` | `500` | Voiced time before speech starts |
+| `silenceTimeoutMs` | `1200` | Silence before end-of-turn (try 350–600 for latency) |
+| `maxTurnMs` | `120000` | Hard turn cap |
+| `volumeThreshold` | `0.02` | RMS threshold |
+
+## `VoiceSessionPolicy`
+
+| Field | Meaning |
+| --- | --- |
+| `autoStartListening` | Enter listening after `start` |
+| `allowInterruption` | Allow barge-in |
+| `interruptionTailIgnoreMs` | Ignore speaker tail after a tentative pause (default `200`) |
+| `falseInterruptionSilenceMs` / `TimeoutMs` | False-interruption recovery window |
+| `interruptionCooldownMs` | Cooldown after resuming playback |
+| `postPlaybackVadRearmMs` | Wait for a quiet baseline after playback (default `300`) |
+
+## Lifecycle
+
+```ts
+await session.start();
+await session.finish();
+await session.dispose();
+```
+
+Events: [events guide](/docs/en/guides/events/). Error codes and usage live on [`VoiceSessionEventMap`](https://github.com/bugkiwi/OtterVoice/blob/main/packages/core/src/types.ts).

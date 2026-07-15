@@ -1,0 +1,43 @@
+---
+title: Providers
+description: Bundled ASR / LLM / TTS / Audio LLM adapters and credential modes.
+---
+
+All bundled providers share the credential shape from `@ottervoice/provider-utils`:
+
+| Field | Use |
+| --- | --- |
+| `apiKey` | Long-lived key (**server only** — never ship to clients) |
+| `tokenBrokerUrl` | Client-safe short-lived token mint |
+| `fetch` | Injectable |
+
+## Capability map
+
+| Capability | Package | Transport |
+| --- | --- | --- |
+| Streaming ASR | `@ottervoice/provider-deepgram` | WebSocket |
+| Streaming ASR | `@ottervoice/provider-elevenlabs` | WebSocket |
+| LLM / SSE | `@ottervoice/provider-openrouter` | HTTP SSE |
+| TTS / STT / Audio LLM | `@ottervoice/provider-openrouter` | HTTP (demo-optional) |
+| TTS | `@ottervoice/provider-azure-speech` | REST + SSML |
+
+Custom ASR **must** declare `capabilities.streaming` correctly — core uses it to choose live chunks vs full-turn audio.
+
+```ts
+import { createDeepgramASR } from '@ottervoice/provider-deepgram';
+import { createOpenRouterLLM } from '@ottervoice/provider-openrouter';
+import { createAzureTTS } from '@ottervoice/provider-azure-speech';
+
+const asr = createDeepgramASR({ tokenBrokerUrl: '/api/voice/token' });
+const llm = createOpenRouterLLM({
+  tokenBrokerUrl: '/api/voice/token',
+  model: 'openai/gpt-4o-mini',
+});
+const tts = createAzureTTS({
+  region: 'eastasia',
+  voice: 'zh-CN-XiaoxiaoNeural',
+  tokenBrokerUrl: '/api/voice/token',
+});
+```
+
+Credential details: [`provider-utils`](/docs/en/packages/provider-utils/). Factory option tables: [API reference](/docs/en/reference/) and each package's JSDoc.

@@ -7,11 +7,22 @@
     "node": "22.x"
   },
   "scripts": {
-    "build": "bun run build.ts"
+    "dev": "astro dev",
+    "build:api": "typedoc --options typedoc.json && bun run scripts/sync-api-docs.ts",
+    "build:docs": "astro build",
+    "build": "bun run build.ts",
+    "preview": "astro preview"
   },
   "dependencies": {
+    "@astrojs/starlight": "^0.41.3",
     "@ottervoice/core": "workspace:*",
     "@ottervoice/provider-openrouter": "workspace:*",
-    "@ottervoice/runtime-web": "workspace:*"
+    "@ottervoice/runtime-web": "workspace:*",
+    "astro": "^7.0.9",
+    "sharp": "^0.35.3"
+  },
+  "devDependencies": {
+    "typedoc": "^0.28.20",
+    "typedoc-plugin-markdown": "^4.12.0"
   }
 }

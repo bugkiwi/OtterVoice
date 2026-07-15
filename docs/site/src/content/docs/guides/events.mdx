@@ -1,0 +1,41 @@
+---
+title: 事件与字幕
+description: 用 turnId 原位更新字幕；增量事件与最终事件的约定。
+---
+
+增量与最终事件都带稳定的 `turnId`。UI **必须按 turnId 原位 upsert**，不要把每个 delta 追加成新气泡。
+
+```ts
+session.on('asr_partial', ({ turnId, text }) => {
+  upsert({ id: turnId, role: 'user', text, live: true });
+});
+session.on('asr_final', ({ turnId, text }) => {
+  upsert({ id: turnId, role: 'user', text, live: false });
+});
+session.on('assistant_text_delta', ({ turnId, text }) => {
+  upsert({ id: turnId, role: 'assistant', text, live: true });
+});
+session.on('assistant_text', ({ turnId, text }) => {
+  upsert({ id: turnId, role: 'assistant', text, live: false });
+});
+```
+
+## 事件表
+
+| 事件 | 时机 | UI |
+| --- | --- | --- |
+| `statechange` | 状态机迁移 | 控制按钮 / 指示灯 |
+| `asr_partial` | ASR 临时结果 | 更新用户行 + live 光标 |
+| `asr_final` | 用户轮次确认 | 覆盖临时文本 |
+| `user_audio_end` | VAD 结束用户说话 | 可作延迟计时起点 |
+| `assistant_text_delta` | 模型增量文本 | 原位更新助手行（优先用累计 `text`） |
+| `assistant_text` | 回复确认 | 收口最终文本 |
+| `assistant_audio_start` / `_end` | 播放起止 | 首音频延迟、播放态 |
+| `turn` | 轮次落库 | 历史列表 |
+| `usage` | 用量快照 | 指标 |
+| `finished` | 会话结束 | 收尾 UI |
+| `error` | 归一化错误 | Toast / 重试 |
+
+`assistant_text_delta.delta` 是本次新增片段；渲染用累计字段 `text`。`asr_final` / `assistant_text` 可能修正标点。
+
+完整载荷见 [API 参考](/docs/reference/) 中的 `VoiceSessionEventMap`。

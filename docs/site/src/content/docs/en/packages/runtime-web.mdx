@@ -1,0 +1,40 @@
+---
+title: "@ottervoice/runtime-web"
+description: getUserMedia, MediaRecorder, Web Audio playback, and barge-in pre-roll.
+---
+
+Browser runtime: encoded mic chunks, volume-based VAD, assistant playback, and encoded pre-roll until barge-in is confirmed.
+
+```ts
+import { createWebRuntime } from '@ottervoice/runtime-web';
+
+const runtime = createWebRuntime({
+  mimeType: 'audio/webm;codecs=opus',
+  timesliceMs: 100,
+  volumePollMs: 50,
+  bargeInPreRollMs: 500,
+});
+```
+
+## `WebRuntimeOptions`
+
+| Option | Default | Notes |
+| --- | --- | --- |
+| `mimeType` | Best available Opus/WebM | MediaRecorder MIME |
+| `timesliceMs` | `100` | Encoded slice interval; streaming ASR can consume these |
+| `volumePollMs` | `50` | RMS poll for VAD / barge-in |
+| `bargeInPreRollMs` | `500` | Encoded pre-roll kept while filtering playback; released on confirmed barge-in |
+| `getUserMedia` / `mediaRecorder` / … | Browser globals | Injectable for tests |
+
+You can also pass nested `audioInput` / `audioOutput` (`WebAudioInputOptions` / `WebAudioOutputOptions`).
+
+## Browser requirements
+
+- HTTPS or `localhost`
+- Request the mic (and try unlock playback) from a user gesture
+- An autoplay-unlock rejection must **not** block input or ASR
+- Call `dispose()` to release tracks, `AudioContext`, and the player
+
+During assistant playback the runtime can pause encoded upload while still monitoring volume; only a confirmed barge-in releases pre-roll, preserving opening syllables and discarding ordinary speaker bleed.
+
+Example: [examples/web](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web). Fields: [API reference](/docs/en/reference/api/ottervoice-runtime-web/).

@@ -1,0 +1,31 @@
+---
+title: "@ottervoice/protocol"
+description: JSON envelopes for forwarding session events across processes.
+---
+
+A small JSON protocol for moving `VoiceSession` events across a process or language boundary (e.g. TS core driving a Swift/Kotlin runtime, or server → client streaming).
+
+```ts
+import {
+  encodeMessage,
+  serializeMessage,
+  parseMessage,
+  PROTOCOL_VERSION,
+} from '@ottervoice/protocol';
+
+const envelope = encodeMessage('asr_partial', {
+  text: 'hello',
+  turnId: 'turn_1',
+});
+const wire = serializeMessage(envelope);
+const again = parseMessage(wire);
+```
+
+| Export | Role |
+| --- | --- |
+| `PROTOCOL_VERSION` | Envelope version (bump on breaking changes) |
+| `encodeMessage` / `serializeMessage` | Outbound |
+| `parseMessage` / `isProtocolMessage` | Inbound validation |
+| `ProtocolError` | JSON / version / type errors |
+
+Payload shapes match `VoiceSessionEventMap` from `@ottervoice/core`. See the [API reference](/docs/en/reference/).

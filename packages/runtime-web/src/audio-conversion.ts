@@ -14,11 +14,22 @@ interface DecodeAudioContextLike {
 
 type DecodeAudioContextCtor = new () => DecodeAudioContextLike;
 
+/**
+ * Short RMS timeline of decoded assistant audio.
+ * Produced by {@link measureBrowserAudioEnvelope} and used as a playback
+ * reference for echo-aware barge-in.
+ */
 export interface AudioEnvelope {
+  /** Per-frame RMS levels in roughly `[0, 1]`. */
   levels: number[];
+  /** Duration of each frame in milliseconds. */
   frameMs: number;
 }
 
+/**
+ * Options for {@link prepareBrowserAudio} when converting browser capture to WAV.
+ * Use to cap capture length or downsample before sending to an Audio LLM.
+ */
 export interface PrepareBrowserAudioOptions {
   /** PCM sample rate written to the WAV. Defaults to the decoded source rate. */
   sampleRate?: number;
@@ -166,4 +177,8 @@ export async function measureBrowserAudioEnvelope(
   }
 }
 
+/**
+ * Encode decoded Web Audio samples as mono PCM16 WAV.
+ * Exported for tests; prefer {@link prepareBrowserAudio} in app code.
+ */
 export { encodeMonoWav };

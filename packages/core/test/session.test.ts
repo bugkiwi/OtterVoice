@@ -1018,9 +1018,17 @@ describe('VoiceSession full_duplex', () => {
     runtime.audioOutput.fireEnd();
     await listening;
 
+    // Android Chrome resumes normal listening with a newly started recorder.
+    // Its EBML header replaces the pre-playback container rather than being
+    // concatenated after it.
+    runtime.audioInput.emitChunk({
+      data: new Uint8Array(webmHeader).buffer,
+      timestamp: 5,
+      encoding: 'audio/webm;codecs=opus',
+    });
     runtime.audioInput.emitChunk({
       data: new Uint8Array([9]).buffer,
-      timestamp: 5,
+      timestamp: 6,
       encoding: 'audio/webm;codecs=opus',
     });
     await session.endUserTurn();

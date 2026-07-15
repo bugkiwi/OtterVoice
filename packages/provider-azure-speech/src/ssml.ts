@@ -17,10 +17,21 @@ const MIME_MAP: Record<TTSFormat, string> = {
   opus: 'audio/ogg',
 };
 
+/**
+ * Map a core {@link TTSFormat} to an Azure `X-Microsoft-OutputFormat` value.
+ *
+ * @param format - OtterVoice TTS format.
+ * @returns Azure output-format header value.
+ */
 export function azureOutputFormat(format: TTSFormat): string {
   return FORMAT_MAP[format];
 }
 
+/**
+ * MIME type for a synthesized {@link TTSFormat}.
+ *
+ * @param format - OtterVoice TTS format.
+ */
 export function mimeTypeForFormat(format: TTSFormat): string {
   return MIME_MAP[format];
 }
@@ -41,12 +52,20 @@ export function ratePercent(speed: number): string {
   return `${pct >= 0 ? '+' : ''}${pct}%`;
 }
 
+/** Default voice / language when {@link TTSInput} omits them. */
 export interface SSMLOptions {
+  /** Azure neural voice name (e.g. `zh-CN-XiaoxiaoNeural`). */
   voice: string;
+  /** BCP-47 language for the `<voice xml:lang>` attribute. */
   language: string;
 }
 
-/** Build an SSML document for a synthesis request. */
+/**
+ * Build an SSML document for a synthesis request.
+ *
+ * @param input - Text plus optional voice / rate / pitch overrides.
+ * @param defaults - Adapter defaults when `input` omits voice or language.
+ */
 export function buildSSML(input: TTSInput, defaults: SSMLOptions): string {
   const voice = input.voice ?? defaults.voice;
   const language = input.language ?? defaults.language;

@@ -13,12 +13,16 @@ import type {
   TTSInput,
   TTSOutput,
   TTSProvider,
-} from '../types';
+} from '../types.js';
 
 // ---------------------------------------------------------------------------
 // Mock ASR
 // ---------------------------------------------------------------------------
 
+/**
+ * Options for {@link createMockASR}.
+ * Use when wiring tests or the developer profile without a live STT backend.
+ */
 export interface MockASROptions {
   /** Scripted final transcripts, emitted one per `sendAudio` call. */
   transcripts: string[];
@@ -31,6 +35,9 @@ export interface MockASROptions {
 /**
  * Deterministic ASR for tests and the developer profile. Each `sendAudio`
  * advances through `transcripts`; partial + final callbacks fire synchronously.
+ *
+ * @param options - Scripted transcripts and failure overrides. See {@link MockASROptions}.
+ * @returns An {@link ASRProvider} with name `mock_asr`.
  */
 export function createMockASR(options: MockASROptions): ASRProvider {
   const { transcripts, emitPartials = true, failWith } = options;
@@ -100,12 +107,17 @@ export function createMockASR(options: MockASROptions): ASRProvider {
 // Mock LLM
 // ---------------------------------------------------------------------------
 
+/**
+ * Options for {@link createMockLLM}.
+ * Use in tests or demos that need a deterministic text reply without a live LLM.
+ */
 export interface MockLLMOptions {
   /**
    * Reply generator. Receives the input and 0-based call index. Defaults to
    * echoing the last user message.
    */
   reply?: (input: LLMGenerateInput, callIndex: number) => string;
+  /** Token usage returned on every `generate` / stream completion. */
   usage?: LLMGenerateOutput['usage'];
   /** When set, `generate`/`stream` reject with this error. */
   failWith?: NormalizedVoiceError;
@@ -119,6 +131,13 @@ function lastUserContent(input: LLMGenerateInput): string {
   return '';
 }
 
+/**
+ * Deterministic {@link LLMProvider} for tests and the developer profile.
+ * `generate` returns a full string; `stream` yields word-sized text deltas.
+ *
+ * @param options - Reply, usage, and failure overrides. See {@link MockLLMOptions}.
+ * @returns An {@link LLMProvider} with name `mock_llm`.
+ */
 export function createMockLLM(options: MockLLMOptions = {}): LLMProvider {
   const {
     reply = (input) => `You said: ${lastUserContent(input)}`,
@@ -163,12 +182,25 @@ export function createMockLLM(options: MockLLMOptions = {}): LLMProvider {
 // Mock TTS
 // ---------------------------------------------------------------------------
 
+/**
+ * Options for {@link createMockTTS}.
+ * Use when tests need a TTS adapter that returns synthetic audio bytes.
+ */
 export interface MockTTSOptions {
   /** Estimated playback duration in ms; defaults to 60ms per character. */
   durationMsPerChar?: number;
+  /** When set, `synthesize` rejects with this error. */
   failWith?: NormalizedVoiceError;
 }
 
+/**
+ * Deterministic {@link TTSProvider} for tests and demos.
+ * Encodes the input text as UTF-8 bytes and reports a duration from
+ * {@link MockTTSOptions.durationMsPerChar}.
+ *
+ * @param options - Duration and failure overrides. See {@link MockTTSOptions}.
+ * @returns A {@link TTSProvider} with name `mock_tts`.
+ */
 export function createMockTTS(options: MockTTSOptions = {}): TTSProvider {
   const { durationMsPerChar = 60, failWith } = options;
   return {
@@ -199,11 +231,26 @@ export function createMockTTS(options: MockTTSOptions = {}): TTSProvider {
 // Mock pronunciation
 // ---------------------------------------------------------------------------
 
+/**
+ * Options for {@link createMockPronunciation}.
+ * Use when pronunciation scoring is optional in tests but the provider slot
+ * must still be filled.
+ */
 export interface MockPronunciationOptions {
+  /** Overall / per-dimension score returned for every assessment. Default 80. */
   score?: number;
+  /** When set, `assess` rejects with this error. */
   failWith?: NormalizedVoiceError;
 }
 
+/**
+ * Deterministic {@link PronunciationProvider} for tests and demos.
+ * Splits the transcript into words and assigns {@link MockPronunciationOptions.score}
+ * to each dimension.
+ *
+ * @param options - Score and failure overrides. See {@link MockPronunciationOptions}.
+ * @returns A {@link PronunciationProvider} with name `mock_pronunciation`.
+ */
 export function createMockPronunciation(
   options: MockPronunciationOptions = {},
 ): PronunciationProvider {

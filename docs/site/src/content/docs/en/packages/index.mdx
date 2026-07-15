@@ -1,0 +1,37 @@
+---
+title: Which package?
+description: What to install and what each OtterVoice package owns.
+---
+
+## Map
+
+```
+UI / App
+   ↕ events
+@ottervoice/core          ← session, state machine, VAD, barge-in, usage
+   ↕ RuntimeAdapter
+runtime-web | react-native | node
+   ↕ Provider interfaces
+provider-deepgram | elevenlabs | openrouter | azure-speech | custom
+```
+
+## Choose
+
+| Package | When |
+| --- | --- |
+| [`@ottervoice/core`](/docs/en/packages/core/) | Always. `createVoiceSession`, events, mocks. |
+| [`@ottervoice/runtime-web`](/docs/en/packages/runtime-web/) | Browser mic + playback. |
+| [`@ottervoice/runtime-react-native`](/docs/en/packages/runtime-react-native/) | Expo / RN with injected native audio. |
+| [`@ottervoice/runtime-node`](/docs/en/packages/runtime-node/) | CLI / server audio and networking. |
+| [`Providers`](/docs/en/packages/providers/) | Pick a cloud vendor — or implement the same interfaces. |
+| [`@ottervoice/protocol`](/docs/en/packages/protocol/) | Forward session events across processes. |
+| [`@ottervoice/provider-utils`](/docs/en/packages/provider-utils/) | Custom providers: credentials, SSE, WebSocket ASR. |
+
+## Pipelines
+
+| `pipeline` | Path | Fit |
+| --- | --- | --- |
+| `asr_llm_tts` (default) | ASR text → streaming LLM → TTS | Classic cascade |
+| `audio_llm` | ASR captions + final → Audio LLM text/PCM | Lower-latency native audio models |
+
+Bundled OpenRouter adapters are optional demos, not a fixed production route.

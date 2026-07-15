@@ -1,0 +1,41 @@
+---
+title: "@ottervoice/provider-utils"
+description: Credential, SSE, and WebSocket ASR building blocks for custom providers.
+---
+
+Use this package when authoring a custom provider or talking to your own gateway.
+**App UI code usually does not import it** — the bundled factory functions already wrap it.
+
+## Main exports
+
+| Symbol | Use |
+| --- | --- |
+| `CredentialOptions` | `apiKey` (server only) · `tokenBrokerUrl` (prefer on clients) · `fetch` |
+| `createCredentialResolver` | Resolve short-lived tokens / static keys inside adapters |
+| SSE helpers | Parse OpenAI-style (and similar) SSE streams |
+| WebSocket ASR helpers | Shared skeleton for streaming ASR sessions |
+
+## `CredentialOptions`
+
+| Field | Notes |
+| --- | --- |
+| `tokenBrokerUrl` | Preferred on clients. Points at your short-lived token endpoint. |
+| `apiKey` | Long-lived key. Server / CLI only — never ship in browsers or apps. |
+| `fetch` | Injectable for tests or non-standard runtimes. |
+
+Token contract: [Token broker quick start](/docs/en/getting-started/token-broker/) and [`examples/token-broker`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/token-broker).
+
+```ts
+import { createCredentialResolver } from '@ottervoice/provider-utils';
+
+const resolve = createCredentialResolver({
+  tokenBrokerUrl: 'https://api.example.com/api/voice/token',
+});
+
+const { token, url, expiresAt } = await resolve({
+  provider: 'deepgram',
+  purpose: 'asr',
+});
+```
+
+Full field tables: [API · provider-utils](/docs/en/reference/api/ottervoice-provider-utils/).

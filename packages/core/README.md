@@ -4,7 +4,7 @@
 
 # @ottervoice/core
 
-Platform-agnostic core for [OtterVoice](https://github.com/gkiwi/OtterVoice) —
+Platform-agnostic core for [OtterVoice](https://github.com/bugkiwi/OtterVoice) —
 a TypeScript-first SDK for real-time voice conversation, including full-duplex
 barge-in.
 

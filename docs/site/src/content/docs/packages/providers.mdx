@@ -1,0 +1,43 @@
+---
+title: Providers
+description: 仓库自带的 ASR / LLM / TTS / Audio LLM 适配器与凭证模式。
+---
+
+所有 Provider 共享凭证形态（`@ottervoice/provider-utils`）：
+
+| 字段 | 用途 |
+| --- | --- |
+| `apiKey` | 服务端长期密钥（**禁止**下发客户端） |
+| `tokenBrokerUrl` | 客户端请求短期 token |
+| `fetch` | 可注入 |
+
+## 能力对照
+
+| 能力 | 包 | 传输 |
+| --- | --- | --- |
+| Streaming ASR | `@ottervoice/provider-deepgram` | WebSocket |
+| Streaming ASR | `@ottervoice/provider-elevenlabs` | WebSocket |
+| LLM / SSE | `@ottervoice/provider-openrouter` | HTTP SSE |
+| TTS / STT / Audio LLM | `@ottervoice/provider-openrouter` | HTTP（Demo 可选） |
+| TTS | `@ottervoice/provider-azure-speech` | REST + SSML |
+
+自定义 ASR **必须**正确声明 `capabilities.streaming`，core 据此选择 live 分片或完整轮次音频。
+
+```ts
+import { createDeepgramASR } from '@ottervoice/provider-deepgram';
+import { createOpenRouterLLM } from '@ottervoice/provider-openrouter';
+import { createAzureTTS } from '@ottervoice/provider-azure-speech';
+
+const asr = createDeepgramASR({ tokenBrokerUrl: '/api/voice/token' });
+const llm = createOpenRouterLLM({
+  tokenBrokerUrl: '/api/voice/token',
+  model: 'openai/gpt-4o-mini',
+});
+const tts = createAzureTTS({
+  region: 'eastasia',
+  voice: 'zh-CN-XiaoxiaoNeural',
+  tokenBrokerUrl: '/api/voice/token',
+});
+```
+
+凭证细节见 [`provider-utils`](/docs/packages/provider-utils/)。工厂参数表见 [API 参考](/docs/reference/) 与各包源码 JSDoc。

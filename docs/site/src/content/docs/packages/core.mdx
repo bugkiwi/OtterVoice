@@ -1,0 +1,56 @@
+---
+title: "@ottervoice/core"
+description: VoiceSession、配置、事件、Mock 与状态机。
+---
+
+核心入口：`createVoiceSession(config)`。
+
+## `VoiceSessionConfig` 要点
+
+| 字段 | 说明 |
+| --- | --- |
+| `mode` | `half_duplex` · `full_duplex` · `push_to_talk` · `streaming_transcript` |
+| `pipeline` | `asr_llm_tts`（默认）或 `audio_llm` |
+| `runtime` | 平台适配器 |
+| `providers.asr` / `llm` | 必需 |
+| `providers.tts` | `asr_llm_tts` 需要 |
+| `providers.audioLlm` | `audio_llm` 需要 |
+| `language` | 偏好 ASR 语言，如 `zh-CN` |
+| `asrPartial` | 是否发 `asr_partial`，默认 `true` |
+| `turnDetection` | 听用户说话时的 VAD |
+| `interruptionDetection` | 助手播放时的更严 VAD（barge-in） |
+| `policy` | 自动听、允许打断、误打断恢复等 |
+| `audioLlmSystemPrompt` / `audioLlmMaxTokens` | Audio LLM 专用 |
+
+完整字段见 [API 参考](/docs/reference/)。源码：[`types.ts`](https://github.com/bugkiwi/OtterVoice/blob/main/packages/core/src/types.ts)。
+
+## `TurnDetectionConfig`
+
+| 字段 | 默认（解析后） | 含义 |
+| --- | --- | --- |
+| `strategy` | `hybrid` | `volume` · `asr_endpointing` · `manual` · `hybrid` |
+| `minSpeechMs` | `500` | 判定开始说话的最短有声时长 |
+| `silenceTimeoutMs` | `1200` | 静音多久结束轮次（低延迟可试 350–600） |
+| `maxTurnMs` | `120000` | 单轮上限 |
+| `volumeThreshold` | `0.02` | RMS 阈值 |
+
+## `VoiceSessionPolicy`
+
+| 字段 | 含义 |
+| --- | --- |
+| `autoStartListening` | start 后是否自动进入 listening |
+| `allowInterruption` | 是否允许 barge-in |
+| `interruptionTailIgnoreMs` | 试探性暂停后忽略扬声器尾音（默认 200） |
+| `falseInterruptionSilenceMs` / `TimeoutMs` | 误打断恢复窗口 |
+| `interruptionCooldownMs` | 恢复播放后冷却 |
+| `postPlaybackVadRearmMs` | 播放结束后等待安静基线（默认 300） |
+
+## 会话生命周期
+
+```ts
+await session.start();
+await session.finish();
+await session.dispose();
+```
+
+监听事件：[事件指南](/docs/guides/events/)。错误码与用量同在 [`VoiceSessionEventMap`](https://github.com/bugkiwi/OtterVoice/blob/main/packages/core/src/types.ts)。

@@ -21,13 +21,18 @@ import {
   extractText,
   mapUsage,
   type HeaderOptions,
-} from './chat';
+} from './chat.js';
 
-export * from './chat';
-export * from './audio';
-export * from './audio-llm';
+export * from './chat.js';
+export * from './audio.js';
+export * from './audio-llm.js';
 
+/**
+ * Options for {@link createOpenRouterLLM}. Extends {@link CredentialOptions} and
+ * {@link HeaderOptions}; prefer `tokenBrokerUrl` on clients over a static `apiKey`.
+ */
 export interface OpenRouterOptions extends CredentialOptions, HeaderOptions {
+  /** OpenRouter model id, e.g. `openai/gpt-4o-mini`. */
   model: string;
   /** API base, default `https://openrouter.ai/api/v1`. */
   baseUrl?: string;
@@ -42,6 +47,8 @@ const PROVIDER = 'openrouter';
 /**
  * LLM provider backed by OpenRouter's OpenAI-compatible HTTP API. Credentials
  * come from a static `apiKey` (server) or a `tokenBrokerUrl` (client-safe).
+ *
+ * @param options - Model id plus {@link CredentialOptions} / header overrides.
  */
 export function createOpenRouterLLM(options: OpenRouterOptions): LLMProvider {
   const fetchImpl = resolveFetch(options.fetch);

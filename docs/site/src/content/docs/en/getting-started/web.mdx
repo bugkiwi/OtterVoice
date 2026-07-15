@@ -1,0 +1,56 @@
+---
+title: Web browser
+description: Full-duplex capture, VAD, and barge-in with runtime-web.
+---
+
+Example: [`examples/web`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web)
+
+```bash
+cd examples/web
+bun run start   # http://localhost:5173
+```
+
+The live demo is this example bundled for production: [ottervoice.vercel.app](https://ottervoice.vercel.app/)
+
+## Minimal wiring
+
+```ts
+import { createVoiceSession } from '@ottervoice/core';
+import { createWebRuntime } from '@ottervoice/runtime-web';
+
+const runtime = createWebRuntime({
+  mimeType: 'audio/webm;codecs=opus',
+  timesliceMs: 100,
+  volumePollMs: 50,
+  bargeInPreRollMs: 500,
+});
+
+const session = createVoiceSession({
+  mode: 'full_duplex',
+  pipeline: 'asr_llm_tts', // or 'audio_llm'
+  runtime,
+  language: 'en',
+  providers: { asr, llm, tts },
+  turnDetection: {
+    strategy: 'volume',
+    minSpeechMs: 180,
+    silenceTimeoutMs: 450,
+    volumeThreshold: 0.025,
+  },
+  policy: {
+    autoStartListening: true,
+    allowInterruption: true,
+  },
+});
+
+await session.start();
+```
+
+## Browser checklist
+
+- Serve over HTTPS or `localhost`
+- Request the mic (and prefer `audioOutput.unlock?.()`) from a user gesture
+- Autoplay unlock failure must not block ASR
+- Call `await session.dispose()` when leaving the page
+
+See [@ottervoice/runtime-web](/docs/en/packages/runtime-web/) for options.

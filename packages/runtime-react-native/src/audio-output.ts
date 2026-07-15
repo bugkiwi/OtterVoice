@@ -7,8 +7,11 @@ import {
   type PcmAudioStreamOptions,
 } from '@ottervoice/core';
 
+/** Status callback payload from an {@link ExpoSound} player. */
 export interface ExpoPlaybackStatus {
+  /** `true` when playback completed successfully. */
   didJustFinish?: boolean;
+  /** Native error string when playback failed. */
   error?: string | null;
 }
 
@@ -21,12 +24,19 @@ export interface ExpoSound {
   setOnPlaybackStatusUpdate(cb: (status: ExpoPlaybackStatus) => void): void;
 }
 
+/** Status callback payload from an {@link ExpoPcmPlaylist}. */
 export interface ExpoPcmPlaylistStatus {
+  /** Index of the track currently playing or last finished. */
   currentIndex: number;
+  /** Playback position of the current track, in seconds. */
   currentTime: number;
+  /** `true` when the playlist reached its end. */
   didJustFinish: boolean;
+  /** Whether audio is currently audible. */
   playing: boolean;
+  /** Number of URIs queued in the playlist. */
   trackCount: number;
+  /** Native error string when playback failed. */
   error?: string | null;
 }
 
@@ -41,11 +51,21 @@ export interface ExpoPcmPlaylist {
   setOnPlaybackStatusUpdate(cb: (status: ExpoPcmPlaylistStatus) => void): () => void;
 }
 
+/** One PCM16 fragment to persist as a WAV URI for playlist playback. */
 export interface ExpoPcmChunkFileInput extends PcmAudioStreamOptions {
+  /** Interleaved PCM16 bytes for this chunk. */
   data: ArrayBuffer;
+  /** Monotonic chunk index used for temp filenames. */
   index: number;
 }
 
+/**
+ * Injected playback / file helpers for {@link ExpoAudioOutput}.
+ * Provide {@link ExpoAudioOutputOptions.createPcmPlaylist} plus
+ * {@link ExpoAudioOutputOptions.writePcmChunk} for streaming assistant audio;
+ * {@link ExpoAudioOutputOptions.createSound} covers one-shot URI playback.
+ * Wired by {@link createExpoRuntime} via {@link ExpoRuntimeOptions.output}.
+ */
 export interface ExpoAudioOutputOptions {
   /** Load a sound from a URI (wrap `createAudioPlayer`). */
   createSound: (uri: string) => Promise<ExpoSound>;

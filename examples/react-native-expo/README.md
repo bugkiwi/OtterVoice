@@ -63,6 +63,29 @@ bun run build:android:preview
 bun run build:preview
 ```
 
+### GitHub Release Android 安装包
+
+仓库的 `React Native Android Release` 工作流会在 GitHub Runner 上执行
+Expo prebuild 和 Gradle release 构建，不占用 EAS Build 额度。它可以通过两种方式启动：
+
+- 推送与应用版本一致的 `rn-v*` 标签，例如 `rn-v0.2.0`；
+- 在 GitHub Actions 中手动运行，并输入与 `app.json`、`package.json` 一致的版本号。
+
+每次成功发布都会创建或更新两类 GitHub Release：`rn-v*` 保存不可变的版本 APK，
+`rn-latest` 保存供二维码使用的固定名 APK；两者都附带 SHA-256 校验文件：
+
+```text
+latest  https://github.com/bugkiwi/OtterVoice/releases/download/rn-latest/ottervoice-demo-android.apk
+version https://github.com/bugkiwi/OtterVoice/releases/download/rn-v0.2.0/ottervoice-demo-android-0.2.0.apk
+```
+
+Web 展示页的二维码只编码专用的 `rn-latest` 地址，因此无需随版本更新，也不会被
+仓库中其他类型的 Release 影响。工作流使用 Expo
+模板的 debug signing 构建可安装体验包，不应上传 Google Play。需要替换语音网关时，
+在仓库 Actions Variables 中设置公开变量 `OTTERVOICE_API_URL`；未设置时使用 Demo
+内置的 `https://ottervoice.vercel.app/api/voice`。iOS 真机包仍需 Apple 签名和设备注册，
+应使用 EAS Internal Distribution 或 TestFlight，而不是公开 IPA 下载链接。
+
 实现入口：
 
 - [`src/App.tsx`](src/App.tsx)：会话、增量 UI、双语文案与延迟指标；
@@ -79,3 +102,23 @@ The demo currently selects an OpenRouter adapter on the server, but its UI, `Voi
 Run it with `bun run start`, scan the Expo Go QR code, or press `i` / `a`. Configure `EXPO_PUBLIC_OTTERVOICE_API_URL` only with a gateway you control. The value is public by design; never place provider credentials in an `EXPO_PUBLIC_*` variable.
 
 The current mobile VAD submits after roughly 450 ms of silence. Treat that as a low-latency starting point and test it on target devices, noisy input, speaker playback, real barge-in, and false-interruption recovery before release.
+
+### GitHub Release Android APK
+
+The `React Native Android Release` workflow runs Expo prebuild and Gradle on a
+GitHub-hosted runner, so it does not consume EAS Build minutes. Trigger it with
+an `rn-v*` tag such as `rn-v0.2.0`, or run it manually with a version matching
+both `app.json` and `package.json`.
+
+Each run publishes an immutable version URL and updates the dedicated
+`rn-latest` alias used by the website QR code:
+
+```text
+latest  https://github.com/bugkiwi/OtterVoice/releases/download/rn-latest/ottervoice-demo-android.apk
+version https://github.com/bugkiwi/OtterVoice/releases/download/rn-v0.2.0/ottervoice-demo-android-0.2.0.apk
+```
+
+Set the public Actions variable `OTTERVOICE_API_URL` to replace the bundled Demo
+gateway. The APK uses Expo template debug signing and is for direct preview
+installation only, not Google Play. iOS device distribution still requires
+Apple signing and should use EAS Internal Distribution or TestFlight.

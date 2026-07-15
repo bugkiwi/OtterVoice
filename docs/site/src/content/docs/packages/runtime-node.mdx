@@ -1,0 +1,55 @@
+---
+title: "@ottervoice/runtime-node"
+description: Node 音频输入输出与 fetch/WebSocket 网络适配。
+---
+
+适合 CLI、服务端编排，以及没有浏览器 / Expo 音频 API 的环境。
+
+```ts
+import { createNodeRuntime } from '@ottervoice/runtime-node';
+
+const runtime = createNodeRuntime({
+  audioInput: {
+    // 可选：子进程 mic stdout 等 AsyncIterable
+    // source: subprocess.stdout,
+    sampleRate: 16_000,
+    encoding: 'pcm_s16le',
+  },
+  audioOutput: {
+    // 可选：写入文件 / 扬声器进程；省略则缓存到 runtime.audioOutput.played
+    // sink: async (input) => { … },
+  },
+  network: {
+    // 可选：注入 fetch / WebSocket（测试或特殊 runtime）
+  },
+  logger: console, // 或 false 关闭
+});
+```
+
+## `NodeRuntimeOptions`
+
+| 字段 | 说明 |
+| --- | --- |
+| `audioInput` | 见下表；默认无字节源（由调用方驱动 chunk） |
+| `audioOutput` | 默认只记录 `played`；提供 `sink` 才真正出声 |
+| `network` | 覆盖全局 `fetch` / `WebSocket` |
+| `logger` | `console` 类对象，或 `false` 禁用 |
+
+### `NodeAudioInputOptions`
+
+| 字段 | 说明 |
+| --- | --- |
+| `source` | `AsyncIterable` 字节流（mic 子进程、文件流） |
+| `sampleRate` / `encoding` | chunk 上的默认采样率与编码标签 |
+| `now` | 时间戳时钟（测试用） |
+
+### `NodeAudioOutputOptions` / `NodeNetworkOptions`
+
+| 字段 | 说明 |
+| --- | --- |
+| `sink` | `(input) => void \| Promise<void>`，真正播放或落盘 |
+| `fetch` / `webSocket` | 网络适配注入点 |
+
+无麦克风权限模型：`requestPermission` 恒为 `true`。无 UI 播放：省略 `sink` 时适合纯编排 / Mock 式验证。
+
+示例：[`node-cli`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/node-cli)、[`node-openrouter`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/node-openrouter)（二者用的是 `createMockRuntime`；接入真实字节流时换本包）。完整字段见 [API 参考](/docs/reference/api/ottervoice-runtime-node/)。

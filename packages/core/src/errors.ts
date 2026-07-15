@@ -1,4 +1,4 @@
-import type { NormalizedVoiceError, VoiceErrorCode } from './types';
+import type { NormalizedVoiceError, VoiceErrorCode } from './types.js';
 
 const RETRYABLE_CODES: ReadonlySet<VoiceErrorCode> = new Set<VoiceErrorCode>([
   'network_error',
@@ -13,11 +13,18 @@ const RETRYABLE_CODES: ReadonlySet<VoiceErrorCode> = new Set<VoiceErrorCode>([
  * inspectable.
  */
 export class VoiceError extends Error implements NormalizedVoiceError {
+  /** Stable application error code. */
   readonly code: VoiceErrorCode;
+  /** Provider name when the failure originated in an adapter. */
   readonly provider?: string;
+  /** Hint for UI retry; not enforced by the session. */
   readonly retryable?: boolean;
+  /** Original thrown value or HTTP body, when available. */
   readonly raw?: unknown;
 
+  /**
+   * @param error - Normalized shape to wrap; `retryable` defaults from `code` when omitted.
+   */
   constructor(error: NormalizedVoiceError) {
     super(error.message);
     this.name = 'VoiceError';
@@ -30,6 +37,7 @@ export class VoiceError extends Error implements NormalizedVoiceError {
     if (error.raw !== undefined) this.raw = error.raw;
   }
 
+  /** Flatten back to a plain {@link NormalizedVoiceError} for events / logs. */
   toNormalized(): NormalizedVoiceError {
     const out: NormalizedVoiceError = {
       code: this.code,
@@ -42,13 +50,27 @@ export class VoiceError extends Error implements NormalizedVoiceError {
   }
 }
 
+/**
+ * Optional metadata for {@link createVoiceError}.
+ * Omitted fields get sensible defaults (`retryable` from known network/ASR codes).
+ */
 export interface CreateVoiceErrorOptions {
+  /** Provider name when the failure originated in an adapter. */
   provider?: string;
+  /** Override the default retryability for {@link VoiceErrorCode}. */
   retryable?: boolean;
+  /** Original thrown value or HTTP body, when available. */
   raw?: unknown;
 }
 
-/** Build a {@link NormalizedVoiceError} with sensible `retryable` defaults. */
+/**
+ * Build a {@link NormalizedVoiceError} with sensible `retryable` defaults.
+ *
+ * @param code - Stable {@link VoiceErrorCode}.
+ * @param message - Human-readable message for logs.
+ * @param options - Optional provider, retryable, and raw. See {@link CreateVoiceErrorOptions}.
+ * @returns A plain {@link NormalizedVoiceError} (not a thrown `Error`).
+ */
 export function createVoiceError(
   code: VoiceErrorCode,
   message: string,
@@ -98,6 +120,11 @@ const KNOWN_CODES: ReadonlySet<string> = new Set<VoiceErrorCode>([
  *
  * Used by the session and provider adapters so that every error surfaced to
  * consumers shares one shape, regardless of where it originated.
+ *
+ * @param value - Unknown thrown/rejected value.
+ * @param fallbackCode - Code used when `value` has no recognized shape. Defaults to `unknown`.
+ * @param provider - Optional provider name attached when missing on `value`.
+ * @returns A {@link NormalizedVoiceError} suitable for session `error` events.
  */
 export function normalizeError(
   value: unknown,

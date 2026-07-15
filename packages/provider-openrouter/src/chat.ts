@@ -1,18 +1,34 @@
 import type { LLMGenerateInput, LLMUsage } from '@ottervoice/core';
 
+/** Default OpenRouter OpenAI-compatible API root. */
 export const DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
 
+/** OpenAI-compatible chat-completions request body fields used by the adapter. */
 export interface ChatBody {
+  /** Model id on OpenRouter. */
   model: string;
+  /** Chat messages in OpenAI role/content shape. */
   messages: Array<{ role: string; content: string }>;
+  /** Sampling temperature. */
   temperature?: number;
+  /** Max completion tokens. */
   max_tokens?: number;
+  /** When true, request SSE streaming. */
   stream?: boolean;
+  /** Force JSON-object responses when supported. */
   response_format?: { type: 'json_object' };
+  /** OpenRouter reasoning toggle when the model supports it. */
   reasoning?: { enabled: boolean };
 }
 
-/** Build the OpenAI-compatible chat-completions request body. */
+/**
+ * Build the OpenAI-compatible chat-completions request body.
+ *
+ * @param model - OpenRouter model id.
+ * @param input - Core {@link LLMGenerateInput} messages and knobs.
+ * @param defaults - Adapter-level temperature / stream defaults.
+ * @param openRouter - OpenRouter-specific extras (e.g. reasoning).
+ */
 export function buildChatBody(
   model: string,
   input: LLMGenerateInput,
@@ -37,13 +53,22 @@ export function buildChatBody(
   return body;
 }
 
+/** Optional OpenRouter attribution and header overrides. */
 export interface HeaderOptions {
+  /** Sent as `HTTP-Referer` for OpenRouter rankings / allowlists. */
   referer?: string;
+  /** Sent as `X-Title` (app name shown on OpenRouter). */
   title?: string;
+  /** Extra headers merged last (override defaults carefully). */
   headers?: Record<string, string>;
 }
 
-/** Assemble request headers, including OpenRouter's optional attribution. */
+/**
+ * Assemble request headers, including OpenRouter's optional attribution.
+ *
+ * @param token - Bearer token from apiKey or token broker.
+ * @param options - Attribution and header overrides.
+ */
 export function buildHeaders(token: string, options: HeaderOptions): Record<string, string> {
   const headers: Record<string, string> = {
     authorization: `Bearer ${token}`,

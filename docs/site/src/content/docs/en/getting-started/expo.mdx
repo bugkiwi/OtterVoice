@@ -1,0 +1,42 @@
+---
+title: Expo / React Native
+description: Drive runtime-react-native by injecting Expo audio primitives.
+---
+
+Example: [`examples/react-native-expo`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/react-native-expo)
+
+Full binding: [`expo-adapters.ts`](https://github.com/bugkiwi/OtterVoice/blob/main/examples/react-native-expo/src/expo-adapters.ts).
+
+```bash
+cd examples/react-native-expo
+cp .env.example .env
+bun run start
+```
+
+## Shape
+
+Preferred input: **16 kHz · mono · PCM16**. The runtime does not depend on Expo packages; you inject small adapters:
+
+```ts
+import { createExpoRuntime } from '@ottervoice/runtime-react-native';
+import { createVoiceSession } from '@ottervoice/core';
+
+const runtime = createExpoRuntime({
+  input: { /* Expo AudioStream / recorder bindings */ },
+  output: { /* AudioPlaylist / playback bindings */ },
+});
+
+const session = createVoiceSession({
+  mode: 'full_duplex',
+  pipeline: 'audio_llm',
+  runtime,
+  providers: { asr, llm, audioLlm },
+});
+```
+
+Dual delivery:
+
+- `delivery: 'stream'` — small PCM buffers → streaming ASR
+- `delivery: 'turn'` — complete WAV → batch ASR / Audio LLM
+
+Suspend encoded capture during assistant playback while keeping volume callbacks for barge-in. See [runtime-react-native](/docs/en/packages/runtime-react-native/).

@@ -1,0 +1,31 @@
+---
+title: "@ottervoice/protocol"
+description: 跨进程 / 跨端转发 Session 事件的 JSON 信封。
+---
+
+轻量 JSON 协议，把 `VoiceSession` 事件搬到另一进程（例如 TS core 驱动 Swift/Kotlin Runtime，或服务端向客户端推送）。
+
+```ts
+import {
+  encodeMessage,
+  serializeMessage,
+  parseMessage,
+  PROTOCOL_VERSION,
+} from '@ottervoice/protocol';
+
+const envelope = encodeMessage('asr_partial', {
+  text: '你好',
+  turnId: 'turn_1',
+});
+const wire = serializeMessage(envelope);
+const again = parseMessage(wire);
+```
+
+| 导出 | 用途 |
+| --- | --- |
+| `PROTOCOL_VERSION` | 当前信封版本（不兼容变更时递增） |
+| `encodeMessage` / `serializeMessage` | 出站 |
+| `parseMessage` / `isProtocolMessage` | 入站校验 |
+| `ProtocolError` | JSON / 版本 / 类型错误 |
+
+载荷形状与 `@ottervoice/core` 的 `VoiceSessionEventMap` 对齐。细节见 [API 参考](/docs/reference/)。

@@ -13,20 +13,28 @@ import {
   resolveFetch,
   type CredentialOptions,
 } from '@ottervoice/provider-utils';
-import { bytesToBase64 } from './audio';
-import { buildHeaders, DEFAULT_BASE_URL, mapUsage, type HeaderOptions } from './chat';
+import { bytesToBase64 } from './audio.js';
+import { buildHeaders, DEFAULT_BASE_URL, mapUsage, type HeaderOptions } from './chat.js';
 
 const PROVIDER = 'openrouter';
 
+/** WAV/MP3 bytes ready for OpenAI-compatible audio chat. */
 export interface PreparedAudioInput {
+  /** Encoded audio body. */
   audio: ArrayBuffer;
+  /** Container accepted by the audio chat API. */
   format: 'wav' | 'mp3';
 }
 
+/** Options for the OpenRouter Audio LLM adapter (`pipeline: 'audio_llm'`). */
 export interface OpenRouterAudioLLMOptions extends CredentialOptions, HeaderOptions {
+  /** Audio-capable chat model id (e.g. OpenAI GPT-4o-audio via OpenRouter). */
   model: string;
+  /** Output voice when the model returns spoken audio. */
   voice?: 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'fable' | 'nova' | 'onyx' | 'sage' | 'shimmer' | 'verse';
+  /** API root; defaults to OpenRouter's public `…/api/v1`. */
   baseUrl?: string;
+  /** Default sampling temperature when the session does not override. */
   defaultTemperature?: number;
   /**
    * OpenAI audio chat accepts WAV/MP3, while browsers normally record WebM.
@@ -115,7 +123,13 @@ function extractStreamAudioDelta(json: Record<string, unknown>):
   return message?.audio;
 }
 
-/** Wrap OpenAI's 24 kHz mono PCM16 stream so browser audio elements can play it. */
+/**
+ * Wrap OpenAI's 24 kHz mono PCM16 stream so browser audio elements can play it.
+ *
+ * @param pcm - Interleaved little-endian PCM16 bytes.
+ * @param sampleRate - Sample rate in Hz (OpenAI audio chat defaults to 24_000).
+ * @returns A standard WAV container buffer.
+ */
 export function pcm16ToWav(pcm: Uint8Array, sampleRate = 24_000): ArrayBuffer {
   const wav = new ArrayBuffer(44 + pcm.byteLength);
   const view = new DataView(wav);
@@ -142,6 +156,9 @@ export function pcm16ToWav(pcm: Uint8Array, sampleRate = 24_000): ArrayBuffer {
 /**
  * OpenRouter chat-completions adapter for models such as
  * `openai/gpt-audio-mini` that understand speech and generate speech directly.
+ *
+ * @param options - Model, voice, credentials, and optional WebM→WAV preparer.
+ * @returns An {@link AudioLLMProvider} for `pipeline: 'audio_llm'`.
  */
 export function createOpenRouterAudioLLM(
   options: OpenRouterAudioLLMOptions,

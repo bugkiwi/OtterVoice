@@ -4,15 +4,15 @@ export {
   readBody,
   type FetchLike,
   type HttpErrorOptions,
-} from './http';
+} from './http.js';
 export {
   createCredentialResolver,
   type CredentialOptions,
   type CredentialPurpose,
   type BrokerRequest,
   type BrokerToken,
-} from './credential';
-export { parseSSEStream, streamFromStrings } from './sse';
+} from './credential.js';
+export { parseSSEStream, streamFromStrings } from './sse.js';
 export {
   createWebSocketASRSession,
   resolveWebSocket,
@@ -20,4 +20,4 @@ export {
   type WebSocketCtor,
   type WebSocketASRConfig,
   type ASRDecodeResult,
-} from './websocket';
+} from './websocket.js';

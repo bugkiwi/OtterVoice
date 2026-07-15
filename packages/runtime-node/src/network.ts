@@ -2,24 +2,36 @@ import type { NetworkAdapter, RuntimeWebSocket } from '@ottervoice/core';
 
 /** Minimal surface of a browser/Bun/`ws` WebSocket the wrapper relies on. */
 export interface WebSocketLike {
+  /** Prefer `'arraybuffer'` when the peer sends binary frames. */
   binaryType?: string;
+  /** Send a text or binary frame to the peer. */
   send(data: string | ArrayBufferLike | ArrayBufferView): void;
+  /** Close the socket; optional close code and reason. */
   close(code?: number, reason?: string): void;
+  /** Subscribe to socket events (`open` / `message` / `error` / `close`). */
   addEventListener(type: string, listener: (event: any) => void): void;
+  /** Unsubscribe a listener previously added with {@link WebSocketLike.addEventListener}. */
   removeEventListener(type: string, listener: (event: any) => void): void;
 }
 
+/** Constructor for {@link WebSocketLike} (global `WebSocket` or `ws`). */
 export type WebSocketCtor = new (
   url: string,
   protocols?: string | string[],
 ) => WebSocketLike;
 
+/** `fetch`-compatible HTTP entry point used by {@link NodeNetworkAdapter}. */
 export type FetchLike = (
   input: RequestInfo | URL,
   init?: RequestInit,
 ) => Promise<Response>;
 
-/** Normalize a WebSocket `message` event's `data` to `string | ArrayBuffer`. */
+/**
+ * Normalize a WebSocket `message` event's `data` to `string | ArrayBuffer`.
+ *
+ * @param data - Raw `MessageEvent.data` (string, ArrayBuffer, or TypedArray view).
+ * @returns A copy suitable for {@link RuntimeWebSocket} callbacks.
+ */
 export function normalizeWsData(data: unknown): string | ArrayBuffer {
   if (typeof data === 'string') return data;
   if (data instanceof ArrayBuffer) return data;
@@ -72,6 +84,10 @@ export class NodeRuntimeWebSocket implements RuntimeWebSocket {
   }
 }
 
+/**
+ * Injected HTTP / WebSocket constructors for {@link NodeNetworkAdapter}.
+ * Defaults to `globalThis.fetch` and `globalThis.WebSocket` when omitted.
+ */
 export interface NodeNetworkOptions {
   /** Override `fetch` (defaults to the global). */
   fetch?: FetchLike;

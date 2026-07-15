@@ -1,9 +1,20 @@
+/**
+ * Tuning knobs for {@link PlaybackEchoFilter}.
+ * Use when default delay/warmup margins are too aggressive or too timid for a
+ * given device or speaker layout.
+ */
 export interface PlaybackEchoFilterOptions {
+  /** Step size (ms) when searching for playback↔mic delay alignment. Default 50. */
   frameMs?: number;
+  /** Maximum acoustic delay (ms) to consider when correlating echo. Default 300. */
   maxDelayMs?: number;
+  /** How long (ms) of mic/output samples to retain for correlation. Default 1200. */
   historyMs?: number;
+  /** Suppress barge-in for this many ms after playback reference begins. Default 350. */
   warmupMs?: number;
+  /** Multiplier on estimated echo gain before subtracting from mic RMS. Default 1.12. */
   echoMargin?: number;
+  /** Absolute RMS floor subtracted after echo estimate (avoids digital noise trips). Default 0.003. */
   noiseFloor?: number;
 }
 
@@ -12,9 +23,16 @@ interface Sample {
   level: number;
 }
 
+/**
+ * Tuning knobs for {@link BargeInSpeechGate}.
+ * Raise thresholds to reduce false barge-in from knocks; lower them for quieter speech.
+ */
 export interface BargeInSpeechGateOptions {
+  /** Per-frame RMS (post-echo) above which a frame counts as voiced. Default 0.008. */
   volumeThreshold?: number;
+  /** Moving-window length in frames for the voiced-frame vote. Default 12. */
   windowFrames?: number;
+  /** Voiced frames required inside the window to open the gate. Default 4. */
   requiredVoicedFrames?: number;
 }
 

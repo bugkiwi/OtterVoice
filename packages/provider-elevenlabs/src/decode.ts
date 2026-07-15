@@ -2,10 +2,17 @@ import { createVoiceError } from '@ottervoice/core';
 import type { ASRDecodeResult } from '@ottervoice/provider-utils';
 import type { ASRSessionOptions } from '@ottervoice/core';
 
+/** Default ElevenLabs realtime speech-to-text WebSocket endpoint. */
 export const DEFAULT_BASE_URL = 'wss://api.elevenlabs.io/v1/speech-to-text/realtime';
 
+/**
+ * Query knobs mapped onto ElevenLabs realtime
+ * `/v1/speech-to-text/realtime` WebSocket URL.
+ */
 export interface ElevenLabsQueryOptions {
+  /** ElevenLabs STT model id (e.g. `scribe_v2_realtime`). */
   modelId?: string;
+  /** BCP-47 language code; overridden by {@link ASRSessionOptions.language} when set. */
   language?: string;
 }
 
@@ -13,6 +20,11 @@ export interface ElevenLabsQueryOptions {
  * Build the realtime STT URL. NOTE: ElevenLabs' realtime ASR wire format is
  * evolving — verify parameter and message names against the current docs and
  * prefer `tokenBrokerUrl` (which returns a fully signed URL) in production.
+ *
+ * @param baseUrl - Listen endpoint; usually {@link DEFAULT_BASE_URL} or a broker-signed URL.
+ * @param options - Provider defaults for model / language.
+ * @param asr - Per-session overrides from {@link ASRSessionOptions}.
+ * @returns Fully qualified `wss://` URL including search params.
  */
 export function buildElevenLabsUrl(
   baseUrl: string,

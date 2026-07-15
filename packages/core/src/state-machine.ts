@@ -1,5 +1,5 @@
-import type { VoiceSessionState } from './types';
-import { VoiceError } from './errors';
+import type { VoiceSessionState } from './types.js';
+import { VoiceError } from './errors.js';
 
 /**
  * Allowed transitions for the voice session state machine.
@@ -46,10 +46,22 @@ const TERMINAL_STATES: ReadonlySet<VoiceSessionState> = new Set<VoiceSessionStat
   'finished',
 ]);
 
+/**
+ * Whether `state` ends the session lifecycle (currently only `finished`).
+ *
+ * @param state - Candidate {@link VoiceSessionState}.
+ */
 export function isTerminal(state: VoiceSessionState): boolean {
   return TERMINAL_STATES.has(state);
 }
 
+/**
+ * Whether a direct transition from `from` → `to` is allowed by the session FSM.
+ * Same-state transitions always return `false`.
+ *
+ * @param from - Current state.
+ * @param to - Desired next state.
+ */
 export function canTransition(
   from: VoiceSessionState,
   to: VoiceSessionState,

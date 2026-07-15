@@ -27,12 +27,22 @@ export interface ExpoPcmInputStream {
   stop(): void | Promise<void>;
 }
 
+/** Sample format requested when creating {@link ExpoPcmInputStream}. */
 export interface ExpoPcmInputStreamOptions {
+  /** Capture sample rate in Hz. */
   sampleRate: number;
+  /** Channel count (typically `1`). */
   channels: number;
+  /** Always linear 16-bit PCM little-endian for this runtime. */
   encoding: 'pcm_s16le';
 }
 
+/**
+ * Injected mic / file helpers for {@link ExpoAudioInput}.
+ * Prefer {@link ExpoAudioInputOptions.createPcmStream} for full-duplex VAD;
+ * fall back to {@link ExpoAudioInputOptions.createRecording} for batch capture.
+ * Wired by {@link createExpoRuntime} via {@link ExpoRuntimeOptions.input}.
+ */
 export interface ExpoAudioInputOptions {
   /** Legacy file recorder factory. Prefer `createPcmStream` for full duplex. */
   createRecording?: () => Promise<ExpoRecordingHandle>;
@@ -48,6 +58,7 @@ export interface ExpoAudioInputOptions {
   ) => ExpoPcmInputStream | Promise<ExpoPcmInputStream>;
   /** Microphone permission (wrap `requestRecordingPermissionsAsync`). */
   requestPermission?: () => Promise<boolean>;
+  /** Override clock used for chunk timestamps (tests). */
   now?: () => number;
 }
 
@@ -61,7 +72,14 @@ function concatBytes(parts: readonly Uint8Array[], total: number): Uint8Array {
   return output;
 }
 
-/** Wrap interleaved little-endian PCM16 in a standard WAV container. */
+/**
+ * Wrap interleaved little-endian PCM16 in a standard WAV container.
+ *
+ * @param pcm - Interleaved PCM16 samples.
+ * @param sampleRate - Sample rate in Hz.
+ * @param channels - Channel count (typically `1`).
+ * @returns A standard WAV container buffer.
+ */
 export function pcm16ToWav(
   pcm: Uint8Array,
   sampleRate: number,

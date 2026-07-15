@@ -1,14 +1,25 @@
-import type { LLMMessage, TurnRole, VoiceTurn } from './types';
+import type { LLMMessage, TurnRole, VoiceTurn } from './types.js';
 
+/**
+ * Input for {@link TranscriptBuffer.add}.
+ * Prefer supplying `id` when the same id already appears on streaming events.
+ */
 export interface AddTurnInput {
+  /** Speaker role for the new turn. */
   role: TurnRole;
+  /** Final text content. */
   text: string;
   /** Supply a pre-generated id so event ids and turn ids stay in sync. */
   id?: string;
+  /** Optional playback URL when audio was recorded. */
   audioUrl?: string;
+  /** Epoch millis when the turn started; defaults to now. */
   startedAt?: number;
+  /** Epoch millis when the turn ended. */
   endedAt?: number;
+  /** Explicit duration; otherwise derived from `endedAt - startedAt` when possible. */
   durationMs?: number;
+  /** Opaque app metadata attached to the turn. */
   metadata?: Record<string, unknown>;
 }
 

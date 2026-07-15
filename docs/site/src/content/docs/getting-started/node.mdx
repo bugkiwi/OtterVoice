@@ -1,0 +1,38 @@
+---
+title: Node.js 接入
+description: 服务端或 CLI 中用 runtime-node 与真实 LLM。
+---
+
+示例：
+
+- Mock 循环：[`examples/node-cli`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/node-cli)
+- 真实 LLM：[`examples/node-openrouter`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/node-openrouter)
+
+```bash
+bun run examples/node-openrouter/index.ts
+# 可选：export OPENROUTER_API_KEY=...
+```
+
+```ts
+import { createVoiceSession, createMockASR, createMockTTS } from '@ottervoice/core';
+import { createNodeRuntime } from '@ottervoice/runtime-node';
+import { createOpenRouterLLM } from '@ottervoice/provider-openrouter';
+
+const runtime = createNodeRuntime();
+const session = createVoiceSession({
+  mode: 'half_duplex',
+  runtime,
+  providers: {
+    asr: createMockASR({ transcripts: ['Say hello'] }),
+    llm: createOpenRouterLLM({
+      apiKey: process.env.OPENROUTER_API_KEY!,
+      model: 'openai/gpt-4o-mini',
+    }),
+    tts: createMockTTS(),
+  },
+});
+
+await session.start();
+```
+
+服务端可以直接用 `apiKey`；浏览器 / App 必须走 [Token Broker](/docs/getting-started/token-broker/)。

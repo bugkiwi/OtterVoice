@@ -1,0 +1,30 @@
+---
+title: Architecture
+description: Session orchestration, runtime audio, and provider cloud adapters.
+---
+
+OtterVoice is a **voice-session orchestration SDK**, not a model gateway. Core owns state, turns, barge-in, and usage; platform audio and models are injected.
+
+```
+Application UI
+   ↕ events / commands
+@ottervoice/core   VoiceSession · state machine · VAD · barge-in · usage
+   ↕ RuntimeAdapter          ↕ Provider interfaces
+runtime-web | rn | node      ASR · LLM · TTS · Audio LLM
+```
+
+## Boundaries
+
+| Layer | Owns | Does not own |
+| --- | --- | --- |
+| UI | Events, captions, `start` / `finish` | Provider URLs, secrets, wire protocols |
+| Core | State machine, turns, interruption, usage, errors | DOM / Expo / Node APIs |
+| Runtime | Mic, playback, optional network/storage | Prompts, model choice |
+| Provider | Vendor protocols | Session lifecycle |
+
+## Pipelines
+
+- **`asr_llm_tts` (default)**: ASR text → streaming LLM → TTS.
+- **`audio_llm`**: ASR partials for captions; after `asr_final`, turn audio enters an Audio LLM; text and PCM stream back.
+
+Create the session once at the composition root. Swap runtime or providers without rewriting UI.

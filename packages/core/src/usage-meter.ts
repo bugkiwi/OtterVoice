@@ -1,4 +1,4 @@
-import type { LLMUsage, VoiceUsageSnapshot } from './types';
+import type { LLMUsage, VoiceUsageSnapshot } from './types.js';
 
 /**
  * Accumulates per-session usage. The SDK measures, it does not bill — business

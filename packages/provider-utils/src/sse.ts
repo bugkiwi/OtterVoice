@@ -2,6 +2,9 @@
  * Parse a Server-Sent-Events byte stream into successive `data:` payload
  * strings. Comment lines (`:`), blank lines, and non-`data:` fields are
  * skipped. Lines split across chunk boundaries are buffered.
+ *
+ * @param stream - Byte stream from `Response.body` (or a test fixture).
+ * @returns Async generator yielding trimmed `data:` field values.
  */
 export async function* parseSSEStream(
   stream: ReadableStream<Uint8Array>,
@@ -34,7 +37,12 @@ export async function* parseSSEStream(
   }
 }
 
-/** Build a `ReadableStream<Uint8Array>` from string chunks (handy for tests). */
+/**
+ * Build a `ReadableStream<Uint8Array>` from string chunks (handy for tests).
+ *
+ * @param chunks - UTF-8 string fragments enqueued in order.
+ * @returns A readable byte stream suitable for {@link parseSSEStream}.
+ */
 export function streamFromStrings(
   chunks: string[],
 ): ReadableStream<Uint8Array> {

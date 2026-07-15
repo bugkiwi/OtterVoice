@@ -1,0 +1,40 @@
+---
+title: "@ottervoice/provider-utils"
+description: 自定义 Provider 的凭证、SSE、WebSocket ASR 构建块。
+---
+
+写自定义 Provider 或接自建网关时用本包，**应用 UI 一般不直接依赖它**（工厂函数已封装）。
+
+## 主要导出
+
+| 符号 | 用途 |
+| --- | --- |
+| `CredentialOptions` | `apiKey`（仅服务端）· `tokenBrokerUrl`（客户端优先）· `fetch` |
+| `createCredentialResolver` | 解析短期 token / 静态 key，供适配器内部使用 |
+| SSE helpers | 解析 OpenAI 风格或同类 SSE 流 |
+| WebSocket ASR helpers | 统一流式 ASR 会话骨架 |
+
+## `CredentialOptions`
+
+| 字段 | 说明 |
+| --- | --- |
+| `tokenBrokerUrl` | 客户端推荐。指向你控制的短期令牌接口。 |
+| `apiKey` | 长期密钥。只放服务端 / CLI，禁止打进浏览器或 App。 |
+| `fetch` | 可注入，便于测试或特殊运行时。 |
+
+Token 契约见 [Token Broker 快速接入](/docs/getting-started/token-broker/) 与示例 [`examples/token-broker`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/token-broker)。
+
+```ts
+import { createCredentialResolver } from '@ottervoice/provider-utils';
+
+const resolve = createCredentialResolver({
+  tokenBrokerUrl: 'https://api.example.com/api/voice/token',
+});
+
+const { token, url, expiresAt } = await resolve({
+  provider: 'deepgram',
+  purpose: 'asr',
+});
+```
+
+完整字段表：[API 参考 · provider-utils](/docs/reference/api/ottervoice-provider-utils/)。

@@ -1,0 +1,35 @@
+---
+title: 安全
+description: 客户端不持长期密钥；经 Token Broker 取短期凭证。
+---
+
+浏览器包、App 二进制、`EXPO_PUBLIC_*` **都不能**保存长期 Provider Key。客户端只连你控制的网关或短期 token broker。
+
+## Token Broker
+
+示例：[`examples/token-broker`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/token-broker)
+
+```http
+POST /api/voice/token
+Content-Type: application/json
+
+{ "provider": "deepgram", "purpose": "asr", "sessionId": "optional" }
+```
+
+```json
+{
+  "token": "short-lived-token",
+  "url": "wss://optional-signed-endpoint",
+  "expiresAt": 1784000000000
+}
+```
+
+Provider 工厂侧通常传 `tokenBrokerUrl`（客户端）或 `apiKey`（仅服务端）。字段定义见 [`CredentialOptions`](https://github.com/bugkiwi/OtterVoice/blob/main/packages/provider-utils/src/credential.ts)。
+
+## 网关检查清单
+
+- 用户鉴权、Provider / 模型白名单
+- 配额、速率限制、请求体大小、超时
+- 审计 ID；默认不记录原始音频、完整字幕或上游凭证
+
+接入步骤：[Token Broker 快速接入](/docs/getting-started/token-broker/)。

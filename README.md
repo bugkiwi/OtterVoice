@@ -86,9 +86,18 @@ bun run start
 
 ## Documentation
 
-Read the bilingual engineering guide on the website:
+Engineering docs (Astro Starlight, zh-CN + English) and TypeDoc API reference:
 
 **[ottervoice.vercel.app/docs/](https://ottervoice.vercel.app/docs/)**
+
+| Section | Contents |
+| --- | --- |
+| Quick start | Mock → Web / Expo / Node / token-broker, mapped to `examples/*` |
+| Packages | What to install and why |
+| Guides | Architecture, events, latency, security |
+| API reference | Generated from package JSDoc |
+
+When changing public exports, follow [`AGENTS.md`](./AGENTS.md) (JSDoc required).
 
 ## Development
 

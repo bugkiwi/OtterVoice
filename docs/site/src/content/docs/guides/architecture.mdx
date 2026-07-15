@@ -1,0 +1,30 @@
+---
+title: 架构
+description: OtterVoice 分层：Session 编排、Runtime 音频、Provider 云能力。
+---
+
+OtterVoice 是**语音会话编排 SDK**，不是模型网关。Core 管状态、轮次、打断与用量；平台音频与模型通过接口注入。
+
+```
+Application UI
+   ↕ events / commands
+@ottervoice/core   VoiceSession · 状态机 · VAD · barge-in · usage
+   ↕ RuntimeAdapter          ↕ Provider interfaces
+runtime-web | rn | node      ASR · LLM · TTS · Audio LLM
+```
+
+## 职责边界
+
+| 层 | 负责 | 不负责 |
+| --- | --- | --- |
+| UI | 绑定事件、展示字幕、调 `start` / `finish` | Provider URL、密钥、协议细节 |
+| Core | 状态机、轮次、打断策略、用量、错误归一 | DOM / Expo / Node 特有 API |
+| Runtime | 麦、播放、可选 network/storage | 业务提示词、模型选型 |
+| Provider | 具体云厂商协议 | Session 生命周期 |
+
+## 两条流水线
+
+- **`asr_llm_tts`（默认）**：ASR 出文本 → LLM 流式文本 → TTS 播放。
+- **`audio_llm`**：ASR partial 更新字幕；`asr_final` 确认后，整轮音频进 Audio LLM，文本与 PCM 流式返回。
+
+组合根创建 Session 一次，UI 只订阅事件。换 Runtime / Provider 不必改 UI。

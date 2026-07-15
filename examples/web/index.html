@@ -94,21 +94,14 @@
       .section-head { display: flex; justify-content: space-between; align-items: end; gap: 30px; margin-bottom: 38px; }
       .section-note { max-width: 480px; margin: 0; color: var(--muted); }
       .demo-card {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        min-height: 470px;
         overflow: hidden;
         border: 1px solid var(--ink);
         border-radius: 28px;
         background: var(--paper-high);
         box-shadow: 10px 12px 0 var(--mint);
       }
-      .demo-intro { display: flex; flex-direction: column; justify-content: space-between; padding: clamp(28px, 5vw, 54px); border-right: 1px solid var(--ink); }
-      .demo-intro h3 { max-width: 440px; margin: 0; font: 500 clamp(2.5rem, 5vw, 4.8rem)/.91 Georgia, serif; letter-spacing: -.05em; }
-      .demo-intro h3 em { color: var(--coral); font-weight: inherit; }
-      .pipeline { margin-top: 28px; color: var(--muted); font-size: .82rem; }
       code { color: oklch(48% .09 38); font-size: .9em; }
-      .console { display: flex; flex-direction: column; justify-content: center; padding: clamp(28px, 5vw, 54px); }
+      .console { display: flex; max-width: 760px; margin: 0 auto; flex-direction: column; justify-content: center; padding: clamp(32px, 6vw, 64px); }
       .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 24px; padding: 5px; border: 1px solid var(--line); border-radius: 99px; }
       .mode-switch button { min-height: 36px; padding: 0 12px; border: 0; color: var(--muted); background: transparent; font-size: .76rem; }
       .mode-switch button.selected { color: var(--paper); background: var(--ink); }
@@ -189,6 +182,15 @@
       .feature-list b { display: block; margin-bottom: 6px; color: var(--coral); font-size: .72rem; letter-spacing: .12em; }
       .feature-list h3 { margin: 0 0 5px; font: 500 1.15rem Georgia, serif; }
       .feature-list p { margin: 0; color: var(--muted); font-size: .82rem; }
+      .install-card { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 24px; align-items: center; margin: 34px 0 18px; padding: 22px; border: 1px solid var(--ink); border-radius: 20px; background: var(--paper-high); box-shadow: 8px 9px 0 var(--mint); }
+      .install-qr { display: block; padding: 9px; border: 1px solid var(--ink); border-radius: 14px; background: white; }
+      .install-qr img { display: block; width: 100%; aspect-ratio: 1; }
+      .install-label { margin: 0 0 7px; color: var(--coral); font-size: .68rem; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+      .install-copy h3 { margin: 0 0 7px; font: 500 1.35rem Georgia, serif; }
+      .install-copy p { max-width: 48ch; margin: 0; color: var(--muted); font-size: .8rem; }
+      .install-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 17px; }
+      .install-actions .pill { min-height: 38px; padding: 0 16px; }
+      .release-link { color: var(--ink); font-size: .75rem; font-weight: 800; text-decoration: underline; text-underline-offset: 4px; }
       .quickstart { overflow: hidden; border: 1px solid var(--ink); border-radius: 20px; background: var(--code); color: oklch(93% .016 154); }
       .quickstart-head { display: flex; justify-content: space-between; gap: 16px; padding: 12px 18px; border-bottom: 1px solid oklch(50% .02 164); font-size: .7rem; font-weight: 800; letter-spacing: .08em; }
       pre { margin: 0; padding: 20px; overflow-x: auto; font: .82rem/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; }
@@ -230,12 +232,12 @@
         .nav-links { gap: 8px; }
         .nav-links .pill { min-height: 36px; padding: 0 12px; }
         .demo, .native, .architecture { padding: 70px 0; }
-        .demo-card { grid-template-columns: 1fr; }
-        .demo-intro { min-height: 350px; border-right: 0; border-bottom: 1px solid var(--ink); }
         .section-head { display: block; }
         .section-note { margin-top: 18px; }
         .feature-list { grid-template-columns: 1fr; }
         .feature-list article:nth-child(even) { padding-left: 0; border-left: 0; }
+        .install-card { grid-template-columns: 1fr; }
+        .install-qr { width: min(100%, 190px); }
         .flow, .package-grid { grid-template-columns: 1fr; }
         .flow article + article, .flow article:nth-child(4), .package:nth-child(even) { padding-left: 26px; border-top: 1px solid var(--line); border-left: 0; }
         .package, .package:nth-child(even) { padding-left: 0; }
@@ -276,10 +278,6 @@
           <p class="section-note" data-i18n="demoCopy">麦克风会持续监听。停顿即提交，AI 说话时也可直接插话打断；屏幕同步保留完整文字记录。</p>
         </div>
         <div class="demo-card">
-          <div class="demo-intro">
-            <h3>Talk.<br /><em>Don’t tap.</em></h3>
-            <p class="pipeline"><span id="pipeline-copy"><code>Qwen3 ASR</code> 实时字幕与终句确认 → <code>GPT Audio Mini</code> 语音回复</span><br /><span data-i18n="pipelineFootnote">低延迟语音网关 · Provider 可替换 · 密钥仅保留在服务端</span></p>
-          </div>
           <section class="console" data-i18n-aria="controlsAria" aria-label="Conversation controls">
             <div class="mode-switch" data-i18n-aria="modeAria" aria-label="语音处理模式">
               <button id="mode-audio" type="button" aria-pressed="true" data-i18n="modeAudio">新 · Audio LLM</button>
@@ -327,10 +325,24 @@
               <article><b>16 KHZ · PCM16</b><h3 data-i18n="nativeFeature1Title">持续原生收音</h3><p data-i18n="nativeFeature1Copy">实时 RMS 驱动 VAD，在 AI 理解和播报期间都不会停止监听。</p></article>
               <article><b>SSE · GAPLESS</b><h3 data-i18n="nativeFeature2Title">分片即到即播</h3><p data-i18n="nativeFeature2Copy">每个 PCM 分片落入 AudioPlaylist，首片到达即可开始播放。</p></article>
               <article><b>BARGE-IN</b><h3 data-i18n="nativeFeature3Title">短语也能打断</h3><p data-i18n="nativeFeature3Copy">200 ms 强语音快速通路兼顾中英文短指令和回声过滤。</p></article>
-              <article><b>IOS · ANDROID</b><h3 data-i18n="nativeFeature4Title">可扫码、可出包</h3><p data-i18n="nativeFeature4Copy">Expo Go 本地扫码预览，EAS profiles 提供模拟器与真机 Demo 包。</p></article>
+              <article><b>IOS · ANDROID</b><h3 data-i18n="nativeFeature4Title">自动出包</h3><p data-i18n="nativeFeature4Copy">GitHub Releases 发布 Android APK；iOS 继续通过 EAS 或 TestFlight 分发。</p></article>
+            </div>
+            <div class="install-card">
+              <a class="install-qr" href="https://github.com/bugkiwi/OtterVoice/releases/download/rn-latest/ottervoice-demo-android.apk" data-i18n-aria="installQrLabel" aria-label="扫码或打开链接安装最新版 Android APK">
+                <img src="/assets/ottervoice-android-latest.svg" width="320" height="320" alt="" />
+              </a>
+              <div class="install-copy">
+                <p class="install-label">ANDROID APK · LATEST</p>
+                <h3 data-i18n="installTitle">扫码安装最新版</h3>
+                <p data-i18n="installCopy">二维码固定指向 GitHub Releases 的 latest APK；每次发布同时保留带版本号的历史产物。</p>
+                <div class="install-actions">
+                  <a class="pill" href="https://github.com/bugkiwi/OtterVoice/releases/download/rn-latest/ottervoice-demo-android.apk" data-i18n="installDownload">下载 Android APK</a>
+                  <a class="release-link" href="https://github.com/bugkiwi/OtterVoice/releases" target="_blank" rel="noreferrer" data-i18n="installVersions">查看所有版本 →</a>
+                </div>
+              </div>
             </div>
             <div class="quickstart">
-              <div class="quickstart-head"><span data-i18n="quickstartTitle">扫码体验 · 本地开发</span><span>Expo SDK 57</span></div>
+              <div class="quickstart-head"><span data-i18n="quickstartTitle">本地开发</span><span>Expo SDK 57</span></div>
               <pre><code>cd examples/react-native-expo
 bun install
 bun run start          # Expo Go QR

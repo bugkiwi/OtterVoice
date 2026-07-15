@@ -1,0 +1,58 @@
+---
+title: "@ottervoice/runtime-react-native"
+description: Expo PCM 采集与流式播放；注入而非硬依赖 Expo。
+---
+
+React Native Runtime **不硬依赖** Expo 包：由你注入录音 / 播音原语，便于测试与 Expo Go。
+
+```ts
+import { createExpoRuntime } from '@ottervoice/runtime-react-native';
+
+const runtime = createExpoRuntime({
+  input: {
+    requestPermission: () => /* requestRecordingPermissionsAsync */,
+    createPcmStream: (options, onBuffer) => /* useAudioStream bridge */,
+  },
+  output: {
+    createSound: (uri) => /* createAudioPlayer */,
+    createPcmPlaylist: () => /* AudioPlaylist */,
+    writePcmChunk: (input) => /* PCM16 → temp WAV URI */,
+    deleteAudioFile: (uri) => /* cleanup */,
+  },
+});
+```
+
+完整绑定见 [`examples/react-native-expo/src/expo-adapters.ts`](https://github.com/bugkiwi/OtterVoice/blob/main/examples/react-native-expo/src/expo-adapters.ts)。
+
+## `ExpoRuntimeOptions`
+
+| 字段 | 说明 |
+| --- | --- |
+| `input` | 必填，见 `ExpoAudioInputOptions` |
+| `output` | 必填，见 `ExpoAudioOutputOptions` |
+
+无 `network` 适配器：Provider 使用 React Native 的全局 `fetch` / `WebSocket`。
+
+### `ExpoAudioInputOptions`
+
+| 字段 | 说明 |
+| --- | --- |
+| `createPcmStream` | **推荐**：原生 PCM mic（Expo SDK 57 `useAudioStream` 可包装） |
+| `requestPermission` | 麦克风权限 |
+| `createRecording` / `readAudioFile` | 旧版整文件录音路径；全双工场景优先 PCM |
+| `now` | 测试时钟 |
+
+推荐 **16 kHz · mono · PCM16**。Chunk 可设 `delivery: 'stream' | 'turn'`：流式 ASR 吃小缓冲；batch / Audio LLM 吃整轮 WAV。
+
+### `ExpoAudioOutputOptions`
+
+| 字段 | 说明 |
+| --- | --- |
+| `createSound` | URI → 可播放 sound |
+| `createPcmPlaylist` | 无缝 PCM 播放列表（流式回复） |
+| `writePcmChunk` | 单段 PCM16 → 临时 WAV URI |
+| `writeAudioFile` / `deleteAudioFile` | 整段缓冲落盘与清理 |
+
+助手播放期间可暂停编码采集，但保留音量回调，以便检测真实 barge-in。
+
+示例：[examples/react-native-expo](https://github.com/bugkiwi/OtterVoice/tree/main/examples/react-native-expo)。类型详情：[API 参考](/docs/reference/api/ottervoice-runtime-react-native/)。

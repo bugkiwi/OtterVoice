@@ -263,6 +263,32 @@ describe('createOpenRouterASR', () => {
     });
   });
 
+  it('replaces a preserved WebM container when MediaRecorder restarts', async () => {
+    let body: any;
+    const header = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]);
+    const session = await createOpenRouterASR({
+      apiKey: 'secret',
+      model: 'qwen/asr',
+      format: 'webm',
+      fetch: async (_url, init) => {
+        body = JSON.parse(String(init?.body));
+        return Response.json({ text: 'fresh container' });
+      },
+    }).createSession({ encoding: 'pcm_s16le' });
+
+    session.sendAudio(header.buffer.slice(0));
+    session.sendAudio(new Uint8Array([0xaa]).buffer);
+    await session.resetAudio?.();
+    session.sendAudio(header.buffer.slice(0));
+    session.sendAudio(new Uint8Array([0xbb]).buffer);
+    await session.stop();
+
+    expect(body.input_audio).toEqual({
+      data: bytesToBase64(new Uint8Array([...header, 0xbb])),
+      format: 'webm',
+    });
+  });
+
   it('drops buffered assistant audio while preserving the WebM header', async () => {
     let body: any;
     const session = await createOpenRouterASR({

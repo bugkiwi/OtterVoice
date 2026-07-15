@@ -42,6 +42,12 @@ Partial results never start an LLM request. If speech resumes before final ASR
 confirms the turn, the pending capture is cancelled without spending an Audio
 LLM request.
 
+After normal assistant playback, the Web runtime rotates `MediaRecorder` so
+the next turn starts with a fresh WebM container instead of joining clusters
+across a filtered playback gap. If Android Chrome still rejects a rare recorded
+container, the demo falls back to the already-finalized ASR transcript through
+the configured LLM + TTS providers rather than ending the session.
+
 The Web controls expose two independent switches. **Live ASR captions** maps to
 the core `asrPartial` session option and can remove rolling ASR requests while
 keeping final recognition. **Input / output text** only controls whether the

@@ -27,7 +27,6 @@ const startBtn = $<HTMLButtonElement>('start');
 const finishBtn = $<HTMLButtonElement>('finish');
 const cascadeBtn = $<HTMLButtonElement>('mode-cascade');
 const audioBtn = $<HTMLButtonElement>('mode-audio');
-const pipelineEl = $('pipeline-copy');
 const latencyEl = $('latency');
 const langZhBtn = $<HTMLButtonElement>('lang-zh');
 const langEnBtn = $<HTMLButtonElement>('lang-en');
@@ -42,7 +41,6 @@ const translations = {
     navDemo: '在线体验', navNative: 'React Native', navDocs: '技术文档',
     demoEyebrow: 'Example 01 · Web full duplex', demoTitle: '现在，直接开口。',
     demoCopy: '麦克风会持续监听。停顿即提交，AI 说话时也可直接插话打断；屏幕同步保留完整文字记录。',
-    pipelineFootnote: '低延迟语音网关 · Provider 可替换 · 密钥仅保留在服务端',
     controlsAria: '对话控制', modeAria: '语音处理模式', settingsAria: '会话显示设置', transcriptAria: '对话记录',
     modeAudio: '新 · Audio LLM', modeCascade: '旧 · ASR→LLM→TTS', liveChannel: '实时通路',
     asrPartialLabel: '实时 ASR 回显', asrPartialHint: '说话 1 秒后开始，关闭则只做终句识别',
@@ -54,8 +52,10 @@ const translations = {
     nativeFeature1Title: '持续原生收音', nativeFeature1Copy: '实时 RMS 驱动 VAD，在 AI 理解和播报期间都不会停止监听。',
     nativeFeature2Title: '分片即到即播', nativeFeature2Copy: '每个 PCM 分片落入 AudioPlaylist，首片到达即可开始播放。',
     nativeFeature3Title: '短语也能打断', nativeFeature3Copy: '200 ms 强语音快速通路兼顾中英文短指令和回声过滤。',
-    nativeFeature4Title: '可扫码、可出包', nativeFeature4Copy: 'Expo Go 本地扫码预览，EAS profiles 提供模拟器与真机 Demo 包。',
-    quickstartTitle: '扫码体验 · 本地开发',
+    nativeFeature4Title: '自动出包', nativeFeature4Copy: 'GitHub Releases 发布 Android APK；iOS 继续通过 EAS 或 TestFlight 分发。',
+    installQrLabel: '扫码或打开链接安装最新版 Android APK', installTitle: '扫码安装最新版',
+    installCopy: '二维码固定指向 GitHub Releases 的 latest APK；每次发布同时保留带版本号的历史产物。',
+    installDownload: '下载 Android APK', installVersions: '查看所有版本 →', quickstartTitle: '本地开发',
     docsEyebrow: 'Project guide · Architecture', docsTitle: '基础能力负责实时，业务只需要定义对话。',
     flow1Title: 'Runtime', flow1Copy: 'Web Audio 或 Expo PCM 负责采集、音量和播放。',
     flow2Title: 'Core', flow2Copy: '状态机组织 turn、并发、打断、取消和错误恢复。',
@@ -76,7 +76,6 @@ const translations = {
     navDemo: 'Live demo', navNative: 'React Native', navDocs: 'Docs',
     demoEyebrow: 'Example 01 · Web full duplex', demoTitle: 'Now, just speak.',
     demoCopy: 'The microphone keeps listening. A pause submits your turn; speak over the assistant to interrupt while the full transcript stays on screen.',
-    pipelineFootnote: 'Low-latency voice gateway · replaceable provider · secrets stay server-side',
     controlsAria: 'Conversation controls', modeAria: 'Voice processing mode', settingsAria: 'Session display settings', transcriptAria: 'Transcript',
     modeAudio: 'New · Audio LLM', modeCascade: 'Classic · ASR→LLM→TTS', liveChannel: 'Live channel',
     asrPartialLabel: 'Live ASR captions', asrPartialHint: 'Starts after 1s of speech; off keeps final ASR only',
@@ -88,8 +87,10 @@ const translations = {
     nativeFeature1Title: 'Continuous native input', nativeFeature1Copy: 'Real-time RMS drives VAD without stopping while the model thinks or speaks.',
     nativeFeature2Title: 'Play chunks on arrival', nativeFeature2Copy: 'Each PCM chunk enters AudioPlaylist, so playback begins with the first chunk.',
     nativeFeature3Title: 'Short phrases interrupt', nativeFeature3Copy: 'A 200 ms strong-speech fast path covers brief Chinese and English commands with echo filtering.',
-    nativeFeature4Title: 'Scan or build', nativeFeature4Copy: 'Preview locally with Expo Go QR codes, or use EAS profiles for simulator and device packages.',
-    quickstartTitle: 'Scan to try · local development',
+    nativeFeature4Title: 'Automated packages', nativeFeature4Copy: 'GitHub Releases publishes the Android APK; iOS continues through EAS or TestFlight.',
+    installQrLabel: 'Scan or open the link to install the latest Android APK', installTitle: 'Scan to install the latest build',
+    installCopy: 'This QR always targets the latest GitHub Release APK, while every release also keeps a versioned artifact.',
+    installDownload: 'Download Android APK', installVersions: 'View every version →', quickstartTitle: 'Local development',
     docsEyebrow: 'Project guide · Architecture', docsTitle: 'The infrastructure owns real time. Your product defines the conversation.',
     flow1Title: 'Runtime', flow1Copy: 'Web Audio or Expo PCM handles capture, levels and playback.',
     flow2Title: 'Core', flow2Copy: 'The state machine coordinates turns, concurrency, interruption, cancellation and recovery.',
@@ -144,17 +145,11 @@ const runtimeText = {
     you: '你', otter: 'Otter', playing: '播放中…', playFailed: '播放失败', playSse: '▶ SSE 音频',
     playTitle: '播放 OpenRouter SSE 组装后的原始音频（独立于会话播放）', chunks: '片', pending: '待测',
     latencyEmpty: '完成一轮对话后显示“停顿 → 开始播放”的实测延迟',
-    pipelineAudio: '<code>Qwen3 ASR</code> 实时字幕与终句确认 → <code>GPT Audio Mini</code> 语音回复',
-    pipelineAudioFinal: '<code>Qwen3 ASR</code> 终句确认 → <code>GPT Audio Mini</code> 语音回复',
-    pipelineCascade: '<code>Qwen3 ASR</code> → <code>DeepSeek V4 Flash</code> → <code>Kokoro 82M</code>',
   },
   en: {
     you: 'You', otter: 'Otter', playing: 'Playing…', playFailed: 'Playback failed', playSse: '▶ SSE audio',
     playTitle: 'Play the original audio assembled from OpenRouter SSE chunks', chunks: 'chunks', pending: 'pending',
     latencyEmpty: 'Measured pause → first audio playback latency appears after one turn',
-    pipelineAudio: '<code>Qwen3 ASR</code> live captions + final confirmation → <code>GPT Audio Mini</code> voice reply',
-    pipelineAudioFinal: '<code>Qwen3 ASR</code> final confirmation → <code>GPT Audio Mini</code> voice reply',
-    pipelineCascade: '<code>Qwen3 ASR</code> → <code>DeepSeek V4 Flash</code> → <code>Kokoro 82M</code>',
   },
 } as const;
 
@@ -359,21 +354,78 @@ const audioLlmBase = createOpenRouterAudioLLM({
     maxDurationMs: 90_000,
   }),
 });
+
+function isRecordedAudioDecodeFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /(?:unable|failed|error).*decod(?:e|ing).*audio|decod(?:e|ing).*audio.*(?:failed|error)/i.test(
+    message,
+  );
+}
+
 const audioLlm = {
   ...audioLlmBase,
   async generate(
     ...args: Parameters<typeof audioLlmBase.generate>
   ): ReturnType<typeof audioLlmBase.generate> {
-    const output = await audioLlmBase.generate(...args);
+    const input = args[0];
+    let output: Awaited<ReturnType<typeof audioLlmBase.generate>>;
+    try {
+      output = await audioLlmBase.generate(...args);
+    } catch (error) {
+      const currentTurnHasFinalText = input.messages.at(-1)?.role === 'user';
+      if (
+        !isRecordedAudioDecodeFailure(error) ||
+        !currentTurnHasFinalText ||
+        input.signal?.aborted
+      ) {
+        throw error;
+      }
+
+      // Android Chrome can still reject a browser-recorded WebM in rare
+      // container/codec edge cases. ASR has already finalized the same turn,
+      // so keep the conversation alive with the configured cascade providers
+      // instead of surfacing a terminal llm_failed row.
+      console.warn(
+        'Audio LLM could not decode the recorded turn; falling back to ASR → LLM → TTS.',
+        error,
+      );
+      const reply = await conversationLlm.generate({
+        messages: input.messages,
+        ...(input.signal ? { signal: input.signal } : {}),
+      });
+      if (input.signal?.aborted) throw error;
+      const speech = await tts.synthesize({
+        text: reply.text,
+        format: 'mp3',
+        speed: 1.05,
+      });
+      if (!speech.audioBuffer) throw error;
+      output = {
+        text: reply.text,
+        audioBuffer: speech.audioBuffer,
+        mimeType: speech.mimeType,
+        ...(reply.usage ? { usage: reply.usage } : {}),
+        raw: {
+          fallback: 'asr_llm_tts',
+          cause: error instanceof Error ? error.message : String(error),
+        },
+      };
+    }
     const raw = output.raw as
-      | { audioChunkCount?: number; audioByteLength?: number }
+      | {
+          audioChunkCount?: number;
+          audioByteLength?: number;
+          fallback?: string;
+        }
       | undefined;
-    lastSseAudio = {
-      audioBuffer: output.audioBuffer.slice(0),
-      mimeType: output.mimeType,
-      chunkCount: raw?.audioChunkCount ?? 0,
-      byteLength: raw?.audioByteLength ?? output.audioBuffer.byteLength,
-    };
+    lastSseAudio = raw?.fallback
+      ? undefined
+      : {
+          audioBuffer: output.audioBuffer.slice(0),
+          mimeType: output.mimeType,
+          chunkCount: raw?.audioChunkCount ?? 0,
+          byteLength: raw?.audioByteLength ?? output.audioBuffer.byteLength,
+        };
     return output;
   },
 };
@@ -403,11 +455,6 @@ function renderPipeline() {
   audioBtn.classList.toggle('selected', isAudio);
   cascadeBtn.setAttribute('aria-pressed', String(!isAudio));
   audioBtn.setAttribute('aria-pressed', String(isAudio));
-  pipelineEl.innerHTML = isAudio
-    ? asrPartialEnabled
-      ? runtimeText[language].pipelineAudio
-      : runtimeText[language].pipelineAudioFinal
-    : runtimeText[language].pipelineCascade;
 }
 
 let lastLatency: { pipeline: Pipeline; value: number } | undefined;

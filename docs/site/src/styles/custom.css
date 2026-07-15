@@ -1,0 +1,102 @@
+/* OtterVoice docs — cool teal paper, restrained coral accent.
+   Avoid purple/glow and warm cream + terracotta defaults. */
+:root {
+  --sl-color-accent-low: oklch(88% 0.04 200);
+  --sl-color-accent: oklch(48% 0.1 200);
+  --sl-color-accent-high: oklch(36% 0.09 200);
+  --sl-color-white: oklch(98.5% 0.006 200);
+  --sl-color-gray-1: oklch(94% 0.01 200);
+  --sl-color-gray-2: oklch(87% 0.018 200);
+  --sl-color-gray-3: oklch(72% 0.024 200);
+  --sl-color-gray-4: oklch(52% 0.028 200);
+  --sl-color-gray-5: oklch(40% 0.03 200);
+  --sl-color-gray-6: oklch(28% 0.035 200);
+  --sl-color-black: oklch(20% 0.03 200);
+  --sl-font: 'Avenir Next', Avenir, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+  --sl-font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: oklch(92% 0.035 200);
+  --sl-color-accent: oklch(42% 0.11 200);
+  --sl-color-accent-high: oklch(32% 0.09 200);
+  --sl-color-bg: oklch(97% 0.01 210);
+  --sl-color-bg-nav: oklch(98.5% 0.006 210);
+  --sl-color-bg-sidebar: oklch(97.5% 0.008 210);
+  --sl-color-hairline: oklch(86% 0.02 200);
+  --sl-color-text: oklch(26% 0.035 200);
+  --sl-color-text-accent: oklch(38% 0.11 200);
+  --ov-mark: oklch(52% 0.14 28);
+}
+
+:root[data-theme='dark'] {
+  --sl-color-accent-low: oklch(28% 0.05 200);
+  --sl-color-accent: oklch(72% 0.08 200);
+  --sl-color-accent-high: oklch(86% 0.05 200);
+  --sl-color-bg: oklch(18% 0.025 210);
+  --sl-color-bg-nav: oklch(16% 0.022 210);
+  --sl-color-bg-sidebar: oklch(15% 0.02 210);
+  --sl-color-hairline: oklch(32% 0.03 200);
+  --sl-color-text: oklch(92% 0.012 200);
+  --ov-mark: oklch(72% 0.12 28);
+}
+
+.site-title {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Coral is a highlighter accent only — not the primary brand fill. */
+.sl-markdown-content a:not(:where(.not-content *)) {
+  text-underline-offset: 0.18em;
+}
+
+.sl-markdown-content table {
+  font-size: 0.92em;
+}
+
+.sl-markdown-content :not(a, strong, em, del, span, input, code)
+  + :is(p, aside, ul, ol, blockquote, figure, pre, table, .expressive-code) {
+  margin-top: 1.05rem;
+}
+
+.sl-markdown-content .expressive-code {
+  border-radius: 0.35rem;
+  border: 1px solid var(--sl-color-hairline);
+}
+
+.sl-markdown-content table th {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.hero {
+  --sl-hero-text-color: var(--sl-color-text);
+}
+
+.hero .tagline {
+  max-width: 36rem;
+  color: var(--sl-color-gray-3);
+}
+
+[data-theme='light'] .hero .tagline {
+  color: var(--sl-color-gray-4);
+}
+
+.hero .action.primary {
+  background: var(--sl-color-accent);
+  border-color: transparent;
+}
+
+.hero .action.secondary {
+  border-color: var(--sl-color-hairline);
+}
+
+/* Subtle coral underline on page titles for hierarchy, not decoration. */
+.sl-container > h1#_top {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklch, var(--ov-mark) 55%, transparent);
+  text-decoration-thickness: 0.12em;
+  text-underline-offset: 0.18em;
+}

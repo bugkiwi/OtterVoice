@@ -1,5 +1,9 @@
-import type { TurnDetectionConfig } from './types';
+import type { TurnDetectionConfig } from './types.js';
 
+/**
+ * Default {@link TurnDetectionConfig} values used by {@link resolveTurnDetection}
+ * and {@link TurnDetector} when the session omits knobs.
+ */
 export const DEFAULT_TURN_DETECTION: Required<TurnDetectionConfig> = {
   strategy: 'hybrid',
   minSpeechMs: 500,
@@ -8,6 +12,12 @@ export const DEFAULT_TURN_DETECTION: Required<TurnDetectionConfig> = {
   volumeThreshold: 0.02,
 };
 
+/**
+ * Merge a partial {@link TurnDetectionConfig} with {@link DEFAULT_TURN_DETECTION}.
+ *
+ * @param config - Optional overrides from {@link import('./types').VoiceSessionConfig.turnDetection}.
+ * @returns A fully populated config object (no missing fields).
+ */
 export function resolveTurnDetection(
   config?: TurnDetectionConfig,
 ): Required<TurnDetectionConfig> {
@@ -22,6 +32,10 @@ export function resolveTurnDetection(
   };
 }
 
+/**
+ * Boundary event returned by {@link TurnDetector.pushVolume} when a threshold
+ * is crossed (`undefined` when the sample does not change state).
+ */
 export type TurnDetectorEvent = 'speech_start' | 'speech_end' | 'max_turn';
 
 /**

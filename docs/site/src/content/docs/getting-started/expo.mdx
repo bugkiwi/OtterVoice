@@ -1,0 +1,42 @@
+---
+title: Expo / React Native 接入
+description: 通过注入 Expo 音频能力驱动 runtime-react-native。
+---
+
+对应示例：[`examples/react-native-expo`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/react-native-expo)
+
+完整绑定见示例中的 [`expo-adapters.ts`](https://github.com/bugkiwi/OtterVoice/blob/main/examples/react-native-expo/src/expo-adapters.ts)。
+
+```bash
+cd examples/react-native-expo
+cp .env.example .env   # 按需配置 broker / 模型
+bun run start
+```
+
+## 结构
+
+推荐输入：**16 kHz · mono · PCM16**。Runtime 不硬依赖 Expo 包，由你注入小型接口：
+
+```ts
+import { createExpoRuntime } from '@ottervoice/runtime-react-native';
+import { createVoiceSession } from '@ottervoice/core';
+
+const runtime = createExpoRuntime({
+  input: { /* Expo AudioStream / 录音绑定 */ },
+  output: { /* AudioPlaylist / 播放绑定 */ },
+});
+
+const session = createVoiceSession({
+  mode: 'full_duplex',
+  pipeline: 'audio_llm', // 示例默认走 Audio LLM
+  runtime,
+  providers: { asr, llm, audioLlm },
+});
+```
+
+采集分两路：
+
+- `delivery: 'stream'` — 小 PCM 缓冲 → 流式 ASR
+- `delivery: 'turn'` — 完整 WAV → batch ASR / Audio LLM
+
+助手播放期间可暂停编码采集，但保留音量回调以继续 barge-in。细节见 [runtime-react-native](/docs/packages/runtime-react-native/)。

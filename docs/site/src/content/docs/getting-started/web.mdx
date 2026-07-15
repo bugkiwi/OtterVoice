@@ -1,0 +1,57 @@
+---
+title: Web 浏览器接入
+description: 使用 runtime-web 做全双工采集、VAD 与 barge-in。
+---
+
+对应示例：[`examples/web`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web)
+
+```bash
+cd examples/web
+bun run start   # http://localhost:5173
+```
+
+线上 Demo 即本示例打包产物：[ottervoice.vercel.app](https://ottervoice.vercel.app/)
+
+## 最小接入
+
+```ts
+import { createVoiceSession } from '@ottervoice/core';
+import { createWebRuntime } from '@ottervoice/runtime-web';
+// 换成真实 ASR / LLM / TTS，客户端用 tokenBrokerUrl
+
+const runtime = createWebRuntime({
+  mimeType: 'audio/webm;codecs=opus',
+  timesliceMs: 100,
+  volumePollMs: 50,
+  bargeInPreRollMs: 500,
+});
+
+const session = createVoiceSession({
+  mode: 'full_duplex',
+  pipeline: 'asr_llm_tts', // 或 'audio_llm'
+  runtime,
+  language: 'zh-CN',
+  providers: { asr, llm, tts },
+  turnDetection: {
+    strategy: 'volume',
+    minSpeechMs: 180,
+    silenceTimeoutMs: 450,
+    volumeThreshold: 0.025,
+  },
+  policy: {
+    autoStartListening: true,
+    allowInterruption: true,
+  },
+});
+
+await session.start();
+```
+
+## 浏览器注意点
+
+- 页面需 HTTPS 或 `localhost`
+- 在用户手势里请求麦克风，并尽量 `audioOutput.unlock?.()`
+- autoplay 解锁失败不应阻断 ASR
+- 离开页面时 `await session.dispose()`
+
+选项说明见 [@ottervoice/runtime-web](/docs/packages/runtime-web/)。

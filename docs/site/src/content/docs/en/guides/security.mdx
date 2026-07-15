@@ -1,0 +1,35 @@
+---
+title: Security
+description: No long-lived keys on clients; mint short-lived tokens via a broker.
+---
+
+Never ship long-lived provider keys in browser bundles, app binaries, or `EXPO_PUBLIC_*`. Clients talk only to your gateway or short-lived token broker.
+
+## Token broker
+
+Example: [`examples/token-broker`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/token-broker)
+
+```http
+POST /api/voice/token
+Content-Type: application/json
+
+{ "provider": "deepgram", "purpose": "asr", "sessionId": "optional" }
+```
+
+```json
+{
+  "token": "short-lived-token",
+  "url": "wss://optional-signed-endpoint",
+  "expiresAt": 1784000000000
+}
+```
+
+Provider factories typically take `tokenBrokerUrl` (clients) or `apiKey` (server only). See [`CredentialOptions`](https://github.com/bugkiwi/OtterVoice/blob/main/packages/provider-utils/src/credential.ts).
+
+## Gateway checklist
+
+- Auth, provider / model allowlists
+- Quotas, rate limits, payload size, timeouts
+- Audit IDs; do not log raw audio, full transcripts, or upstream credentials by default
+
+See [Token broker quick start](/docs/en/getting-started/token-broker/).

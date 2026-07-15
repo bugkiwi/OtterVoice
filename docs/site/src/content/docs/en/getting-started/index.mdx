@@ -1,0 +1,32 @@
+---
+title: Quick start overview
+description: Map your scenario to repo examples — from mocks to Web, Expo, and Node.
+---
+
+OtterVoice is a **session orchestration SDK**, not a model gateway. You pick a runtime, inject providers, and listen to session events.
+
+## Scenario → example
+
+| Scenario | Example | Command |
+| --- | --- | --- |
+| Minimal loop (no mic / no key) | [`examples/node-cli`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/node-cli) | `bun run demo` |
+| Node + live LLM | [`examples/node-openrouter`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/node-openrouter) | `bun run examples/node-openrouter/index.ts` |
+| Browser full-duplex | [`examples/web`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web) | `cd examples/web && bun run start` |
+| Expo app | [`examples/react-native-expo`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/react-native-expo) | `cd examples/react-native-expo && bun run start` |
+| Short-lived token gateway | [`examples/token-broker`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/token-broker) | `bun run examples/token-broker/server.ts` |
+
+Repo: [github.com/bugkiwi/OtterVoice](https://github.com/bugkiwi/OtterVoice)
+
+## Recommended path
+
+1. Validate UI / captions / state with **[mocks](/docs/en/getting-started/mocks/)**.
+2. Swap in the platform runtime ([Web](/docs/en/getting-started/web/) / [Expo](/docs/en/getting-started/expo/) / [Node](/docs/en/getting-started/node/)).
+3. Mint short-lived credentials via the **[token broker](/docs/en/getting-started/token-broker/)** — never ship long-lived keys to clients.
+
+```bash
+bun add @ottervoice/core
+# Web:     bun add @ottervoice/runtime-web
+# Expo:    bun add @ottervoice/runtime-react-native
+# Node:    bun add @ottervoice/runtime-node
+# Providers: @ottervoice/provider-deepgram | elevenlabs | openrouter | azure-speech
+```

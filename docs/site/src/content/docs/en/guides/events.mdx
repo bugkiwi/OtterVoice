@@ -1,0 +1,41 @@
+---
+title: Events & transcripts
+description: Upsert captions by turnId; incremental vs final event contract.
+---
+
+Every incremental and final event carries a stable `turnId`. UI must **upsert in place by turnId** — never append each delta as a new bubble.
+
+```ts
+session.on('asr_partial', ({ turnId, text }) => {
+  upsert({ id: turnId, role: 'user', text, live: true });
+});
+session.on('asr_final', ({ turnId, text }) => {
+  upsert({ id: turnId, role: 'user', text, live: false });
+});
+session.on('assistant_text_delta', ({ turnId, text }) => {
+  upsert({ id: turnId, role: 'assistant', text, live: true });
+});
+session.on('assistant_text', ({ turnId, text }) => {
+  upsert({ id: turnId, role: 'assistant', text, live: false });
+});
+```
+
+## Event map
+
+| Event | When | UI |
+| --- | --- | --- |
+| `statechange` | State machine transition | Controls / indicators |
+| `asr_partial` | Provisional ASR | Update user row + live cursor |
+| `asr_final` | User turn confirmed | Replace provisional text |
+| `user_audio_end` | VAD ends user speech | Latency start marker |
+| `assistant_text_delta` | Model text fragment | Upsert assistant row (prefer accumulated `text`) |
+| `assistant_text` | Reply confirmed | Commit final text |
+| `assistant_audio_start` / `_end` | Playback bounds | First-audio latency, speaking state |
+| `turn` | Turn committed | History |
+| `usage` | Usage snapshot | Metrics |
+| `finished` | Session ended | Teardown UI |
+| `error` | Normalized error | Toast / retry |
+
+`assistant_text_delta.delta` is the new fragment; render accumulated `text`. Finals may normalize punctuation.
+
+Payload shapes: `VoiceSessionEventMap` in the [API reference](/docs/en/reference/).
