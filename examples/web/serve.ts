@@ -57,9 +57,9 @@ if (!build.success) {
 }
 
 const appJs = await build.outputs[0]!.text();
-const html = await Bun.file(new URL('./index.html', root).pathname).text();
 const openRouterKey = process.env.OPENROUTER_API_KEY;
 const port = Number(process.env.PORT ?? 5173);
+const htmlPath = new URL('./index.html', root).pathname;
 
 Bun.serve({
   port,
@@ -79,7 +79,14 @@ Bun.serve({
     const staticFile = await serveStatic(path);
     if (staticFile) return staticFile;
     if (path === '/') {
-      return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } });
+      // Read on each request so style tweaks show up without restarting.
+      const html = await Bun.file(htmlPath).text();
+      return new Response(html, {
+        headers: {
+          'content-type': 'text/html; charset=utf-8',
+          'cache-control': 'no-store',
+        },
+      });
     }
     return new Response('Not Found', { status: 404 });
   },
