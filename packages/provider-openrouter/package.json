@@ -1,6 +1,6 @@
 {
   "name": "@ottervoice/provider-openrouter",
-  "version": "0.1.0",
+  "version": "0.2.0-alpha.0",
   "type": "module",
   "description": "OpenRouter text/audio LLM, speech-to-text and text-to-speech providers for OtterVoice.",
   "license": "MIT",
