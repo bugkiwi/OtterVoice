@@ -17,7 +17,8 @@ export * from './decode.js';
 
 /**
  * Options for {@link createDeepgramASR}. Extends {@link CredentialOptions} and
- * {@link DeepgramQueryOptions}; prefer `tokenBrokerUrl` on clients over a static key.
+ * {@link DeepgramQueryOptions}. Direct-client broker use is appropriate only
+ * for a short-lived scoped credential or a server-locked signed URL.
  */
 export interface DeepgramOptions extends CredentialOptions, DeepgramQueryOptions {
   /** Override the listen endpoint. */
@@ -39,8 +40,8 @@ const CAPABILITIES: ASRCapabilities = {
 
 /** Deepgram streaming ASR provider over WebSocket.
  *
- * @param options - Credentials plus listen URL / query options. Prefer
- *   `tokenBrokerUrl` on clients.
+ * @param options - Credentials plus listen URL / query options. Keep query
+ *   policy server-owned unless a broker-signed URL locks it.
  */
 export function createDeepgramASR(options: DeepgramOptions): ASRProvider {
   const WS = resolveWebSocket(options.webSocket);

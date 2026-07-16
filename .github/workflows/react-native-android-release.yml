@@ -36,6 +36,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Require authenticated voice gateway
+        run: test -n "$EXPO_PUBLIC_OTTERVOICE_API_URL"
+
       - name: Resolve and verify release version
         id: release
         shell: bash

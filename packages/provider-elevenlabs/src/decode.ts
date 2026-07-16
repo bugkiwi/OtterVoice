@@ -18,8 +18,9 @@ export interface ElevenLabsQueryOptions {
 
 /**
  * Build the realtime STT URL. NOTE: ElevenLabs' realtime ASR wire format is
- * evolving — verify parameter and message names against the current docs and
- * prefer `tokenBrokerUrl` (which returns a fully signed URL) in production.
+ * evolving — verify parameter and message names against the current docs. In a
+ * direct-client deployment, prefer a broker URL that returns a signed URL with
+ * the route/model already locked by the server.
  *
  * @param baseUrl - Listen endpoint; usually {@link DEFAULT_BASE_URL} or a broker-signed URL.
  * @param options - Provider defaults for model / language.

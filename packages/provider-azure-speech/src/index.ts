@@ -23,7 +23,9 @@ export * from './ssml.js';
 
 /**
  * Options for {@link createAzureTTS}. Region and neural voice are required;
- * authenticate with `subscriptionKey` (server) or `tokenBrokerUrl` (client-safe).
+ * authenticate with `subscriptionKey` on a trusted server. `tokenBrokerUrl`
+ * enables an explicit direct-client mode only; Azure STS tokens do not enforce
+ * voice, route, or budget policy.
  * Shares broker/`fetch` fields from {@link CredentialOptions} (use `subscriptionKey`
  * instead of `apiKey`).
  */
@@ -32,7 +34,7 @@ export interface AzureTTSOptions extends Omit<CredentialOptions, 'apiKey'> {
   region: string;
   /** Subscription key (server-side). Mutually exclusive with `tokenBrokerUrl`. */
   subscriptionKey?: string;
-  /** Neural voice name, e.g. `zh-CN-XiaoxiaoNeural`. */
+  /** Neural voice name, e.g. `zh-CN-XiaoxiaoNeural`. Keep server-owned in standard mode. */
   voice: string;
   /** BCP-47 language tag for SSML. Defaults to `en-US`. */
   language?: string;

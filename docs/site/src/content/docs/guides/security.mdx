@@ -3,7 +3,22 @@ title: 安全
 description: 客户端不持长期密钥；经 Token Broker 取短期凭证。
 ---
 
-浏览器包、App 二进制、`EXPO_PUBLIC_*` **都不能**保存长期 Provider Key。客户端只连你控制的网关或短期 token broker。
+浏览器包、App 二进制、`EXPO_PUBLIC_*` **都不能**保存长期 Provider Key。
+同样不能把系统提示词、模型选择、voice、temperature、token 上限、reasoning
+或供应商路由当成可信的客户端配置。客户端只连你控制的策略网关；只有能够
+签发真正限权凭证的直连能力才使用 token broker。
+
+## 标准信任边界
+
+| 客户端可以负责 | 服务端必须负责 |
+| --- | --- |
+| 麦克风、VAD、字幕显示、播放、barge-in UX | 用户鉴权、会话归属、Provider 凭证 |
+| 用户文本/音频、普通历史、流式/非流式传输 | system/developer prompt、model、voice、speed |
+| 可选的产品内 profile id | temperature、max tokens、reasoning、工具权限、预算 |
+
+OpenRouter 客户端使用 `createOpenRouterGatewayASR/LLM/TTS/AudioLLM`；服务端
+使用 `createOpenRouterGateway()`。四条 profile 路由相互隔离，服务端从
+allowlist 过的用户内容重建上游 Body，而不是修改后继续透传客户端 JSON。
 
 ## Token Broker
 
@@ -12,8 +27,9 @@ description: 客户端不持长期密钥；经 Token Broker 取短期凭证。
 ```http
 POST /api/voice/token
 Content-Type: application/json
+Authorization: Bearer <application-session-token>
 
-{ "provider": "deepgram", "purpose": "asr", "sessionId": "optional" }
+{ "provider": "azure_speech", "purpose": "asr", "sessionId": "required" }
 ```
 
 ```json
@@ -24,12 +40,20 @@ Content-Type: application/json
 }
 ```
 
-Provider 工厂侧通常传 `tokenBrokerUrl`（客户端）或 `apiKey`（仅服务端）。字段定义见 [`CredentialOptions`](https://github.com/bugkiwi/OtterVoice/blob/main/packages/provider-utils/src/credential.ts)。
+`tokenBrokerUrl` 仅在 token 同时短期、限用途/route，并最好限制 model/budget
+时才是客户端安全的。通用 OpenRouter bearer token 即使短期也可能允许任意
+模型和花费，必须留在策略网关后。字段定义见 [`CredentialOptions`](https://github.com/bugkiwi/OtterVoice/blob/main/packages/provider-utils/src/credential.ts)。
+
+Azure STS 这类 token 虽然短期，却仍不能锁定 voice、route 或预算，只能作为
+明确选择的直连模式；标准模式仍应把 Provider 和这些策略字段留在应用服务端。
 
 ## 网关检查清单
 
-- 用户鉴权、Provider / 模型白名单
-- 配额、速率限制、请求体大小、超时
+- 用户鉴权、每次请求的会话归属、profile 访问权限
+- 服务端覆盖 prompt / model / voice / temperature / token 上限 / reasoning
+- 拒绝客户端 `system` / `developer` / tool 消息；只重建允许的用户内容
+- 按用户、会话、profile、IP 做配额、速率限制、并发和成本预算
+- 请求体、消息数、文本长度、音频时长、响应输出与超时上限
 - 审计 ID；默认不记录原始音频、完整字幕或上游凭证
 
 接入步骤：[Token Broker 快速接入](/docs/getting-started/token-broker/)。

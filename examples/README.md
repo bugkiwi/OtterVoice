@@ -24,18 +24,22 @@ packages; none need API keys to start (cognition falls back to mocks).
   in-memory runtime; set `OPENROUTER_API_KEY` to go live, otherwise it uses a mock.
 - **web** — full-duplex browser conversation with automatic volume endpointing,
   a live input meter, and barge-in via `@ottervoice/runtime-web`; bundled and
-  served by Bun (no Vite). Swap in real providers + the token broker to ship.
+  served by Bun (no Vite). A policy gateway owns prompts, models, voices, and
+  spend controls; the browser sends only user content and transport data.
 - **web-audio-llm-only** — the minimal browser path: caption ASR plus one native
   audio-in/audio-out model, with no text LLM or TTS provider.
 - **react-native-expo** — a runnable full-duplex Audio LLM app with native PCM
   capture, continuous VAD/barge-in, SSE chunk playback through AudioPlaylist,
   Expo Go QR preview, and EAS simulator/APK build profiles.
-- **token-broker** — the backend half of the security model (tech design §17):
-  clients fetch short-lived credentials here instead of holding provider secrets.
+- **token-broker** — an opt-in direct-provider pattern: clients fetch short-lived
+  credentials instead of holding provider secrets. It is not a substitute for
+  policy enforcement when a token cannot lock route/model/budget.
 
 ## Going live
 
-1. Run the token broker with your provider keys in the environment.
-2. In a client example, replace the mock/demo providers with real ones pointed
-   at `tokenBrokerUrl: '<broker>/api/voice/token'`.
-3. Never put provider API keys in client code.
+1. For request/response LLM, Audio LLM, ASR, and TTS APIs, deploy a policy
+   gateway with provider keys and business policy in server-only environment variables.
+2. Use a token broker only for providers that can issue genuinely short-lived,
+   route/model/budget-scoped credentials (commonly direct WebSocket ASR).
+3. Never put provider keys, system prompts, unrestricted model ids, or spend
+   controls in client code.

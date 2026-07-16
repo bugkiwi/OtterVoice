@@ -10,7 +10,7 @@ Use this package when authoring a custom provider or talking to your own gateway
 
 | Symbol | Use |
 | --- | --- |
-| `CredentialOptions` | `apiKey` (server only) · `tokenBrokerUrl` (prefer on clients) · `fetch` |
+| `CredentialOptions` | `apiKey` (server only) · broker URL/app auth/session binding · `fetch` |
 | `createCredentialResolver` | Resolve short-lived tokens / static keys inside adapters |
 | SSE helpers | Parse OpenAI-style (and similar) SSE streams |
 | WebSocket ASR helpers | Shared skeleton for streaming ASR sessions |
@@ -19,23 +19,28 @@ Use this package when authoring a custom provider or talking to your own gateway
 
 | Field | Notes |
 | --- | --- |
-| `tokenBrokerUrl` | Preferred on clients. Points at your short-lived token endpoint. |
+| `tokenBrokerUrl` | Client-safe only when the token is short-lived and route/model/budget scoped. |
+| `tokenBrokerHeaders` | Application-auth headers sent only to the broker, never to the upstream provider. |
+| `tokenBrokerSessionId` | Voice session id used by the broker for ownership, quota, and audit checks. |
+| `tokenBrokerCredentials` | Set to `include` for cross-origin cookie auth; same-origin uses the browser default. |
 | `apiKey` | Long-lived key. Server / CLI only — never ship in browsers or apps. |
 | `fetch` | Injectable for tests or non-standard runtimes. |
 
-Token contract: [Token broker quick start](/docs/en/getting-started/token-broker/) and [`examples/token-broker`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/token-broker).
+Token contract: [Token broker quick start](/docs/en/getting-started/token-broker/) and [`examples/token-broker`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/token-broker). Providers that cannot issue genuinely scoped credentials (for example a broad bearer token that can select arbitrary OpenRouter models) require a server policy gateway.
 
 ```ts
 import { createCredentialResolver } from '@ottervoice/provider-utils';
 
 const resolve = createCredentialResolver({
   tokenBrokerUrl: 'https://api.example.com/api/voice/token',
-});
-
-const { token, url, expiresAt } = await resolve({
+  tokenBrokerHeaders: { authorization: `Bearer ${applicationSessionToken}` },
+  tokenBrokerSessionId: voiceSessionId,
+}, {
   provider: 'deepgram',
   purpose: 'asr',
 });
+
+const { token, url, expiresAt } = await resolve();
 ```
 
 Full field tables: [API · provider-utils](/docs/en/reference/api/ottervoice-provider-utils/).

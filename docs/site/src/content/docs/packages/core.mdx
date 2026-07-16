@@ -20,10 +20,14 @@ description: VoiceSession、配置、事件、Mock 与状态机。
 | `turnDetection` | 听用户说话时的 VAD |
 | `interruptionDetection` | 助手播放时的更严 VAD（barge-in） |
 | `policy` | 自动听、允许打断、误打断恢复等 |
-| `audioLlmSystemPrompt` / `audioLlmMaxTokens` | Audio LLM 专用 |
+| `audioLlmSystemPrompt` / `audioLlmMaxTokens` | 仅可信 Node/服务端 Session；浏览器标准模式由网关注入 |
 | `audioLlmStartTiming` | `after_audio` 并行降首响；默认 `after_asr_final` |
 
 完整字段见 [API 参考](/docs/reference/)。源码：[`types.ts`](https://github.com/bugkiwi/OtterVoice/blob/main/packages/core/src/types.ts)。
+
+Core 是跨运行时编排层，因此保留 prompt、temperature、max tokens、voice 等
+能力供可信服务端使用；它们不是浏览器安全边界。浏览器/App 应使用
+server-managed Provider，并让自有网关覆盖所有业务与成本策略。
 
 ## `TurnDetectionConfig`
 

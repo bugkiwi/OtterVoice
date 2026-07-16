@@ -49,7 +49,7 @@ MIT
 
 ### ProtocolError
 
-Defined in: [packages/protocol/src/index.ts:64](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/protocol/src/index.ts#L64)
+Defined in: [packages/protocol/src/index.ts:64](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/protocol/src/index.ts#L64)
 
 Thrown when JSON is malformed or fails protocol validation.
 
@@ -65,7 +65,7 @@ Thrown when JSON is malformed or fails protocol validation.
 new ProtocolError(message): ProtocolError;
 ```
 
-Defined in: [packages/protocol/src/index.ts:68](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/protocol/src/index.ts#L68)
+Defined in: [packages/protocol/src/index.ts:68](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/protocol/src/index.ts#L68)
 
 ###### Parameters
 
@@ -254,7 +254,7 @@ Error.prepareStackTrace
 
 ### ProtocolEnvelope
 
-Defined in: [packages/protocol/src/index.ts:47](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/protocol/src/index.ts#L47)
+Defined in: [packages/protocol/src/index.ts:47](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/protocol/src/index.ts#L47)
 
 Versioned JSON envelope for one session event on the wire.
 
@@ -268,9 +268,9 @@ Versioned JSON envelope for one session event on the wire.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="payload"></a> `payload` | [`VoiceSessionEventMap`](/docs/en/reference/api/ottervoice-core/#voicesessioneventmap)\[`T`\] | Event payload matching the core session event map. | [packages/protocol/src/index.ts:55](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/protocol/src/index.ts#L55) |
-| <a id="type"></a> `type` | `T` | Event name (same keys as core [VoiceSessionEventMap](/docs/en/reference/api/ottervoice-core/#voicesessioneventmap)). | [packages/protocol/src/index.ts:53](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/protocol/src/index.ts#L53) |
-| <a id="v"></a> `v` | `1` | Protocol schema version; must equal [PROTOCOL\_VERSION](/docs/en/reference/api/ottervoice-protocol/#protocol_version). | [packages/protocol/src/index.ts:51](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/protocol/src/index.ts#L51) |
+| <a id="payload"></a> `payload` | [`VoiceSessionEventMap`](/docs/en/reference/api/ottervoice-core/#voicesessioneventmap)\[`T`\] | Event payload matching the core session event map. | [packages/protocol/src/index.ts:55](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/protocol/src/index.ts#L55) |
+| <a id="type"></a> `type` | `T` | Event name (same keys as core [VoiceSessionEventMap](/docs/en/reference/api/ottervoice-core/#voicesessioneventmap)). | [packages/protocol/src/index.ts:53](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/protocol/src/index.ts#L53) |
+| <a id="v"></a> `v` | `1` | Protocol schema version; must equal [PROTOCOL\_VERSION](/docs/en/reference/api/ottervoice-protocol/#protocol_version). | [packages/protocol/src/index.ts:51](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/protocol/src/index.ts#L51) |
 
 ## Type Aliases
 
@@ -280,7 +280,7 @@ Versioned JSON envelope for one session event on the wire.
 type ProtocolMessageType = Exclude<keyof VoiceSessionEventMap, "user_audio_final" | "assistant_audio">;
 ```
 
-Defined in: [packages/protocol/src/index.ts:19](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/protocol/src/index.ts#L19)
+Defined in: [packages/protocol/src/index.ts:19](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/protocol/src/index.ts#L19)
 
 JSON-safe event name carried in [ProtocolEnvelope.type](/docs/en/reference/api/ottervoice-protocol/#type).
 Binary `user_audio_final` / `assistant_audio` events stay in-process; upload
@@ -294,7 +294,7 @@ their bytes or use a binary side channel instead of JSON stringification.
 type VoiceProtocolMessage = { [T in ProtocolMessageType]: ProtocolEnvelope<T> }[ProtocolMessageType];
 ```
 
-Defined in: [packages/protocol/src/index.ts:59](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/protocol/src/index.ts#L59)
+Defined in: [packages/protocol/src/index.ts:59](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/protocol/src/index.ts#L59)
 
 Discriminated union of all protocol envelopes.
 
@@ -306,7 +306,7 @@ Discriminated union of all protocol envelopes.
 const PROTOCOL_MESSAGE_TYPES: readonly ProtocolMessageType[];
 ```
 
-Defined in: [packages/protocol/src/index.ts:25](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/protocol/src/index.ts#L25)
+Defined in: [packages/protocol/src/index.ts:25](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/protocol/src/index.ts#L25)
 
 Every event type that may appear on the wire, in a stable order.
 
@@ -318,7 +318,7 @@ Every event type that may appear on the wire, in a stable order.
 const PROTOCOL_VERSION: 1;
 ```
 
-Defined in: [packages/protocol/src/index.ts:12](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/protocol/src/index.ts#L12)
+Defined in: [packages/protocol/src/index.ts:12](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/protocol/src/index.ts#L12)
 
 Bumped when the envelope shape or payload contracts change incompatibly.
 
@@ -330,7 +330,7 @@ Bumped when the envelope shape or payload contracts change incompatibly.
 function encodeMessage<T>(type, payload): ProtocolEnvelope<T>;
 ```
 
-Defined in: [packages/protocol/src/index.ts:81](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/protocol/src/index.ts#L81)
+Defined in: [packages/protocol/src/index.ts:81](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/protocol/src/index.ts#L81)
 
 Build a typed envelope for an event.
 
@@ -361,7 +361,7 @@ Envelope ready for [serializeMessage](/docs/en/reference/api/ottervoice-protocol
 function isProtocolMessage(value): value is VoiceProtocolMessage;
 ```
 
-Defined in: [packages/protocol/src/index.ts:106](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/protocol/src/index.ts#L106)
+Defined in: [packages/protocol/src/index.ts:106](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/protocol/src/index.ts#L106)
 
 Structurally validate a decoded value as a [ProtocolEnvelope](/docs/en/reference/api/ottervoice-protocol/#protocolenvelope) without
 trusting the version. Returns a boolean type-guard.
@@ -384,7 +384,7 @@ trusting the version. Returns a boolean type-guard.
 function parseMessage(raw): VoiceProtocolMessage;
 ```
 
-Defined in: [packages/protocol/src/index.ts:126](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/protocol/src/index.ts#L126)
+Defined in: [packages/protocol/src/index.ts:126](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/protocol/src/index.ts#L126)
 
 Parse a JSON string into a validated [ProtocolEnvelope](/docs/en/reference/api/ottervoice-protocol/#protocolenvelope).
 
@@ -411,7 +411,7 @@ A typed [VoiceProtocolMessage](/docs/en/reference/api/ottervoice-protocol/#voice
 function serializeMessage(message): string;
 ```
 
-Defined in: [packages/protocol/src/index.ts:94](https://github.com/bugkiwi/OtterVoice/blob/2bfc8092126714d41319b22544fc5f9414c591f5/packages/protocol/src/index.ts#L94)
+Defined in: [packages/protocol/src/index.ts:94](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/protocol/src/index.ts#L94)
 
 Serialize an envelope (or any event via [encodeMessage](/docs/en/reference/api/ottervoice-protocol/#encodemessage)) to JSON.
 

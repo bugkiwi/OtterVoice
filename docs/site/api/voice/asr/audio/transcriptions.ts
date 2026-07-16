@@ -1,4 +1,4 @@
-import { proxyOpenRouter } from '../../../openrouter-proxy.js';
+import { proxyOpenRouter } from '../../../../openrouter-proxy.js';
 
 export const maxDuration = 60;
 

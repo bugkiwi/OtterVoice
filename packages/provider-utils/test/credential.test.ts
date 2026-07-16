@@ -33,6 +33,36 @@ describe('createCredentialResolver', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it('sends application auth, credentials, and the configured session id to the broker', async () => {
+    const fetchImpl = mock(async () => new Response(JSON.stringify({ token: 't-1' })));
+    const resolve = createCredentialResolver(
+      {
+        tokenBrokerUrl: 'https://broker',
+        tokenBrokerHeaders: { authorization: 'Bearer app-session' },
+        tokenBrokerSessionId: 'voice-session-2',
+        tokenBrokerCredentials: 'include',
+        fetch: fetchImpl,
+      },
+      request,
+    );
+
+    await resolve();
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://broker');
+    expect(init.headers).toEqual({
+      'content-type': 'application/json',
+      authorization: 'Bearer app-session',
+    });
+    expect(init.credentials).toBe('include');
+    expect(JSON.parse(String(init.body))).toEqual({
+      provider: 'test',
+      purpose: 'llm',
+      sessionId: 'voice-session-2',
+    });
+  });
+
   it('caches indefinitely when no expiry is given', async () => {
     const fetchImpl = mock(
       async () => new Response(JSON.stringify({ token: 't-x' })),

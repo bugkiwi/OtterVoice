@@ -9,20 +9,45 @@ text-to-speech through OpenAI-compatible APIs.
 npm install @ottervoice/core @ottervoice/provider-openrouter
 ```
 
-## Usage
+## Browser / app (recommended)
 
 ```ts
-import { createOpenRouterLLM } from '@ottervoice/provider-openrouter';
+import { createOpenRouterGatewayLLM } from '@ottervoice/provider-openrouter';
 
-const llm = createOpenRouterLLM({
-  model: 'openai/gpt-4o-mini',
-  tokenBrokerUrl: '/api/voice-token',
+const llm = createOpenRouterGatewayLLM({
+  baseUrl: '/api/voice/llm',
 });
 ```
 
-Use `tokenBrokerUrl` in browser and mobile apps so OpenRouter credentials remain
-on your server. The package also exports audio LLM, ASR, and TTS provider
-factories.
+Pair this with server-side `createOpenRouterGateway()`. The server owns the
+model, system prompt, voice, temperature, token ceiling, reasoning policy,
+authorization, and budget. The browser sends only user content and transport
+data.
+
+```ts
+import { createOpenRouterGateway } from '@ottervoice/provider-openrouter';
+
+const handleVoice = createOpenRouterGateway({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  policy: {
+    llm: {
+      model: 'openai/gpt-4o-mini',
+      systemPrompt: process.env.OTTERVOICE_SYSTEM_PROMPT ?? 'Be concise.',
+      maxTokens: 256,
+    },
+  },
+  authorize: async ({ request, profile }) =>
+    validateUserConversationAndProfile(request, profile),
+});
+```
+
+Mount `handleVoice` at `/api/voice/*`. The built-in routes are profile-specific;
+an omitted profile is disabled.
+
+Direct factories such as `createOpenRouterLLM()` remain available for trusted
+Node/server/CLI runtimes. Do not return a broad OpenRouter bearer token to a
+browser: hiding a long-lived key is insufficient if the client can still select
+models or generation parameters.
 
 ## Links
 

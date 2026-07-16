@@ -17,7 +17,8 @@ export * from './decode.js';
 
 /**
  * Options for {@link createElevenLabsASR}. Extends {@link CredentialOptions} and
- * {@link ElevenLabsQueryOptions}; prefer `tokenBrokerUrl` on clients over a static key.
+ * {@link ElevenLabsQueryOptions}. Direct-client broker use is appropriate only
+ * for a short-lived scoped credential or a server-locked signed URL.
  */
 export interface ElevenLabsASROptions extends CredentialOptions, ElevenLabsQueryOptions {
   /** Override the realtime listen endpoint. */
@@ -38,8 +39,8 @@ const CAPABILITIES: ASRCapabilities = {
 };
 
 /**
- * ElevenLabs Scribe realtime ASR provider over WebSocket. Prefer a
- * `tokenBrokerUrl` so the signed URL/credential is minted server-side.
+ * ElevenLabs Scribe realtime ASR provider over WebSocket. A broker-signed URL
+ * may be used when it locks the route/model policy server-side.
  *
  * @param options - Credentials and optional listen endpoint / query overrides.
  */

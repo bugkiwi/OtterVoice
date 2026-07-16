@@ -1,46 +1,36 @@
 import { fetch as expoFetch } from 'expo/fetch';
 import {
-  createOpenRouterASR,
-  createOpenRouterAudioLLM,
-  createOpenRouterLLM,
+  createOpenRouterGatewayASR,
+  createOpenRouterGatewayAudioLLM,
+  createOpenRouterGatewayLLM,
 } from '@ottervoice/provider-openrouter';
 
-const OTTERVOICE_API_URL =
-  process.env.EXPO_PUBLIC_OTTERVOICE_API_URL ??
-  'https://ottervoice.vercel.app/api/voice';
-
-const MODELS = {
-  asr: 'qwen/qwen3-asr-flash-2026-02-10',
-  audioLlm: 'openai/gpt-audio-mini',
-} as const;
+const OTTERVOICE_API_URL = process.env.EXPO_PUBLIC_OTTERVOICE_API_URL?.replace(/\/$/, '');
 
 const proxyOptions = {
-  apiKey: 'ottervoice-mobile-proxy',
-  baseUrl: OTTERVOICE_API_URL,
   fetch: expoFetch as unknown as typeof globalThis.fetch,
-  referer: 'https://ottervoice.vercel.app',
-  title: 'OtterVoice Expo Demo',
 };
 
-export function createMobileProviders() {
+export function createMobileProviders(applicationHeaders: Record<string, string> = {}) {
+  if (!OTTERVOICE_API_URL) {
+    throw new Error('Set EXPO_PUBLIC_OTTERVOICE_API_URL to your authenticated voice gateway.');
+  }
   return {
-    asr: createOpenRouterASR({
+    asr: createOpenRouterGatewayASR({
       ...proxyOptions,
-      model: MODELS.asr,
+      headers: applicationHeaders,
+      baseUrl: `${OTTERVOICE_API_URL}/asr`,
       format: 'wav',
-      partialIntervalMs: 500,
     }),
-    llm: createOpenRouterLLM({
+    llm: createOpenRouterGatewayLLM({
       ...proxyOptions,
-      model: 'deepseek/deepseek-v4-flash:nitro',
-      reasoningEnabled: false,
-      defaultTemperature: 0.45,
+      headers: applicationHeaders,
+      baseUrl: `${OTTERVOICE_API_URL}/llm`,
     }),
-    audioLlm: createOpenRouterAudioLLM({
+    audioLlm: createOpenRouterGatewayAudioLLM({
       ...proxyOptions,
-      model: MODELS.audioLlm,
-      voice: 'alloy',
-      defaultTemperature: 0.45,
+      headers: applicationHeaders,
+      baseUrl: `${OTTERVOICE_API_URL}/audio-llm`,
     }),
   };
 }

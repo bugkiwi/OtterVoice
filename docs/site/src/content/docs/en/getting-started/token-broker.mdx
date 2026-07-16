@@ -17,11 +17,12 @@ Request:
 ```http
 POST /api/voice/token
 Content-Type: application/json
+Authorization: Bearer <application-session-token>
 
 {
-  "provider": "deepgram",
+  "provider": "azure_speech",
   "purpose": "asr",
-  "sessionId": "optional"
+  "sessionId": "required"
 }
 ```
 
@@ -38,9 +39,30 @@ Response:
 Client providers:
 
 ```ts
-createDeepgramASR({
+const applicationSessionToken = await getApplicationSessionToken();
+
+createAzureTTS({
   tokenBrokerUrl: 'https://your.app/api/voice/token',
+  tokenBrokerHeaders: { authorization: `Bearer ${applicationSessionToken}` },
+  tokenBrokerSessionId: voiceSessionId,
+  region: 'eastasia',
+  voice: 'en-US-AvaMultilingualNeural',
 });
 ```
 
-Gateways should enforce auth, allowlists, quotas, rate limits, payload limits, timeouts, and audit IDs. Do not log raw audio, full transcripts, or upstream credentials by default. See the [security guide](/docs/en/guides/security/).
+A token broker is appropriate only when the provider can mint a **short-lived,
+least-privilege** credential. Scope it to its purpose/route and, where possible,
+model, conversation, and budget. A broad bearer token is not client-safe merely
+because it expires sooner.
+
+The Azure STS token in the example only reduces credential exposure time; it
+does not lock voice, route, or budget. Treat it as an explicit provider-direct
+mode, not the standard production boundary. In standard mode the browser calls
+an application API while the Azure provider and `voice` stay server-side.
+
+For request/response APIs such as OpenRouter, standard integrations should use
+`createOpenRouterGateway()`. The server reconstructs requests and locks prompt,
+model, voice, temperature, token ceiling, and reasoning. It must also enforce
+user auth, conversation ownership, quotas, rate limits, payload limits,
+timeouts, and audit IDs. Do not log raw audio, full transcripts, or upstream
+credentials by default. See the [security guide](/docs/en/guides/security/).

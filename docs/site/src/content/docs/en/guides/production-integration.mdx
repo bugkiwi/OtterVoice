@@ -3,25 +3,35 @@ title: Production integration
 description: Gateway, data retention, diagnostics, retries, and operational controls for a production voice product.
 ---
 
-A production client should know only your application session and gateway. It must not choose provider credentials, unrestricted model ids, storage object keys, or retention policy.
+A production client should know only its application conversation, gateway, and approved product profile. Provider credentials, system/developer prompts, model, voice, temperature, token ceilings, reasoning, tool permissions, storage keys, and retention policy belong on the server.
 
 ## Trust boundary
 
 | Boundary | Required control |
 | --- | --- |
 | Browser / app → gateway | Authenticate the user; verify conversation ownership on every request |
-| Model selection | Ignore or allowlist the client `model`; prefer overwriting it server-side |
+| Upstream body | Never pass through client JSON; extract user content and rebuild the body server-side |
+| Model and prompt | Lock `model` and system/developer prompts; reject privileged client roles |
+| Generation and voice | Lock/allowlist voice, speed, temperature, max tokens, reasoning, and tools |
 | Cross-site requests | Enforce exact `Origin`; use SameSite cookies and a CSRF token when cookies authorize requests |
-| Abuse | Rate-limit by user, session, IP, and provider cost budget |
+| Abuse | Limit by user, conversation, profile, IP, concurrency, and provider-cost budget |
 | Input | Cap HTTP body size and the SDK's `maxTurnMs`; reject unsupported content types |
 | Output | Set upstream and total request timeouts; abort work when the client disconnects |
 
-The runnable [Audio LLM-only example](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web-audio-llm-only) overwrites ASR and Audio LLM model ids, validates `Origin`, and caps the request body. Adapt its checks to your authentication system; it is not a complete account service.
+The runnable [Audio LLM-only example](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web-audio-llm-only) contains no client model, prompt, voice, or generation controls. Its server rebuilds requests with `createOpenRouterGateway()`, validates `Origin`, and bounds request/history/text sizes. Connect the mandatory `authorize` hook to your user and conversation auth; the example is not an account service.
+
+| Standard client factory | Base URL | Server locks |
+| --- | --- | --- |
+| `createOpenRouterGatewayASR` | `/api/voice/asr` | ASR model and language policy |
+| `createOpenRouterGatewayLLM` | `/api/voice/llm` | model, system prompt, temperature, tokens, reasoning |
+| `createOpenRouterGatewayTTS` | `/api/voice/tts` | model, voice, speed, format |
+| `createOpenRouterGatewayAudioLLM` | `/api/voice/audio-llm` | model, system prompt, voice, temperature, tokens |
 
 ## Credentials and headers
 
 - Never place a long-lived key in browser code, app binaries, `EXPO_PUBLIC_*`, or an API response.
-- Use a same-origin gateway for request/response APIs. Use short-lived, scoped tokens when the client must connect directly to a streaming provider.
+- Do not put a shared “gateway password” in client environment variables. Send the current user's short-lived application session and validate conversation ownership server-side.
+- Use a same-origin policy gateway for request/response APIs. If a client must connect directly to a streaming provider, issue only short-lived route/model/budget-scoped tokens.
 - Validate custom request-header values before sending them. Browser headers must contain Web-compatible characters; encode arbitrary metadata in a JSON body instead.
 - Redact `authorization`, cookies, signed URLs, provider payloads, and Base64 audio from traces.
 
@@ -49,18 +59,13 @@ session.on('assistant_audio', async ({ turnId, audio, mimeType }) => {
 
 ## Retry policy
 
-Retry only failures marked `retryable`; use exponential backoff with jitter and honor provider retry headers at the gateway. Do not retry authentication, quota, audio-decode, or request-validation failures without changing the request.
+Retry only failures marked `retryable`; use exponential backoff with jitter and honor provider retry headers at the gateway. Do not retry authentication, quota, audio-decode, or request-validation failures without changing the request. Client `audioLlmRetry`, rolling ASR, `after_audio`, and pipeline selection can all increase calls/spend; server budgets and idempotency must not trust those client values.
 
 ```ts
 const session = createOtterVoiceSession({
   pipeline: 'audio_llm',
-  audioLlmRetry: {
-    maxAttempts: 2,
-    backoffMs: 300,
-    exponentialBackoff: true,
-    retryableOnly: true,
-    continueSessionOnFailure: true,
-  },
+  // Standard clients make one request; the gateway enforces budget independently.
+  audioLlmRetry: { maxAttempts: 1 },
   // ...
 });
 ```

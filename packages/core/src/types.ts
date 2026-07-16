@@ -415,13 +415,16 @@ export interface LLMUsage {
 
 /** Input for {@link LLMProvider.generate} / {@link LLMProvider.stream}. */
 export interface LLMGenerateInput {
-  /** Optional system instruction for this request. */
+  /**
+   * Optional system instruction for this request. Treat as trusted policy:
+   * untrusted clients must not send it through a passthrough provider gateway.
+   */
   system?: string;
   /** Chronological chat history for the model. */
   messages: LLMMessage[];
-  /** Sampling temperature; provider default when omitted. */
+  /** Sampling temperature; provider default when omitted. Lock server-side for untrusted clients. */
   temperature?: number;
-  /** Soft cap on completion tokens. */
+  /** Soft cap on completion tokens. A server gateway must enforce its own hard ceiling. */
   maxTokens?: number;
   /** Prefer plain text or structured JSON when the model supports it. */
   responseFormat?: 'text' | 'json';
@@ -506,11 +509,14 @@ export interface AudioLLMGenerateInput {
   format: AudioLLMInputFormat;
   /** Text history from completed earlier turns. */
   messages: LLMMessage[];
-  /** Optional system instruction for this request. */
+  /**
+   * Optional system instruction for trusted/server-side use. A policy gateway
+   * must discard client values and inject its own instruction.
+   */
   system?: string;
-  /** Sampling temperature; provider default when omitted. */
+  /** Sampling temperature; provider default when omitted. Lock server-side for untrusted clients. */
   temperature?: number;
-  /** Soft cap on output tokens (often shared by audio + transcript). */
+  /** Soft cap on output tokens. A server gateway must enforce its own hard ceiling. */
   maxTokens?: number;
   /** Opaque metadata forwarded to the adapter. */
   metadata?: Record<string, unknown>;
@@ -591,11 +597,11 @@ export interface TTSCapabilities {
 export interface TTSInput {
   /** Text to speak. */
   text: string;
-  /** Provider voice id / name. */
+  /** Provider voice id / name. Allowlist or override it at an untrusted-client gateway. */
   voice?: string;
   /** Preferred language for multilingual voices. */
   language?: string;
-  /** Speaking rate multiplier (provider-specific scale). */
+  /** Speaking rate multiplier. Allowlist or override it at an untrusted-client gateway. */
   speed?: number;
   /** Pitch adjustment (provider-specific scale). */
   pitch?: number;
@@ -1026,6 +1032,8 @@ export interface AgentSessionInput {
 /**
  * Optional higher-level dialog controller (opening line, next line, finish rule).
  * When set, the session may call these instead of / in addition to a raw LLM.
+ * Keep business rules and privileged prompts on a trusted server when the
+ * session itself runs in a browser or app.
  */
 export interface VoiceAgentPlugin {
   /** Spoken (or displayed) opening line after {@link VoiceSession.start}. */
@@ -1079,7 +1087,7 @@ export interface TurnDetectionConfig {
   minSpeechMs?: number;
   /** Quiet time after speech before the turn is closed. */
   silenceTimeoutMs?: number;
-  /** Hard cap on a single user turn length. */
+  /** Hard local cap on a single user turn length. The server must enforce its own request/audio limit. */
   maxTurnMs?: number;
   /** RMS threshold when using volume-based strategies (≈0–1). */
   volumeThreshold?: number;
@@ -1106,7 +1114,7 @@ export type VoiceSessionMode =
 export interface VoiceSessionPolicy {
   /** Quiet time that ends a listening turn when no other detector wins. */
   silenceTimeoutMs?: number;
-  /** Hard cap on one user turn. */
+  /** Hard local cap on one user turn. The server must enforce its own request/audio limit. */
   maxTurnDurationMs?: number;
   /** Force-finish the session after this wall-clock duration. */
   maxSessionDurationMs?: number;
@@ -1132,7 +1140,7 @@ export interface VoiceSessionPolicy {
  * surrounding {@link VoiceSession}.
  */
 export interface AudioLLMRetryPolicy {
-  /** Total attempts including the first request. Defaults to `1`; values above `10` are clamped. */
+  /** Total client attempts including the first request. Defaults to `1`; values above `10` are clamped. Server budgets must not trust this value. */
   maxAttempts?: number;
   /** Delay before the second attempt in milliseconds. Defaults to `250`; each delay is capped at 30 seconds. */
   backoffMs?: number;
@@ -1154,18 +1162,23 @@ export interface VoiceSessionConfig {
    * Duplex / PTT mode. See {@link VoiceSessionMode}.
    */
   mode: VoiceSessionMode;
-  /** Defaults to the classic ASR -> LLM -> TTS cascade. */
+  /** Defaults to the classic ASR -> LLM -> TTS cascade. A gateway must authorize every selected profile independently. */
   pipeline?: 'asr_llm_tts' | 'audio_llm';
   /**
    * Emit provisional `asr_partial` results. Defaults to true. Disabling this
-   * does not affect the authoritative `asr_final` transcript.
+   * does not affect the authoritative `asr_final` transcript. Batch-backed
+   * rolling ASR can increase requests, so server quotas must not trust it.
    */
   asrPartial?: boolean;
-  /** Optional system instruction forwarded to a native audio LLM. */
+  /**
+   * Optional trusted-runtime system instruction forwarded to a native audio LLM.
+   * Browser/app integrations should omit this and let their policy gateway inject it.
+   */
   audioLlmSystemPrompt?: string;
   /**
    * Cap native audio LLM output tokens (audio + transcript share this budget).
    * Omit to use the model's default maximum — required for long-form speech.
+   * An untrusted-client gateway must still enforce a server-side hard ceiling.
    */
   audioLlmMaxTokens?: number;
   /**
@@ -1176,9 +1189,9 @@ export interface VoiceSessionConfig {
    * Defaults to `after_asr_final`.
    */
   audioLlmStartTiming?: 'after_audio' | 'after_asr_final';
-  /** Retry/recovery behavior for each native Audio LLM turn. See {@link AudioLLMRetryPolicy}. */
+  /** Retry/recovery behavior for each native Audio LLM turn. See {@link AudioLLMRetryPolicy}; server idempotency and budgets remain authoritative. */
   audioLlmRetry?: AudioLLMRetryPolicy;
-  /** Preferred ASR language; omit to let compatible providers auto-detect. */
+  /** Preferred ASR language; omit to auto-detect. A gateway may override/ignore this with server policy. */
   language?: string;
   /** Platform audio (and optional network/storage/logger) adapter. */
   runtime: RuntimeAdapter;

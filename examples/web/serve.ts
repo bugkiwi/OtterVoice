@@ -6,7 +6,7 @@
  * Local bundling always resolves @ottervoice packages from packages/.../src via
  * the development export condition — never stale dist artifacts.
  */
-import { proxyOpenRouter } from './openrouter-proxy';
+import { createDemoVoiceGateway } from './openrouter-proxy';
 
 const root = new URL('.', import.meta.url);
 const repositoryRoot = new URL('../../', root);
@@ -58,15 +58,17 @@ if (!build.success) {
 
 const appJs = await build.outputs[0]!.text();
 const openRouterKey = process.env.OPENROUTER_API_KEY;
+const voiceGateway = createDemoVoiceGateway(openRouterKey);
 const port = Number(process.env.PORT ?? 5173);
 const htmlPath = new URL('./index.html', root).pathname;
 
 Bun.serve({
+  hostname: '127.0.0.1',
   port,
   async fetch(request) {
     const path = new URL(request.url).pathname;
     if (path.startsWith('/api/voice/')) {
-      return proxyOpenRouter(request, openRouterKey);
+      return voiceGateway(request);
     }
     if (path === '/app.js') {
       return new Response(appJs, {

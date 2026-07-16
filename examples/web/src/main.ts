@@ -5,16 +5,12 @@
  * reads OPENROUTER_API_KEY from `.env`; the credential is never bundled or
  * returned to the browser.
  */
+import { createVoiceSession } from '@ottervoice/core';
 import {
-  createVoiceSession,
-  type LLMGenerateInput,
-  type LLMProvider,
-} from '@ottervoice/core';
-import {
-  createOpenRouterASR,
-  createOpenRouterAudioLLM,
-  createOpenRouterLLM,
-  createOpenRouterTTS,
+  createOpenRouterGatewayASR,
+  createOpenRouterGatewayAudioLLM,
+  createOpenRouterGatewayLLM,
+  createOpenRouterGatewayTTS,
 } from '@ottervoice/provider-openrouter';
 import { createWebRuntime, prepareBrowserAudio } from '@ottervoice/runtime-web';
 
@@ -48,7 +44,7 @@ const translations = {
     start: '开始语音对话', finish: '结束会话',
     phoneTitle: '现在，直接开口。', phoneCopy: '持续监听；停顿提交；说话即可打断。', phoneState: '正在持续收听',
     nativeEyebrow: 'Example 02 · React Native / Expo', nativeTitle: '同一条 Audio LLM 通路，装进手机。',
-    nativeCopy: 'Expo SDK 57 示例接入原生 PCM 麦克风流和无缝播放队列。它复用 Web 示例的模型、VAD、短语打断与误打断恢复策略，客户端只访问线上代理。',
+    nativeCopy: 'Expo SDK 57 示例接入原生 PCM 麦克风流和无缝播放队列。它复用 Web 示例的 VAD、短语打断与误打断恢复策略，客户端只访问自有鉴权网关。',
     nativeFeature1Title: '持续原生收音', nativeFeature1Copy: '实时 RMS 驱动 VAD，在 AI 理解和播报期间都不会停止监听。',
     nativeFeature2Title: '分片即到即播', nativeFeature2Copy: '每个 PCM 分片落入 AudioPlaylist，首片到达即可开始播放。',
     nativeFeature3Title: '短语也能打断', nativeFeature3Copy: '200 ms 强语音快速通路兼顾中英文短指令和回声过滤。',
@@ -68,7 +64,7 @@ const translations = {
     packageUtils: 'SSE、HTTP 错误和 provider 公共能力。',
     packageExamples: '可直接运行的 Web、Expo 和 Node 集成样板。',
     securityTitle: '密钥不进入浏览器或 App。',
-    securityCopy: '示例统一请求 ottervoice.vercel.app 的同源语音网关，由服务端选择 Provider；生产项目可以替换为自己的网关或 token broker。',
+    securityCopy: '客户端只请求服务端策略网关，由服务端选择 Provider、模型、prompt、voice 与预算；部署时必须接入用户/会话鉴权。',
     readDocs: '阅读技术文档 →', footerStack: 'TypeScript / Web Audio / Expo / Replaceable providers',
   },
   en: {
@@ -83,7 +79,7 @@ const translations = {
     start: 'Start voice session', finish: 'End session',
     phoneTitle: 'Now, just speak.', phoneCopy: 'Always listening. Pause to submit. Speak to interrupt.', phoneState: 'Listening continuously',
     nativeEyebrow: 'Example 02 · React Native / Expo', nativeTitle: 'The same Audio LLM path, now in your pocket.',
-    nativeCopy: 'The Expo SDK 57 example connects a native PCM microphone stream to a gapless playback queue. It shares the Web demo’s models, VAD, short-phrase interruption and false-barge-in recovery policy, and only calls the hosted proxy.',
+    nativeCopy: 'The Expo SDK 57 example connects a native PCM microphone stream to a gapless playback queue. It shares the Web demo’s VAD, short-phrase interruption, and false-barge-in recovery while calling only your authenticated gateway.',
     nativeFeature1Title: 'Continuous native input', nativeFeature1Copy: 'Real-time RMS drives VAD without stopping while the model thinks or speaks.',
     nativeFeature2Title: 'Play chunks on arrival', nativeFeature2Copy: 'Each PCM chunk enters AudioPlaylist, so playback begins with the first chunk.',
     nativeFeature3Title: 'Short phrases interrupt', nativeFeature3Copy: 'A 200 ms strong-speech fast path covers brief Chinese and English commands with echo filtering.',
@@ -103,7 +99,7 @@ const translations = {
     packageUtils: 'Shared SSE parsing, HTTP errors and provider primitives.',
     packageExamples: 'Runnable Web, Expo and Node integration templates.',
     securityTitle: 'Secrets never enter the browser or app.',
-    securityCopy: 'The examples call the same-origin voice gateway at ottervoice.vercel.app, where the provider is selected server-side. Production apps can replace it with their own gateway or token broker.',
+    securityCopy: 'Clients call only a server policy gateway; the server selects provider, model, prompt, voice, and budget. Deployments must authenticate every user and conversation.',
     readDocs: 'Read the docs →', footerStack: 'TypeScript / Web Audio / Expo / Replaceable providers',
   },
 } as const;
@@ -122,14 +118,6 @@ let asrPartialEnabled = storedToggle('ottervoice-asr-partial', false);
 let transcriptVisible = storedToggle('ottervoice-transcript-visible', true);
 
 const VOICE_GATEWAY = '/api/voice';
-// This is a non-secret placeholder. The Bun proxy replaces it server-side.
-const PROXY_CREDENTIAL = 'ottervoice-local-proxy';
-const MODELS = {
-  llm: 'deepseek/deepseek-v4-flash:nitro',
-  asr: 'qwen/qwen3-asr-flash-2026-02-10',
-  tts: 'hexgrad/kokoro-82m',
-  audioLlm: 'openai/gpt-audio-mini',
-} as const;
 type SseAudioCapture = {
   audioBuffer: ArrayBuffer;
   mimeType: string;
@@ -297,56 +285,16 @@ function renderTranscriptVisibility() {
   logEl.hidden = !transcriptVisible;
 }
 
-const proxyOptions = {
-  apiKey: PROXY_CREDENTIAL,
-  baseUrl: VOICE_GATEWAY,
-  referer: location.origin,
-  title: 'OtterVoice Web Example',
-};
-
-const rawLlm = createOpenRouterLLM({
-  ...proxyOptions,
-  model: MODELS.llm,
-  defaultTemperature: 0.45,
-  reasoningEnabled: false,
+const conversationLlm = createOpenRouterGatewayLLM({
+  baseUrl: `${VOICE_GATEWAY}/llm`,
 });
 
-const conversationLlm: LLMProvider = {
-  ...rawLlm,
-  generate(input: LLMGenerateInput) {
-    return rawLlm.generate({
-      ...input,
-      system:
-        '你是一个反应快、语气自然的语音对话助手。默认用中文回复；如果用户明显使用其他语言，则跟随用户。' +
-        '每次只回复 1–2 个简短句子，不使用 Markdown，不列表，适合直接语音播放。',
-      maxTokens: 80,
-      temperature: 0.45,
-    });
-  },
-  stream(input: LLMGenerateInput) {
-    return rawLlm.stream!({
-      ...input,
-      system:
-        '你是一个反应快、语气自然的语音对话助手。默认用中文回复；如果用户明显使用其他语言，则跟随用户。' +
-        '每次只回复 1–2 个简短句子，不使用 Markdown，不列表，适合直接语音播放。',
-      maxTokens: 80,
-      temperature: 0.45,
-    });
-  },
-};
-
-const tts = createOpenRouterTTS({
-  ...proxyOptions,
-  model: MODELS.tts,
-  voice: 'zf_xiaoxiao',
-  speed: 1.05,
+const tts = createOpenRouterGatewayTTS({
+  baseUrl: `${VOICE_GATEWAY}/tts`,
 });
 
-const audioLlmBase = createOpenRouterAudioLLM({
-  ...proxyOptions,
-  model: MODELS.audioLlm,
-  voice: 'alloy',
-  defaultTemperature: 0.45,
+const audioLlmBase = createOpenRouterGatewayAudioLLM({
+  baseUrl: `${VOICE_GATEWAY}/audio-llm`,
   requireDoneSentinel: true,
   // Base64 expands PCM by one third. A 16 kHz / 90 s mono WAV remains below
   // Vercel's 4.5 MB function payload limit with room for the JSON envelope.
@@ -356,77 +304,24 @@ const audioLlmBase = createOpenRouterAudioLLM({
   }),
 });
 
-function isRecordedAudioDecodeFailure(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /(?:unable|failed|error).*decod(?:e|ing).*audio|decod(?:e|ing).*audio.*(?:failed|error)/i.test(
-    message,
-  );
-}
-
 const audioLlm = {
   ...audioLlmBase,
   async generate(
     ...args: Parameters<typeof audioLlmBase.generate>
   ): ReturnType<typeof audioLlmBase.generate> {
-    const input = args[0];
-    let output: Awaited<ReturnType<typeof audioLlmBase.generate>>;
-    try {
-      output = await audioLlmBase.generate(...args);
-    } catch (error) {
-      const currentTurnHasFinalText = input.messages.at(-1)?.role === 'user';
-      if (
-        !isRecordedAudioDecodeFailure(error) ||
-        !currentTurnHasFinalText ||
-        input.signal?.aborted
-      ) {
-        throw error;
-      }
-
-      // Android Chrome can still reject a browser-recorded WebM in rare
-      // container/codec edge cases. ASR has already finalized the same turn,
-      // so keep the conversation alive with the configured cascade providers
-      // instead of surfacing a terminal llm_failed row.
-      console.warn(
-        'Audio LLM could not decode the recorded turn; falling back to ASR → LLM → TTS.',
-        error,
-      );
-      const reply = await conversationLlm.generate({
-        messages: input.messages,
-        ...(input.signal ? { signal: input.signal } : {}),
-      });
-      if (input.signal?.aborted) throw error;
-      const speech = await tts.synthesize({
-        text: reply.text,
-        format: 'mp3',
-        speed: 1.05,
-      });
-      if (!speech.audioBuffer) throw error;
-      output = {
-        text: reply.text,
-        audioBuffer: speech.audioBuffer,
-        mimeType: speech.mimeType,
-        ...(reply.usage ? { usage: reply.usage } : {}),
-        raw: {
-          fallback: 'asr_llm_tts',
-          cause: error instanceof Error ? error.message : String(error),
-        },
-      };
-    }
+    const output = await audioLlmBase.generate(...args);
     const raw = output.raw as
       | {
           audioChunkCount?: number;
           audioByteLength?: number;
-          fallback?: string;
         }
       | undefined;
-    lastSseAudio = raw?.fallback
-      ? undefined
-      : {
-          audioBuffer: output.audioBuffer.slice(0),
-          mimeType: output.mimeType,
-          chunkCount: raw?.audioChunkCount ?? 0,
-          byteLength: raw?.audioByteLength ?? output.audioBuffer.byteLength,
-        };
+    lastSseAudio = {
+      audioBuffer: output.audioBuffer.slice(0),
+      mimeType: output.mimeType,
+      chunkCount: raw?.audioChunkCount ?? 0,
+      byteLength: raw?.audioByteLength ?? output.audioBuffer.byteLength,
+    };
     return output;
   },
 };
@@ -480,14 +375,10 @@ function buildSession(pipeline: Pipeline) {
     mode: 'full_duplex',
     pipeline,
     asrPartial: asrPartialEnabled,
-    audioLlmSystemPrompt:
-      '你是一个反应快、语气自然的语音对话助手。默认用中文回复；如果用户明显使用其他语言，则跟随用户。' +
-      '每次只回复 1–2 个简短句子，不使用 Markdown，不列表，适合直接语音播放。',
     runtime,
     providers: {
-      asr: createOpenRouterASR({
-        ...proxyOptions,
-        model: MODELS.asr,
+      asr: createOpenRouterGatewayASR({
+        baseUrl: `${VOICE_GATEWAY}/asr`,
         format: 'webm',
         partialIntervalMs: 1_000,
         emptyPartialBackoffMs: 3_000,

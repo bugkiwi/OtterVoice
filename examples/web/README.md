@@ -44,9 +44,9 @@ LLM request.
 
 After normal assistant playback, the Web runtime rotates `MediaRecorder` so
 the next turn starts with a fresh WebM container instead of joining clusters
-across a filtered playback gap. If Android Chrome still rejects a rare recorded
-container, the demo falls back to the already-finalized ASR transcript through
-the configured LLM + TTS providers rather than ending the session.
+across a filtered playback gap. Audio decode failures are reported without a
+client-side second provider path; production fallback and idempotency belong at
+the authenticated gateway.
 
 The Web controls expose two independent switches. **Live ASR captions** maps to
 the core `asrPartial` session option and can remove rolling ASR requests while
@@ -93,16 +93,20 @@ or microphone access.
   samples for VAD, gapless PCM chunk scheduling, and playback cancellation.
 - `@ottervoice/provider-openrouter`: optional demo adapters for chat, rolling
   speech-to-text, text-to-speech, and Audio LLM output.
-- `examples/web`: the server-side credential proxy, VAD thresholds,
-  interruption policy, model selection, input meter, transcript, and controls.
+- `examples/web/src`: client-side VAD/interruption UX, input meter, transcript,
+  and controls. It contains no model, prompt, voice, or generation policy.
+- `examples/web/openrouter-proxy.ts`: server-side authorization boundary,
+  models, system prompts, voices, generation limits, provider credentials, and
+  upstream request construction.
 
-The browser never receives `OPENROUTER_API_KEY`. `serve.ts` reads it from the
-root `.env`; the client calls only three allow-listed routes below the generic
-`/api/voice` gateway. The example gateway also validates same-origin requests,
-caps request bodies, and enforces a route-specific model allowlist instead of
-trusting the browser's `model`. Production deployments can select another
-provider behind that gateway and must add their own user/session authorization
-and durable rate limiting.
+The browser never receives `OPENROUTER_API_KEY` or privileged policy.
+`serve.ts` reads server configuration from `.env`; the client calls four
+profile-specific routes below `/api/voice`. The gateway rejects privileged
+client message roles, ignores unknown/top-level policy fields, and reconstructs
+the provider body from locked server policy. It also validates same-origin
+browser requests and caps request, history, and text sizes. Production
+deployments must replace the loopback-only demo authorizer with user/session
+ownership checks and durable cost/rate limits.
 
 ## Low-cost model defaults
 
@@ -171,14 +175,22 @@ after every uninterrupted reply.
 ## Showcase deployment
 
 The project showcase lives in `docs/site`, keeping this directory focused on the
-reusable example. The docs site bundles this example as its primary live demo.
+reusable example. The docs site bundles the UI, but its provider-backed API is
+fail-closed rather than anonymously spendable.
 
 - `docs/site/vercel.json`: clean-clone workspace install/build, site output,
   Singapore region (required for GPT Audio availability), and Function limits
-- `docs/site/api/voice/**`: the three provider-neutral deployed API Functions
+- `docs/site/api/voice/**`: four profile-specific deployed API Functions
 - `docs/site/build.ts`: showcase bundle plus a best-effort prebuilt opening voice
 
 Use `docs/site` as the Vercel project's Root Directory.
+
+The reference deployment requires `OPENROUTER_API_KEY` and
+`OTTERVOICE_GATEWAY_AUTH_TOKEN`. The latter is only a protection mechanism for
+a private preview; do not bundle it into public browser/mobile code. A real
+product must replace the equality check in `docs/site/openrouter-proxy.ts` with
+its user login, conversation ownership, profile entitlement, and quota checks.
+If no gateway auth token is configured, all voice API calls return 401.
 
 With the Vercel project connected to GitHub, set its Production Branch to
 `main`, then deploy a committed, clean worktree from the repository root:

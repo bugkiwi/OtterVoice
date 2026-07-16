@@ -31,15 +31,26 @@ export interface BrokerToken {
 }
 
 /**
- * Auth input for provider factories. Prefer {@link CredentialOptions.tokenBrokerUrl}
- * on browsers and apps; reserve {@link CredentialOptions.apiKey} for trusted
- * server-side runtimes only.
+ * Auth input for provider factories. Reserve {@link CredentialOptions.apiKey}
+ * for trusted server-side runtimes. A browser/app may use
+ * {@link CredentialOptions.tokenBrokerUrl} only when the returned credential is
+ * genuinely short-lived and scoped to the required route/model/budget; otherwise
+ * use a policy-enforcing application gateway.
  */
 export interface CredentialOptions {
   /** A long-lived key (server-side only — never ship to clients). */
   apiKey?: string;
-  /** Endpoint that mints short-lived tokens (client-safe). */
+  /** Endpoint that mints short-lived, least-privilege tokens; broad provider bearer tokens are not client-safe. */
   tokenBrokerUrl?: string;
+  /**
+   * Application-authentication headers sent only to the token broker, such as
+   * a short-lived user session bearer token. Use browser-compatible characters.
+   */
+  tokenBrokerHeaders?: Readonly<Record<string, string>>;
+  /** Application voice-session id sent to the broker for ownership checks, audit, and quotas. */
+  tokenBrokerSessionId?: string;
+  /** Browser credential mode for the broker request. Use `include` for a cross-origin cookie session. */
+  tokenBrokerCredentials?: RequestCredentials;
   /** Custom `fetch` implementation (tests / React Native polyfills). */
   fetch?: FetchLike;
   /** Clock override for deterministic expiry checks in tests. */
@@ -90,8 +101,19 @@ export function createCredentialResolver(
     try {
       res = await fetchImpl(options.tokenBrokerUrl, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(request),
+        headers: {
+          'content-type': 'application/json',
+          ...options.tokenBrokerHeaders,
+        },
+        ...(options.tokenBrokerCredentials
+          ? { credentials: options.tokenBrokerCredentials }
+          : {}),
+        body: JSON.stringify({
+          ...request,
+          ...(options.tokenBrokerSessionId
+            ? { sessionId: options.tokenBrokerSessionId }
+            : {}),
+        }),
       });
     } catch (error) {
       throw new VoiceError(

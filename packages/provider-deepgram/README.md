@@ -15,13 +15,17 @@ import { createDeepgramASR } from '@ottervoice/provider-deepgram';
 
 const asr = createDeepgramASR({
   tokenBrokerUrl: '/api/voice-token',
+  tokenBrokerHeaders: { authorization: `Bearer ${applicationSessionToken}` },
+  tokenBrokerSessionId: voiceSessionId,
   model: 'nova-3',
   language: 'en-US',
 });
 ```
 
-Use `tokenBrokerUrl` in browser and mobile apps so provider credentials remain
-on your server.
+Use this direct-client mode only when the broker returns a short-lived,
+least-privilege credential or a signed URL that already locks route/model
+policy. Otherwise keep the provider and its configuration behind your
+application server.
 
 ## Links
 

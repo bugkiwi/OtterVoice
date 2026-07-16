@@ -8,7 +8,8 @@ All bundled providers share the credential shape from `@ottervoice/provider-util
 | Field | Use |
 | --- | --- |
 | `apiKey` | Long-lived key (**server only** — never ship to clients) |
-| `tokenBrokerUrl` | Client-safe short-lived token mint |
+| `tokenBrokerUrl` | Direct-client token mint only when credentials are short-lived and least-privilege |
+| `tokenBrokerHeaders` / `tokenBrokerSessionId` | Application auth and ownership binding for broker calls |
 | `fetch` | Injectable |
 
 ## Capability map
@@ -23,21 +24,44 @@ All bundled providers share the credential shape from `@ottervoice/provider-util
 
 Custom ASR **must** declare `capabilities.streaming` correctly — core uses it to choose live chunks vs full-turn audio.
 
-```ts
-import { createDeepgramASR } from '@ottervoice/provider-deepgram';
-import { createOpenRouterLLM } from '@ottervoice/provider-openrouter';
-import { createAzureTTS } from '@ottervoice/provider-azure-speech';
+For OpenRouter in browsers/apps, use server-managed factories. Their client
+options contain no model, prompt, voice, or generation controls:
 
-const asr = createDeepgramASR({ tokenBrokerUrl: '/api/voice/token' });
-const llm = createOpenRouterLLM({
-  tokenBrokerUrl: '/api/voice/token',
-  model: 'openai/gpt-4o-mini',
+```ts
+import {
+  createOpenRouterGatewayASR,
+  createOpenRouterGatewayAudioLLM,
+} from '@ottervoice/provider-openrouter';
+
+const asr = createOpenRouterGatewayASR({
+  baseUrl: '/api/voice/asr',
+  format: 'webm',
 });
-const tts = createAzureTTS({
-  region: 'eastasia',
-  voice: 'zh-CN-XiaoxiaoNeural',
-  tokenBrokerUrl: '/api/voice/token',
+const audioLlm = createOpenRouterGatewayAudioLLM({
+  baseUrl: '/api/voice/audio-llm',
+  prepareAudio,
 });
 ```
+
+Configure `createOpenRouterGateway()` on the server with locked `policy` and
+its mandatory `authorize` hook. Direct factories such as
+`createOpenRouterLLM` and `createOpenRouterAudioLLM` are for trusted
+Node/server/CLI runtimes.
+
+Direct WebSocket services such as Deepgram may still use a broker when the
+issued credential is short-lived and tightly scoped:
+
+```ts
+import { createDeepgramASR } from '@ottervoice/provider-deepgram';
+
+const asr = createDeepgramASR({
+  tokenBrokerUrl: '/api/voice/token',
+  tokenBrokerHeaders: { authorization: `Bearer ${applicationSessionToken}` },
+  tokenBrokerSessionId: voiceSessionId,
+});
+```
+
+Short-lived is not sufficient by itself. If a token can still select arbitrary
+models/routes or spend the account budget, keep it behind a policy gateway.
 
 Credential details: [`provider-utils`](/docs/en/packages/provider-utils/). Factory option tables: [API reference](/docs/en/reference/) and each package's JSDoc.

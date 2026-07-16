@@ -18,9 +18,12 @@ import { buildHeaders, DEFAULT_BASE_URL, type HeaderOptions } from './chat.js';
 
 const PROVIDER = 'openrouter';
 
-/** Options for OpenRouter HTTP transcription (batch / rolling partial ASR). */
+/**
+ * Options for direct OpenRouter HTTP transcription in trusted server/CLI
+ * runtimes. Browser/app integrations should use `OpenRouterGatewayASROptions`.
+ */
 export interface OpenRouterASROptions extends CredentialOptions, HeaderOptions {
-  /** OpenRouter / OpenAI-compatible transcription model id. */
+  /** OpenRouter / OpenAI-compatible transcription model id. Keep server-owned. */
   model: string;
   /** Browser MediaRecorder defaults to WebM. */
   format?: Extract<AudioEncoding, 'webm' | 'wav' | 'mp3' | 'opus'>;
@@ -34,7 +37,7 @@ export interface OpenRouterASROptions extends CredentialOptions, HeaderOptions {
    * Defaults to the greater of 3x `partialIntervalMs` and 3 seconds.
    */
   emptyPartialBackoffMs?: number;
-  /** BCP-47 language hint sent to the transcription API when supported. */
+  /** BCP-47 language hint sent to the transcription API when supported. Keep server-owned in standard mode. */
   language?: string;
   /** API root; defaults to OpenRouter's chat-compatible base URL. */
   baseUrl?: string;
@@ -42,20 +45,27 @@ export interface OpenRouterASROptions extends CredentialOptions, HeaderOptions {
   requestStage?: 'gateway' | 'provider';
   /** Test hook for partial-result scheduling. */
   now?: () => number;
+  /** Omit provider policy fields because a trusted gateway reconstructs the request. */
+  serverManaged?: boolean;
 }
 
-/** Options for OpenRouter HTTP speech synthesis. */
+/**
+ * Options for direct OpenRouter HTTP speech synthesis in trusted server/CLI
+ * runtimes. Browser/app integrations should use `OpenRouterGatewayClientOptions`.
+ */
 export interface OpenRouterTTSOptions extends CredentialOptions, HeaderOptions {
-  /** OpenRouter / OpenAI-compatible TTS model id. */
+  /** OpenRouter / OpenAI-compatible TTS model id. Keep server-owned. */
   model: string;
-  /** Voice name accepted by the selected model. */
+  /** Voice name accepted by the selected model. Keep server-owned. */
   voice: string;
   /** API root; defaults to OpenRouter's chat-compatible base URL. */
   baseUrl?: string;
   /** Classify HTTP failures as gateway/provider errors. Defaults from whether `baseUrl` is customized. */
   requestStage?: 'gateway' | 'provider';
-  /** Speaking rate multiplier when the upstream model supports it. */
+  /** Speaking rate multiplier when the upstream model supports it. Keep server-owned. */
   speed?: number;
+  /** Omit provider policy fields because a trusted gateway reconstructs the request. */
+  serverManaged?: boolean;
 }
 
 function joinChunks(chunks: readonly ArrayBuffer[]): Uint8Array {
@@ -166,7 +176,8 @@ export function bytesToBase64(bytes: Uint8Array): string {
 }
 
 /**
- * Transcription through OpenRouter's `/audio/transcriptions` endpoint.
+ * Direct transcription through OpenRouter's `/audio/transcriptions` endpoint
+ * for trusted server/CLI runtimes.
  * The default remains one request at turn end. Setting `partialIntervalMs`
  * adds rolling, best-effort snapshots for low-latency partial text while the
  * final request still covers the complete turn.
@@ -245,15 +256,22 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
         const res = await fetchImpl(`${baseUrl}/audio/transcriptions`, {
           method: 'POST',
           headers: buildHeaders(token, options),
-          body: JSON.stringify({
-            model: options.model,
-            input_audio: {
-              data: bytesToBase64(bytes),
-              format: uploadFormat,
-            },
-            language: sessionOptions.language ?? options.language,
-            temperature: 0,
-          }),
+          body: JSON.stringify(options.serverManaged
+            ? {
+                input_audio: {
+                  data: bytesToBase64(bytes),
+                  format: uploadFormat,
+                },
+              }
+            : {
+                model: options.model,
+                input_audio: {
+                  data: bytesToBase64(bytes),
+                  format: uploadFormat,
+                },
+                language: sessionOptions.language ?? options.language,
+                temperature: 0,
+              }),
           signal,
         });
         if (!res.ok) {
@@ -422,7 +440,8 @@ function resolveSpeechFormat(format: TTSFormat | undefined): 'mp3' | 'pcm' {
 }
 
 /**
- * OpenRouter TTS through the OpenAI-compatible `/audio/speech` endpoint.
+ * Direct OpenRouter TTS for trusted server/CLI runtimes through the
+ * OpenAI-compatible `/audio/speech` endpoint.
  *
  * @param options - Model, voice, credentials, and optional speed.
  * @returns A {@link TTSProvider} for the classic `asr_llm_tts` pipeline.
@@ -450,13 +469,15 @@ export function createOpenRouterTTS(options: OpenRouterTTSOptions): TTSProvider 
       const res = await fetchImpl(`${baseUrl}/audio/speech`, {
         method: 'POST',
         headers: buildHeaders(token, options),
-        body: JSON.stringify({
-          model: options.model,
-          input: input.text,
-          voice: input.voice ?? options.voice,
-          response_format: responseFormat,
-          speed: input.speed ?? options.speed ?? 1,
-        }),
+        body: JSON.stringify(options.serverManaged
+          ? { input: input.text }
+          : {
+              model: options.model,
+              input: input.text,
+              voice: input.voice ?? options.voice,
+              response_format: responseFormat,
+              speed: input.speed ?? options.speed ?? 1,
+            }),
       });
       if (!res.ok) {
         throw new VoiceError(

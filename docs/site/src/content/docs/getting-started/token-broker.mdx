@@ -17,11 +17,12 @@ bun run examples/token-broker/server.ts
 ```http
 POST /api/voice/token
 Content-Type: application/json
+Authorization: Bearer <application-session-token>
 
 {
-  "provider": "deepgram",
+  "provider": "azure_speech",
   "purpose": "asr",
-  "sessionId": "optional"
+  "sessionId": "required"
 }
 ```
 
@@ -38,9 +39,27 @@ Content-Type: application/json
 客户端 Provider：
 
 ```ts
-createDeepgramASR({
+const applicationSessionToken = await getApplicationSessionToken();
+
+createAzureTTS({
   tokenBrokerUrl: 'https://your.app/api/voice/token',
+  tokenBrokerHeaders: { authorization: `Bearer ${applicationSessionToken}` },
+  tokenBrokerSessionId: voiceSessionId,
+  region: 'eastasia',
+  voice: 'zh-CN-XiaoxiaoNeural',
 });
 ```
 
-网关应做：用户鉴权、Provider/模型白名单、配额、速率限制、体积与超时、审计 ID。默认不要记原始音频、完整 transcript、上游凭证。更多见 [安全指南](/docs/guides/security/)。
+Token Broker 只适合供应商能够签发**短期且最小权限**凭证的场景。Token
+必须限制用途/route，最好同时限制模型、会话和预算；仅缩短有效期但仍允许
+任意模型与额度的通用 bearer token 不能下发客户端。
+
+示例中的 Azure STS token 只是缩短凭证暴露时间，不能锁定 voice、route 或
+预算，因此属于显式选择的 Provider 直连模式，不是标准生产边界。标准模式应
+让浏览器调用应用 API，由服务端持有 Azure Provider 与 `voice` 配置。
+
+OpenRouter 这类请求/响应 API 的标准接入应使用
+`createOpenRouterGateway()`：服务端重建请求并锁定 prompt、model、voice、
+temperature、token 上限与 reasoning。网关还应做用户鉴权、会话归属、配额、
+速率限制、体积与超时、审计 ID。默认不要记原始音频、完整 transcript、
+上游凭证。更多见 [安全指南](/docs/guides/security/)。

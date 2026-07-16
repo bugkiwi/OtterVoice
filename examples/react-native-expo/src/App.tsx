@@ -132,14 +132,11 @@ function DemoScreen() {
     }
 
     const session = createVoiceSession({
-      mode: 'full_duplex',
-      pipeline: 'audio_llm',
+    mode: 'full_duplex',
+    pipeline: 'audio_llm',
+    asrPartial: false,
       runtime,
       providers,
-      audioLlmSystemPrompt:
-        '你是一个反应快、语气自然的语音对话助手。默认用中文回复；如果用户明显使用其他语言，则跟随用户。' +
-        '每次只回复 1–2 个简短句子，不使用 Markdown，不列表，适合直接语音播放。',
-      audioLlmStartTiming: 'after_audio',
       turnDetection: {
         strategy: 'hybrid',
         minSpeechMs: 180,

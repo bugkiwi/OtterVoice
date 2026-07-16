@@ -1437,7 +1437,6 @@ export class VoiceSession {
           ...(this.config.audioLlmMaxTokens !== undefined
             ? { maxTokens: this.config.audioLlmMaxTokens }
             : {}),
-          temperature: 0.45,
           ...(signal ? { signal } : {}),
           ...(capture
             ? {

@@ -9,7 +9,7 @@ description: 自定义 Provider 的凭证、SSE、WebSocket ASR 构建块。
 
 | 符号 | 用途 |
 | --- | --- |
-| `CredentialOptions` | `apiKey`（仅服务端）· `tokenBrokerUrl`（客户端优先）· `fetch` |
+| `CredentialOptions` | `apiKey`（仅服务端）· Broker URL/应用鉴权/会话绑定 · `fetch` |
 | `createCredentialResolver` | 解析短期 token / 静态 key，供适配器内部使用 |
 | SSE helpers | 解析 OpenAI 风格或同类 SSE 流 |
 | WebSocket ASR helpers | 统一流式 ASR 会话骨架 |
@@ -18,23 +18,28 @@ description: 自定义 Provider 的凭证、SSE、WebSocket ASR 构建块。
 
 | 字段 | 说明 |
 | --- | --- |
-| `tokenBrokerUrl` | 客户端推荐。指向你控制的短期令牌接口。 |
+| `tokenBrokerUrl` | 仅当 token 同时短期、限 route/model/budget 时可用于客户端。 |
+| `tokenBrokerHeaders` | 只发给 Broker 的应用登录态 header，不会透传给上游 Provider。 |
+| `tokenBrokerSessionId` | Broker 用于校验会话归属、配额与审计的语音 Session ID。 |
+| `tokenBrokerCredentials` | 跨域 Cookie 登录态需要设为 `include`；同源默认即可。 |
 | `apiKey` | 长期密钥。只放服务端 / CLI，禁止打进浏览器或 App。 |
 | `fetch` | 可注入，便于测试或特殊运行时。 |
 
-Token 契约见 [Token Broker 快速接入](/docs/getting-started/token-broker/) 与示例 [`examples/token-broker`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/token-broker)。
+Token 契约见 [Token Broker 快速接入](/docs/getting-started/token-broker/) 与示例 [`examples/token-broker`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/token-broker)。不能真正限权的 Provider（例如可任意选 OpenRouter 模型的通用 bearer token）必须使用服务端策略网关。
 
 ```ts
 import { createCredentialResolver } from '@ottervoice/provider-utils';
 
 const resolve = createCredentialResolver({
   tokenBrokerUrl: 'https://api.example.com/api/voice/token',
-});
-
-const { token, url, expiresAt } = await resolve({
+  tokenBrokerHeaders: { authorization: `Bearer ${applicationSessionToken}` },
+  tokenBrokerSessionId: voiceSessionId,
+}, {
   provider: 'deepgram',
   purpose: 'asr',
 });
+
+const { token, url, expiresAt } = await resolve();
 ```
 
 完整字段表：[API 参考 · provider-utils](/docs/reference/api/ottervoice-provider-utils/)。

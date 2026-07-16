@@ -18,8 +18,12 @@ bun run start   # http://localhost:5173
 
 ```ts
 import { createVoiceSession } from '@ottervoice/core';
+import {
+  createOpenRouterGatewayASR,
+  createOpenRouterGatewayLLM,
+  createOpenRouterGatewayTTS,
+} from '@ottervoice/provider-openrouter';
 import { createWebRuntime } from '@ottervoice/runtime-web';
-// 换成真实 ASR / LLM / TTS，客户端用 tokenBrokerUrl
 
 const runtime = createWebRuntime({
   mimeType: 'audio/webm;codecs=opus',
@@ -27,6 +31,14 @@ const runtime = createWebRuntime({
   volumePollMs: 50,
   bargeInPreRollMs: 500,
 });
+
+// 浏览器只知道自有 profile 路由，不包含模型、prompt、voice 或 Provider Key。
+const asr = createOpenRouterGatewayASR({
+  baseUrl: '/api/voice/asr',
+  format: 'webm',
+});
+const llm = createOpenRouterGatewayLLM({ baseUrl: '/api/voice/llm' });
+const tts = createOpenRouterGatewayTTS({ baseUrl: '/api/voice/tts' });
 
 const session = createVoiceSession({
   mode: 'full_duplex',
@@ -48,6 +60,11 @@ const session = createVoiceSession({
 
 await session.start();
 ```
+
+服务端用 `createOpenRouterGateway()` 为每个 profile 固定模型、系统提示词、
+声音、temperature、token 上限与 reasoning，并在 `authorize` 中校验用户和
+会话归属。不要在浏览器 Session 中设置 `audioLlmSystemPrompt`；该字段只适合
+完全运行在可信 Node/服务端的 Session。
 
 ## VAD 默认值与起步配置
 

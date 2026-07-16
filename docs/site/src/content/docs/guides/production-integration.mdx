@@ -3,25 +3,35 @@ title: 生产接入
 description: 面向正式语音产品的网关、数据留存、安全诊断、重试与运营控制。
 ---
 
-生产客户端只应知道业务会话和自有网关。供应商密钥、不受限的模型 ID、对象存储 Key 和留存策略都必须由服务端控制。
+生产客户端只应知道业务会话、自有网关和获准的业务 profile。供应商密钥、system/developer prompt、模型、voice、temperature、token 上限、reasoning、工具权限、对象存储 Key 和留存策略都必须由服务端控制。
 
 ## 信任边界
 
 | 边界 | 必须落实的控制 |
 | --- | --- |
 | 浏览器 / App → 网关 | 鉴权；每次请求都校验会话归属 |
-| 模型选择 | 忽略或白名单校验客户端 `model`；优先由服务端直接覆盖 |
+| 上游请求 | 不透传客户端 JSON；只提取用户内容，再由服务端重建 Body |
+| 模型与提示词 | 固定 `model` 和 system/developer prompt；拒绝客户端特权角色 |
+| 生成与声音 | 固定/白名单 voice、speed、temperature、max tokens、reasoning、tools |
 | 跨站请求 | 精确校验 `Origin`；Cookie 鉴权时配合 SameSite 与 CSRF Token |
-| 滥用控制 | 按用户、会话、IP 和供应商成本预算限流 |
+| 滥用控制 | 按用户、会话、profile、IP、并发和供应商成本预算限流 |
 | 输入 | 限制请求体和 SDK `maxTurnMs`；拒绝不支持的 Content-Type |
 | 输出 | 设置上游与总请求超时；客户端断开时取消上游任务 |
 
-可运行的 [Audio LLM-only 示例](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web-audio-llm-only) 会覆盖 ASR 和 Audio LLM 模型、校验 `Origin` 并限制请求体。请把它接入自己的鉴权系统；它不是完整的账号服务。
+可运行的 [Audio LLM-only 示例](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web-audio-llm-only) 的客户端不包含模型、prompt、voice 或生成参数；服务端通过 `createOpenRouterGateway()` 重建请求、校验 `Origin` 并限制请求体/历史/文本。请把强制 `authorize` 钩子接入自己的用户与会话鉴权；示例不是完整账号服务。
+
+| 标准客户端工厂 | Base URL | 服务端锁定 |
+| --- | --- | --- |
+| `createOpenRouterGatewayASR` | `/api/voice/asr` | ASR model、language 策略 |
+| `createOpenRouterGatewayLLM` | `/api/voice/llm` | model、system prompt、temperature、tokens、reasoning |
+| `createOpenRouterGatewayTTS` | `/api/voice/tts` | model、voice、speed、format |
+| `createOpenRouterGatewayAudioLLM` | `/api/voice/audio-llm` | model、system prompt、voice、temperature、tokens |
 
 ## 密钥与请求头
 
 - 长期 Key 不能进入浏览器代码、App 包、`EXPO_PUBLIC_*` 或任何 API 响应。
-- 请求/响应类 API 走同源网关；客户端必须直连流式供应商时，只发短期、限权 Token。
+- 不要把共享“网关密码”放进前端环境变量；客户端应携带当前用户的短期应用登录态，服务端再校验会话归属。
+- 请求/响应类 API 走同源策略网关；客户端必须直连流式供应商时，只发短期且限 route/model/budget 的 Token。
 - 自定义请求头必须先校验为浏览器兼容字符；任意业务元数据放 JSON Body，不要硬塞 Header。
 - Trace 中必须脱敏 `authorization`、Cookie、签名 URL、供应商原始响应和 Base64 音频。
 
@@ -49,18 +59,13 @@ session.on('assistant_audio', async ({ turnId, audio, mimeType }) => {
 
 ## 重试策略
 
-只重试 `retryable` 错误，在网关使用带随机抖动的指数退避并遵守供应商 Retry Header。鉴权、额度、音频解码、参数校验失败不能在请求不变时盲目重试。
+只重试 `retryable` 错误，在网关使用带随机抖动的指数退避并遵守供应商 Retry Header。鉴权、额度、音频解码、参数校验失败不能在请求不变时盲目重试。客户端 `audioLlmRetry`、滚动 ASR、`after_audio` 和 pipeline 选择都可能增加请求/成本；服务端预算与幂等控制不能依赖这些客户端值。
 
 ```ts
 const session = createOtterVoiceSession({
   pipeline: 'audio_llm',
-  audioLlmRetry: {
-    maxAttempts: 2,
-    backoffMs: 300,
-    exponentialBackoff: true,
-    retryableOnly: true,
-    continueSessionOnFailure: true,
-  },
+  // 标准客户端默认单次请求；确需重试时仍由网关独立限制预算。
+  audioLlmRetry: { maxAttempts: 1 },
   // ...
 });
 ```

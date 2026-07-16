@@ -9,7 +9,7 @@ description: 通过注入 Expo 音频能力驱动 runtime-react-native。
 
 ```bash
 cd examples/react-native-expo
-cp .env.example .env   # 按需配置 broker / 模型
+cp .env.example .env   # 只配置你控制的策略网关 URL
 bun run start
 ```
 
@@ -29,7 +29,7 @@ const runtime = createExpoRuntime({
 const session = createVoiceSession({
   mode: 'full_duplex',
   pipeline: 'audio_llm', // 示例默认走 Audio LLM
-  audioLlmStartTiming: 'after_audio', // 终句字幕 ASR 与回复并行。
+  asrPartial: false, // 标准模式只做一次终句 ASR，避免客户端放大请求数。
   runtime,
   providers: { asr, llm, audioLlm },
 });
@@ -40,8 +40,8 @@ const session = createVoiceSession({
 - `delivery: 'stream'` — 小 PCM 缓冲 → 流式 ASR
 - `delivery: 'turn'` — 完整 WAV → batch ASR / Audio LLM
 
-追求最低语音首响时使用 `audioLlmStartTiming: 'after_audio'`。兼容默认值
-`after_asr_final` 会先等待权威终句字幕，以免自然停顿被后续语音覆盖时仍产生
-一次付费回复请求。
+标准模式使用默认的 `audioLlmStartTiming: 'after_asr_final'`，先等待权威终句
+字幕，再产生一次付费回复请求。`after_audio` 与滚动 ASR 是明确的低延迟/高请求
+模式；只有服务端已按用户、会话和 profile 设置预算与速率限制时才开启。
 
 助手播放期间可暂停编码采集，但保留音量回调以继续 barge-in。细节见 [runtime-react-native](/docs/packages/runtime-react-native/)。

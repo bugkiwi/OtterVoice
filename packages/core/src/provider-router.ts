@@ -36,7 +36,9 @@ export interface ProviderProfile {
 }
 
 /**
- * Built-in profiles. The string values are *provider ids* that a
+ * Built-in composition profiles for trusted application code. They are not an
+ * authorization or subscription boundary: a server must decide which profile
+ * an untrusted client may use. The string values are *provider ids* that a
  * {@link ProviderRegistry} resolves into concrete provider instances — the
  * router never imports a vendor SDK itself.
  */
@@ -107,7 +109,13 @@ export interface ProviderRoutingContext {
   costPreference?: 'low' | 'balanced' | 'quality';
 }
 
-/** Default policy: China routes to the fallback profile, Pro plans to pro. */
+/**
+ * Resolve the built-in composition default. This is not an entitlement check;
+ * trusted server code must validate a user's real plan before exposing a profile.
+ *
+ * @param ctx - Trusted deployment/user routing facts.
+ * @returns The matching built-in provider profile name.
+ */
 export function resolveProfile(
   ctx: ProviderRoutingContext = {},
 ): ProviderProfileName {

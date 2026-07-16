@@ -27,11 +27,15 @@ export interface PreparedAudioInput {
   format: 'wav' | 'mp3';
 }
 
-/** Options for the OpenRouter Audio LLM adapter (`pipeline: 'audio_llm'`). */
+/**
+ * Options for the direct OpenRouter Audio LLM adapter in trusted server/CLI
+ * runtimes. Browser/app integrations should use
+ * `OpenRouterGatewayAudioLLMOptions`.
+ */
 export interface OpenRouterAudioLLMOptions extends CredentialOptions, HeaderOptions {
-  /** Audio-capable chat model id (e.g. OpenAI GPT-4o-audio via OpenRouter). */
+  /** Audio-capable chat model id. Keep server-owned in standard mode. */
   model: string;
-  /** Output voice when the model returns spoken audio. */
+  /** Output voice when the model returns spoken audio. Keep server-owned. */
   voice?: 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'fable' | 'nova' | 'onyx' | 'sage' | 'shimmer' | 'verse';
   /** API root; defaults to OpenRouter's public `…/api/v1`. */
   baseUrl?: string;
@@ -40,7 +44,7 @@ export interface OpenRouterAudioLLMOptions extends CredentialOptions, HeaderOpti
    * Defaults to `gateway` when `baseUrl` is customized, otherwise `provider`.
    */
   requestStage?: 'gateway' | 'provider';
-  /** Default sampling temperature when the session does not override. */
+  /** Default sampling temperature when the session does not override. Keep server-owned. */
   defaultTemperature?: number;
   /**
    * OpenAI audio chat accepts WAV/MP3, while browsers normally record WebM.
@@ -55,6 +59,11 @@ export interface OpenRouterAudioLLMOptions extends CredentialOptions, HeaderOpti
    * Disabled by default for compatibility with gateways that close a complete stream cleanly.
    */
   requireDoneSentinel?: boolean;
+  /**
+   * Omit model, system prompt, voice, temperature, and token limits because a
+   * trusted gateway reconstructs them. Prefer `createOpenRouterGatewayAudioLLM`.
+   */
+  serverManaged?: boolean;
 }
 
 function base64ToBytes(value: string): Uint8Array {
@@ -165,8 +174,8 @@ export function pcm16ToWav(pcm: Uint8Array, sampleRate = 24_000): ArrayBuffer {
 }
 
 /**
- * OpenRouter chat-completions adapter for models such as
- * `openai/gpt-audio-mini` that understand speech and generate speech directly.
+ * Direct OpenRouter native Audio LLM provider for trusted server/CLI runtimes.
+ * Use the gateway factory in browser/app integrations.
  *
  * @param options - Model, voice, credentials, and optional WebM→WAV preparer.
  * @returns An {@link AudioLLMProvider} for `pipeline: 'audio_llm'`.
@@ -212,14 +221,24 @@ export function createOpenRouterAudioLLM(
       }
 
       const messages: Array<Record<string, unknown>> = [];
-      if (input.system) messages.push({ role: 'system', content: input.system });
+      if (input.system && !options.serverManaged) {
+        messages.push({ role: 'system', content: input.system });
+      }
       for (const message of input.messages) {
-        messages.push({ role: message.role, content: message.content });
+        if (
+          !options.serverManaged ||
+          message.role === 'user' ||
+          message.role === 'assistant'
+        ) {
+          messages.push({ role: message.role, content: message.content });
+        }
       }
       messages.push({
         role: 'user',
         content: [
-          { type: 'text', text: 'Respond naturally to this voice message.' },
+          ...(!options.serverManaged
+            ? [{ type: 'text', text: 'Respond naturally to this voice message.' }]
+            : []),
           {
             type: 'input_audio',
             input_audio: {
@@ -244,16 +263,20 @@ export function createOpenRouterAudioLLM(
         );
       }
       const startedAt = performance.now();
-      const body: Record<string, unknown> = {
-        model: options.model,
-        messages,
-        modalities: ['text', 'audio'],
-        audio: { voice: options.voice ?? 'alloy', format: 'pcm16' },
-        stream: true,
-        stream_options: { include_usage: true },
-        temperature: input.temperature ?? options.defaultTemperature,
-      };
-      if (input.maxTokens !== undefined) body.max_tokens = input.maxTokens;
+      const body: Record<string, unknown> = options.serverManaged
+        ? { messages, stream: true }
+        : {
+            model: options.model,
+            messages,
+            modalities: ['text', 'audio'],
+            audio: { voice: options.voice ?? 'alloy', format: 'pcm16' },
+            stream: true,
+            stream_options: { include_usage: true },
+            temperature: input.temperature ?? options.defaultTemperature,
+          };
+      if (!options.serverManaged && input.maxTokens !== undefined) {
+        body.max_tokens = input.maxTokens;
+      }
       let res: Response;
       try {
         res = await fetchImpl(`${baseUrl}/chat/completions`, {

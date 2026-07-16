@@ -3,7 +3,24 @@ title: Security
 description: No long-lived keys on clients; mint short-lived tokens via a broker.
 ---
 
-Never ship long-lived provider keys in browser bundles, app binaries, or `EXPO_PUBLIC_*`. Clients talk only to your gateway or short-lived token broker.
+Never ship long-lived provider keys in browser bundles, app binaries, or
+`EXPO_PUBLIC_*`. System prompts, model choice, voice, temperature, token
+ceilings, reasoning, and provider routes are also not trusted client policy.
+Clients talk to your policy gateway; use a token broker only for direct
+capabilities that can receive genuinely least-privilege credentials.
+
+## Standard trust boundary
+
+| Client may own | Server must own |
+| --- | --- |
+| Microphone, VAD, captions, playback, barge-in UX | User auth, conversation ownership, provider credentials |
+| User text/audio, ordinary history, stream transport | System/developer prompt, model, voice, speed |
+| Optional product profile id | Temperature, max tokens, reasoning, tool permissions, budget |
+
+OpenRouter clients use `createOpenRouterGatewayASR/LLM/TTS/AudioLLM`; the
+server uses `createOpenRouterGateway()`. Four separate profile routes rebuild
+upstream bodies from allowlisted user content instead of editing and forwarding
+arbitrary client JSON.
 
 ## Token broker
 
@@ -12,8 +29,9 @@ Example: [`examples/token-broker`](https://github.com/bugkiwi/OtterVoice/tree/ma
 ```http
 POST /api/voice/token
 Content-Type: application/json
+Authorization: Bearer <application-session-token>
 
-{ "provider": "deepgram", "purpose": "asr", "sessionId": "optional" }
+{ "provider": "azure_speech", "purpose": "asr", "sessionId": "required" }
 ```
 
 ```json
@@ -24,12 +42,22 @@ Content-Type: application/json
 }
 ```
 
-Provider factories typically take `tokenBrokerUrl` (clients) or `apiKey` (server only). See [`CredentialOptions`](https://github.com/bugkiwi/OtterVoice/blob/main/packages/provider-utils/src/credential.ts).
+`tokenBrokerUrl` is client-safe only when the token is short-lived, scoped to a
+purpose/route, and preferably constrained by model and budget. A broad
+OpenRouter bearer token may still select arbitrary models and spend even when
+short-lived; keep it behind the policy gateway. See [`CredentialOptions`](https://github.com/bugkiwi/OtterVoice/blob/main/packages/provider-utils/src/credential.ts).
+
+Tokens such as Azure STS are short-lived but still cannot lock voice, route, or
+budget. They are an explicit direct-client mode; standard mode keeps the
+provider and these policy fields on the application server.
 
 ## Gateway checklist
 
-- Auth, provider / model allowlists
-- Quotas, rate limits, payload size, timeouts
+- User auth, conversation ownership on every request, profile authorization
+- Server overrides for prompt / model / voice / temperature / token ceiling / reasoning
+- Reject client `system` / `developer` / tool messages; rebuild only allowed user content
+- Per-user, conversation, profile, and IP quotas, rate limits, concurrency, and cost budgets
+- Request bytes, message count, text length, audio duration, output, and timeout ceilings
 - Audit IDs; do not log raw audio, full transcripts, or upstream credentials by default
 
 See [Token broker quick start](/docs/en/getting-started/token-broker/).

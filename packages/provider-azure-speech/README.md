@@ -18,11 +18,15 @@ const tts = createAzureTTS({
   region: 'eastus',
   voice: 'en-US-AvaMultilingualNeural',
   tokenBrokerUrl: '/api/voice-token',
+  tokenBrokerHeaders: { authorization: `Bearer ${applicationSessionToken}` },
+  tokenBrokerSessionId: voiceSessionId,
 });
 ```
 
-Use `tokenBrokerUrl` in browser and mobile apps so Azure credentials remain on
-your server. `subscriptionKey` is available for trusted server-side code.
+This is an explicit direct-client mode: Azure's short-lived STS token avoids
+shipping the subscription key but does not lock voice, route, or budget. The
+standard production mode keeps this provider and `voice` on your application
+server. `subscriptionKey` is for trusted server-side code only.
 
 ## Links
 

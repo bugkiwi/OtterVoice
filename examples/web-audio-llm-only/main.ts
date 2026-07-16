@@ -1,7 +1,7 @@
 import { createOtterVoiceSession, type VoiceSession } from '@ottervoice/core';
 import {
-  createOpenRouterASR,
-  createOpenRouterAudioLLM,
+  createOpenRouterGatewayASR,
+  createOpenRouterGatewayAudioLLM,
 } from '@ottervoice/provider-openrouter';
 import {
   createWebRuntime,
@@ -32,32 +32,18 @@ startButton.addEventListener('click', async () => {
     timesliceMs: 100,
     volumePollMs: 50,
   });
-  const gateway = {
-    // The server ignores this placeholder and injects its own provider key.
-    apiKey: 'same-origin-gateway',
-    baseUrl: `${location.origin}/api/voice`,
-    requestStage: 'gateway' as const,
-  };
+  const gateway = `${location.origin}/api/voice`;
   session = createOtterVoiceSession({
     mode: 'full_duplex',
     pipeline: 'audio_llm',
     runtime,
-    audioLlmSystemPrompt: 'Reply naturally in one or two short spoken sentences.',
-    audioLlmRetry: {
-      maxAttempts: 2,
-      backoffMs: 300,
-      continueSessionOnFailure: true,
-    },
     providers: {
-      asr: createOpenRouterASR({
-        ...gateway,
-        model: 'qwen/qwen3-asr-flash-2026-02-10',
+      asr: createOpenRouterGatewayASR({
+        baseUrl: `${gateway}/asr`,
         format: 'webm',
       }),
-      audioLlm: createOpenRouterAudioLLM({
-        ...gateway,
-        model: 'openai/gpt-audio-mini',
-        voice: 'alloy',
+      audioLlm: createOpenRouterGatewayAudioLLM({
+        baseUrl: `${gateway}/audio-llm`,
         requireDoneSentinel: true,
         prepareAudio: (audio, format) => prepareBrowserAudio(audio, format, {
           sampleRate: 16_000,

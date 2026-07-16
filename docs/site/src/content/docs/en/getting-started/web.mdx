@@ -18,6 +18,11 @@ The live demo is this example bundled for production: [ottervoice.vercel.app](ht
 
 ```ts
 import { createVoiceSession } from '@ottervoice/core';
+import {
+  createOpenRouterGatewayASR,
+  createOpenRouterGatewayLLM,
+  createOpenRouterGatewayTTS,
+} from '@ottervoice/provider-openrouter';
 import { createWebRuntime } from '@ottervoice/runtime-web';
 
 const runtime = createWebRuntime({
@@ -26,6 +31,14 @@ const runtime = createWebRuntime({
   volumePollMs: 50,
   bargeInPreRollMs: 500,
 });
+
+// The browser knows only application profile routes—not model, prompt, voice, or provider key.
+const asr = createOpenRouterGatewayASR({
+  baseUrl: '/api/voice/asr',
+  format: 'webm',
+});
+const llm = createOpenRouterGatewayLLM({ baseUrl: '/api/voice/llm' });
+const tts = createOpenRouterGatewayTTS({ baseUrl: '/api/voice/tts' });
 
 const session = createVoiceSession({
   mode: 'full_duplex',
@@ -47,6 +60,12 @@ const session = createVoiceSession({
 
 await session.start();
 ```
+
+On the server, `createOpenRouterGateway()` locks the model, system prompt,
+voice, temperature, token ceiling, and reasoning policy for every profile. Its
+mandatory `authorize` hook must verify user and conversation ownership. Do not
+set `audioLlmSystemPrompt` on a browser session; that field is for sessions that
+run entirely inside a trusted Node/server runtime.
 
 ## VAD defaults and starting profiles
 

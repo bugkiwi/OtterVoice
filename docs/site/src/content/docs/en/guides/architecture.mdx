@@ -9,18 +9,33 @@ OtterVoice is a **voice-session orchestration SDK**, not a model gateway. Core o
 Application UI
    ↕ events / commands
 @ottervoice/core   VoiceSession · state machine · VAD · barge-in · usage
-   ↕ RuntimeAdapter          ↕ Provider interfaces
-runtime-web | rn | node      ASR · LLM · TTS · Audio LLM
+   ↕ RuntimeAdapter          ↕ Gateway client providers (user content only)
+runtime-web | rn | node      App auth/policy gateway (server)
+                              ↕ Provider API
+                              ASR · LLM · TTS · Audio LLM
 ```
 
 ## Boundaries
 
 | Layer | Owns | Does not own |
 | --- | --- | --- |
-| UI | Events, captions, `start` / `finish` | Provider URLs, secrets, wire protocols |
+| UI | Events, captions, `start` / `finish`, local VAD/playback preferences | Provider model, system prompt, voice, generation policy, long-lived keys |
 | Core | State machine, turns, interruption, usage, errors | DOM / Expo / Node APIs |
 | Runtime | Mic, playback, optional network/storage | Prompts, model choice |
-| Provider | Vendor protocols | Session lifecycle |
+| Gateway client provider | User text/audio, history, and stream transport only | Model, prompt, voice, temperature, or token ceilings |
+| Application gateway | User/session auth, policy injection, body reconstruction, quotas, audit | Trusting client business policy |
+| Direct provider | Vendor protocol inside trusted Node/server runtimes | Acting as an authorization boundary for untrusted clients |
+
+Fields such as `audioLlmSystemPrompt` and `LLMGenerateInput.system` remain valid
+when the whole session runs in a trusted Node/server runtime. Browser/app
+standard mode should omit them and use the `createOpenRouterGateway*` client
+factories; the server injects model, prompt, voice, and generation ceilings via
+`createOpenRouterGateway()`.
+
+Clients may still own VAD, captions, playback, and interruption UX. Pipeline
+selection, rolling ASR, eager Audio LLM starts, and automatic retries can change
+spend; if exposed to clients, enforce per-user/session/profile budgets and rate
+limits independently at the gateway.
 
 ## Pipelines
 

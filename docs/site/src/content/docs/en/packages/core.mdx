@@ -20,10 +20,16 @@ Entry point: `createVoiceSession(config)`.
 | `turnDetection` | VAD while listening |
 | `interruptionDetection` | Stricter VAD during playback |
 | `policy` | Auto-listen, barge-in, false-interrupt recovery |
-| `audioLlmSystemPrompt` / `audioLlmMaxTokens` | Audio LLM only |
+| `audioLlmSystemPrompt` / `audioLlmMaxTokens` | Trusted Node/server sessions only; browser standard mode injects them at the gateway |
 | `audioLlmStartTiming` | `after_audio` for parallel low latency; default `after_asr_final` |
 
 Full fields: [API reference](/docs/en/reference/). Source: [`types.ts`](https://github.com/bugkiwi/OtterVoice/blob/main/packages/core/src/types.ts).
+
+Core is cross-runtime orchestration, so prompt, temperature, max-token, and
+voice controls remain available for trusted server sessions. They are not a
+browser security boundary. Browser/app integrations should use server-managed
+providers and let their application gateway override every business and cost
+policy field.
 
 ## `TurnDetectionConfig`
 
