@@ -175,8 +175,8 @@ after every uninterrupted reply.
 ## Showcase deployment
 
 The project showcase lives in `docs/site`, keeping this directory focused on the
-reusable example. The docs site bundles the UI, but its provider-backed API is
-fail-closed rather than anonymously spendable.
+reusable example. The docs site bundles the UI and a same-origin voice gateway
+for the live demo.
 
 - `docs/site/vercel.json`: clean-clone workspace install/build, site output,
   Singapore region (required for GPT Audio availability), and Function limits
@@ -185,12 +185,10 @@ fail-closed rather than anonymously spendable.
 
 Use `docs/site` as the Vercel project's Root Directory.
 
-The reference deployment requires `OPENROUTER_API_KEY` and
-`OTTERVOICE_GATEWAY_AUTH_TOKEN`. The latter is only a protection mechanism for
-a private preview; do not bundle it into public browser/mobile code. A real
-product must replace the equality check in `docs/site/openrouter-proxy.ts` with
-its user login, conversation ownership, profile entitlement, and quota checks.
-If no gateway auth token is configured, all voice API calls return 401.
+The reference deployment requires `OPENROUTER_API_KEY`. The showcase authorizer
+accepts same-origin browser requests only. A real product must replace the
+check in `docs/site/openrouter-proxy.ts` with user login, conversation
+ownership, profile entitlement, and quota checks.
 
 With the Vercel project connected to GitHub, set its Production Branch to
 `main`, then deploy a committed, clean worktree from the repository root:

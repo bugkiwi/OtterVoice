@@ -4,14 +4,12 @@ declare const process: {
   readonly env: {
     readonly OPENROUTER_API_KEY?: string;
     readonly OTTERVOICE_SYSTEM_PROMPT?: string;
-    readonly OTTERVOICE_GATEWAY_AUTH_TOKEN?: string;
   };
 };
 
 const systemPrompt = process.env.OTTERVOICE_SYSTEM_PROMPT ??
   '你是一个反应快、语气自然的语音对话助手。默认用中文回复；如果用户明显使用其他语言，则跟随用户。' +
   '每次只回复 1–2 个简短句子，不使用 Markdown，不列表，适合直接语音播放。';
-const gatewayAuthToken = process.env.OTTERVOICE_GATEWAY_AUTH_TOKEN;
 
 export const proxyOpenRouter = createOpenRouterGateway({
   apiKey: process.env.OPENROUTER_API_KEY,
@@ -40,9 +38,9 @@ export const proxyOpenRouter = createOpenRouterGateway({
   },
   authorize: ({ request, url }) => {
     const origin = request.headers.get('origin');
-    if (origin !== null && origin !== url.origin) return false;
-    if (!gatewayAuthToken) return false;
-    return request.headers.get('authorization') === `Bearer ${gatewayAuthToken}`;
+    // Demo showcase: same-origin browser requests only. Production apps must
+    // replace this with user/session ownership and quota checks.
+    return origin === url.origin;
   },
   maxRequestBodyBytes: 6 * 1024 * 1024,
   maxMessages: 24,
