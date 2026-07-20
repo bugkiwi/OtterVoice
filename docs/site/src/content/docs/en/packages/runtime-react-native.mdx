@@ -53,6 +53,22 @@ Prefer **16 kHz · mono · PCM16**. Chunks may set `delivery: 'stream' | 'turn'`
 | `writePcmChunk` | One PCM16 slice → temp WAV URI |
 | `writeAudioFile` / `deleteAudioFile` | Full-buffer write and cleanup |
 
+The `createSound` status bridge must forward the native `playing` field. Playback
+exposes two distinct lifecycle signals:
+
+```ts
+runtime.audioOutput.onPlaybackRequested(() => {
+  // Audio is ready and native play/playAsync is about to be called; it may still fail or cancel.
+});
+runtime.audioOutput.onStart(() => {
+  // The native sound/playlist first reported playing: true; resume does not fire this again.
+});
+```
+
+Whole-file and streamed PCM playback share the same order:
+`onPlaybackRequested` → `onStart` → `onEnd`. A failure or cancellation before
+audible playback emits only the first signal.
+
 During assistant playback, suspend encoded capture while keeping volume callbacks for real barge-in.
 
 Example: [examples/react-native-expo](https://github.com/bugkiwi/OtterVoice/tree/main/examples/react-native-expo). Types: [API reference](/docs/en/reference/api/ottervoice-runtime-react-native/).

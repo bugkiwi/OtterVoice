@@ -117,11 +117,12 @@ describe('NodeAudioOutput', () => {
   it('records playback and fires start/end without a sink', async () => {
     const output = new NodeAudioOutput();
     const events: string[] = [];
+    output.onPlaybackRequested(() => events.push('requested'));
     output.onStart(() => events.push('start'));
     output.onEnd(() => events.push('end'));
     await output.play({ audioUrl: 'http://a' });
     expect(output.played).toHaveLength(1);
-    expect(events).toEqual(['start', 'end']);
+    expect(events).toEqual(['requested', 'start', 'end']);
   });
 
   it('routes audio to a sink', async () => {
@@ -147,9 +148,11 @@ describe('NodeAudioOutput', () => {
 
   it('clears recorded playback on stop and supports unsubscribe', async () => {
     const output = new NodeAudioOutput();
+    const offRequested = output.onPlaybackRequested(() => {});
     const offStart = output.onStart(() => {});
     const offEnd = output.onEnd(() => {});
     const offErr = output.onError(() => {});
+    offRequested();
     offStart();
     offEnd();
     offErr();

@@ -94,6 +94,7 @@ interface ActivePcmStream {
  * `audioBuffer` is wrapped in an object URL (which requires `createObjectURL`).
  */
 export class WebAudioOutput implements AudioOutputAdapter {
+  private readonly playbackRequestedCbs = new Set<() => void>();
   private readonly startCbs = new Set<() => void>();
   private readonly endCbs = new Set<() => void>();
   private readonly errorCbs = new Set<(error: NormalizedVoiceError) => void>();
@@ -158,6 +159,22 @@ export class WebAudioOutput implements AudioOutputAdapter {
       input.audioBuffer && this.options.measureAudio
         ? this.options.measureAudio(input.audioBuffer.slice(0))
         : undefined;
+    let started = false;
+    let decodedEnvelope: AudioEnvelope | undefined;
+    let playbackStartedAt: number | undefined;
+
+    const markPlaybackStarted = () => {
+      if (started || token !== this.playToken || this.current !== el) return;
+      started = true;
+      playbackStartedAt = this.options.now?.() ?? Date.now();
+      this.playbackStartedAt = playbackStartedAt;
+      this.pausedElapsedMs = 0;
+      this.playbackPaused = false;
+      this.fire(this.startCbs);
+      if (decodedEnvelope) {
+        this.startVolumeMeter(decodedEnvelope, el.volume, playbackStartedAt);
+      }
+    };
 
     const finished = new Promise<void>((resolve, reject) => {
       this.playDone = () => {
@@ -175,9 +192,32 @@ export class WebAudioOutput implements AudioOutputAdapter {
         this.emitError(error);
         reject(error);
       });
+      el.addEventListener('playing', markPlaybackStarted);
     });
 
+    if (envelope) {
+      void envelope
+        .then((value) => {
+          if (token === this.playToken && this.current === el) {
+            decodedEnvelope = value;
+            this.activeEnvelope = value;
+            this.activeVolume = el.volume;
+            if (
+              started &&
+              playbackStartedAt !== undefined &&
+              !this.playbackPaused
+            ) {
+              this.startVolumeMeter(value, el.volume, playbackStartedAt);
+            }
+          }
+        })
+        .catch(() => {
+          // Echo-aware VAD is optional; playback should still continue.
+        });
+    }
+
     try {
+      this.fire(this.playbackRequestedCbs);
       try {
         await el.play();
       } catch (err) {
@@ -186,26 +226,6 @@ export class WebAudioOutput implements AudioOutputAdapter {
         });
         this.emitError(error);
         throw error;
-      }
-      const playbackStartedAt = this.options.now?.() ?? Date.now();
-      this.playbackStartedAt = playbackStartedAt;
-      this.pausedElapsedMs = 0;
-      this.playbackPaused = false;
-      this.fire(this.startCbs);
-      if (envelope) {
-        void envelope
-          .then((value) => {
-            if (token === this.playToken && this.current === el) {
-              this.activeEnvelope = value;
-              this.activeVolume = el.volume;
-              if (!this.playbackPaused) {
-                this.startVolumeMeter(value, el.volume, playbackStartedAt);
-              }
-            }
-          })
-          .catch(() => {
-            // Echo-aware VAD is optional; playback should still continue.
-          });
       }
       await finished;
     } finally {
@@ -232,7 +252,10 @@ export class WebAudioOutput implements AudioOutputAdapter {
     const sources = new Set<PcmAudioBufferSourceLike>();
     const segments: PcmEnvelopeSegment[] = [];
     let nextStartAt = context.currentTime + 0.06;
+    let playbackRequested = false;
     let started = false;
+    let scheduledStartAt: number | undefined;
+    let startTimer: ReturnType<typeof setTimeout> | undefined;
     let closed = false;
     let settled = false;
     let resolveDone!: () => void;
@@ -240,9 +263,38 @@ export class WebAudioOutput implements AudioOutputAdapter {
       resolveDone = resolve;
     });
 
+    const clearScheduledStart = () => {
+      if (startTimer !== undefined) {
+        clearTimeout(startTimer);
+        startTimer = undefined;
+      }
+    };
+    const scheduleConfirmedStart = () => {
+      if (
+        started ||
+        settled ||
+        scheduledStartAt === undefined ||
+        startTimer !== undefined
+      ) {
+        return;
+      }
+      const delayMs = Math.max(
+        0,
+        (scheduledStartAt - context.currentTime) * 1_000,
+      );
+      startTimer = setTimeout(() => {
+        startTimer = undefined;
+        if (started || settled || token !== this.playToken) return;
+        started = true;
+        this.fire(this.startCbs);
+        this.startPcmVolumeMeter(context, segments);
+      }, Math.ceil(delayMs));
+    };
+
     const finish = (natural: boolean) => {
       if (settled) return;
       settled = true;
+      clearScheduledStart();
       if (token === this.playToken) {
         this.activePcmStream = undefined;
         this.stopVolumeMeter();
@@ -254,6 +306,7 @@ export class WebAudioOutput implements AudioOutputAdapter {
     const control: ActivePcmStream = {
       pause: async () => {
         if (settled) return;
+        if (!started) clearScheduledStart();
         await context.suspend();
         this.stopVolumeMeter();
       },
@@ -261,6 +314,7 @@ export class WebAudioOutput implements AudioOutputAdapter {
         if (settled) return;
         await context.resume();
         if (started) this.startPcmVolumeMeter(context, segments);
+        else scheduleConfirmedStart();
       },
       stop: () => {
         for (const source of sources) {
@@ -326,12 +380,14 @@ export class WebAudioOutput implements AudioOutputAdapter {
         sources.delete(source);
         if (closed && sources.size === 0) finish(true);
       });
+      if (!playbackRequested) {
+        playbackRequested = true;
+        this.fire(this.playbackRequestedCbs);
+      }
       source.start(startAt);
-
-      if (!started) {
-        started = true;
-        this.fire(this.startCbs);
-        this.startPcmVolumeMeter(context, segments);
+      if (scheduledStartAt === undefined) {
+        scheduledStartAt = startAt;
+        scheduleConfirmedStart();
       }
     };
 
@@ -528,6 +584,23 @@ export class WebAudioOutput implements AudioOutputAdapter {
     for (const cb of [...this.errorCbs]) cb(error);
   }
 
+  /**
+   * Subscribe when element or PCM playback is requested.
+   *
+   * @param cb - Called once immediately before the browser playback primitive.
+   * @returns Unsubscribe function.
+   */
+  onPlaybackRequested(cb: () => void): () => void {
+    this.playbackRequestedCbs.add(cb);
+    return () => this.playbackRequestedCbs.delete(cb);
+  }
+
+  /**
+   * Subscribe when element playback is active or scheduled PCM reaches its start.
+   *
+   * @param cb - Called once at the first confirmed or scheduled audible frame.
+   * @returns Unsubscribe function.
+   */
   onStart(cb: () => void): () => void {
     this.startCbs.add(cb);
     return () => this.startCbs.delete(cb);

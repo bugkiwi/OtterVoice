@@ -60,11 +60,12 @@ describe('MockAudioOutput', () => {
   it('records playback and auto-fires start/end', async () => {
     const output = new MockAudioOutput();
     const events: string[] = [];
+    output.onPlaybackRequested(() => events.push('requested'));
     output.onStart(() => events.push('start'));
     output.onEnd(() => events.push('end'));
     await output.play({ audioUrl: 'http://a' });
     expect(output.played).toHaveLength(1);
-    expect(events).toEqual(['start', 'end']);
+    expect(events).toEqual(['requested', 'start', 'end']);
   });
 
   it('does not auto-complete when disabled, but fireEnd works', async () => {
@@ -94,7 +95,9 @@ describe('MockAudioOutput', () => {
 
   it('counts stop calls and supports start unsubscribe', async () => {
     const output = new MockAudioOutput();
+    const offRequested = output.onPlaybackRequested(() => {});
     const off = output.onStart(() => {});
+    offRequested();
     off();
     await output.stop();
     await output.stop();

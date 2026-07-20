@@ -876,8 +876,22 @@ export interface AudioOutputAdapter {
    */
   onVolume?(cb: (level: number, at?: number) => void): () => void;
   /**
-   * Subscribe to playback start.
+   * Subscribe when an output adapter has accepted an utterance and is about to
+   * invoke its platform playback primitive. This can fire without a matching
+   * {@link AudioOutputAdapter.onStart} when playback subsequently fails or is
+   * cancelled before audio becomes audible.
    *
+   * @param cb - Called once for each one-shot or PCM-stream playback request.
+   * @returns Unsubscribe function.
+   */
+  onPlaybackRequested?(cb: () => void): () => void;
+  /**
+   * Subscribe to confirmed playback start. Adapters with playback telemetry
+   * fire this once per utterance when the platform first reports active
+   * playback; headless adapters use their closest output acknowledgement.
+   * Resuming a paused utterance does not fire it again.
+   *
+   * @param cb - Called when playback first becomes active.
    * @returns Unsubscribe function.
    */
   onStart(cb: () => void): () => void;

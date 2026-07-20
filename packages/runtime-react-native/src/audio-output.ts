@@ -9,6 +9,8 @@ import {
 
 /** Status callback payload from an {@link ExpoSound} player. */
 export interface ExpoPlaybackStatus {
+  /** Whether the native player reports that audio is actively playing. */
+  playing: boolean;
   /** `true` when playback completed successfully. */
   didJustFinish?: boolean;
   /** Native error string when playback failed. */
@@ -120,6 +122,7 @@ function pcm16Envelope(
  * delta arrives instead of waiting for the complete WAV response.
  */
 export class ExpoAudioOutput implements AudioOutputAdapter {
+  private readonly playbackRequestedCbs = new Set<() => void>();
   private readonly startCbs = new Set<() => void>();
   private readonly endCbs = new Set<() => void>();
   private readonly volumeCbs = new Set<(level: number, at?: number) => void>();
@@ -161,17 +164,23 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
     });
     const current: CurrentSound = { sound, resolve: resolveFinished };
     this.current = current;
+    let started = false;
     sound.setOnPlaybackStatusUpdate((status) => {
       if (status.error) {
         current.resolve();
-      } else if (status.didJustFinish) {
+      } else {
+        if (!started && status.playing) {
+          started = true;
+          this.fire(this.startCbs);
+        }
+        if (!status.didJustFinish) return;
         this.fire(this.endCbs);
         current.resolve();
       }
     });
 
     try {
-      this.fire(this.startCbs);
+      this.fire(this.playbackRequestedCbs);
       await sound.playAsync();
       await finished;
       if (this.current === current) this.current = undefined;
@@ -203,6 +212,7 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
     const files: string[] = [];
     const envelopes: number[][] = [];
     const durationStartsMs: number[] = [];
+    let playbackRequested = false;
     let started = false;
     let closing = false;
     let finished = false;
@@ -270,6 +280,10 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
         this.emitError(error);
         void finish(false, error);
         return;
+      }
+      if (!started && status.playing) {
+        started = true;
+        this.fire(this.startCbs);
       }
       const envelope = envelopes[playlistFileOffset + status.currentIndex];
       if (envelope) {
@@ -343,16 +357,16 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
           playlistFileOffset = index;
         }
         playlist.add(uri);
-        if (!started) {
-          started = true;
-          this.fire(this.startCbs);
+        if (!playbackRequested) {
+          playbackRequested = true;
+          this.fire(this.playbackRequestedCbs);
         }
         await playlist.play();
       },
       close: async () => {
         if (finished) return done;
         closing = true;
-        if (!started) {
+        if (!playbackRequested) {
           await finish(false);
         } else if (
           waitingAtEnd ||
@@ -419,6 +433,23 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
     return () => this.volumeCbs.delete(cb);
   }
 
+  /**
+   * Subscribe when native one-shot or playlist playback is requested.
+   *
+   * @param cb - Called once immediately before the native play primitive.
+   * @returns Unsubscribe function.
+   */
+  onPlaybackRequested(cb: () => void): () => void {
+    this.playbackRequestedCbs.add(cb);
+    return () => this.playbackRequestedCbs.delete(cb);
+  }
+
+  /**
+   * Subscribe to the first native status confirming active playback.
+   *
+   * @param cb - Called once when `playing` first becomes `true`.
+   * @returns Unsubscribe function.
+   */
   onStart(cb: () => void): () => void {
     this.startCbs.add(cb);
     return () => this.startCbs.delete(cb);

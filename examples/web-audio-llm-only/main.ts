@@ -36,6 +36,7 @@ startButton.addEventListener('click', async () => {
   session = createOtterVoiceSession({
     mode: 'full_duplex',
     pipeline: 'audio_llm',
+    audioLlmStartTiming: 'after_audio',
     runtime,
     providers: {
       asr: createOpenRouterGatewayASR({

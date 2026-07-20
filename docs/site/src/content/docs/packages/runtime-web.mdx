@@ -28,6 +28,22 @@ const runtime = createWebRuntime({
 
 也可拆开传 `audioInput` / `audioOutput`（见 `WebAudioInputOptions` / `WebAudioOutputOptions`）。
 
+## 播放信号
+
+`runtime.audioOutput` 将“请求播放”和“实际开始”分开：
+
+```ts
+runtime.audioOutput.onPlaybackRequested(() => {
+  // 即将调用 HTMLAudioElement.play()，或排程第一段 PCM。
+});
+runtime.audioOutput.onStart(() => {
+  // HTMLAudioElement 首次触发 playing，或第一段 PCM 到达输出时钟。
+});
+```
+
+两者每轮最多触发一次，暂停恢复不会重复触发 `onStart`。浏览器拒绝 autoplay
+时会收到 `onPlaybackRequested` 和 `onError`，但不会误报 `onStart`。
+
 ## 浏览器要求
 
 - HTTPS 或 `localhost`

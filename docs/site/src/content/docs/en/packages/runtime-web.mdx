@@ -28,6 +28,23 @@ const runtime = createWebRuntime({
 
 You can also pass nested `audioInput` / `audioOutput` (`WebAudioInputOptions` / `WebAudioOutputOptions`).
 
+## Playback signals
+
+`runtime.audioOutput` separates a playback request from confirmed playback:
+
+```ts
+runtime.audioOutput.onPlaybackRequested(() => {
+  // HTMLAudioElement.play() is about to run, or the first PCM block is being scheduled.
+});
+runtime.audioOutput.onStart(() => {
+  // HTMLAudioElement first emitted `playing`, or the first PCM block reached the output clock.
+});
+```
+
+Each fires at most once per utterance, and resume does not re-fire `onStart`.
+When autoplay rejects, `onPlaybackRequested` and `onError` fire but `onStart`
+does not.
+
 ## Browser requirements
 
 - HTTPS or `localhost`

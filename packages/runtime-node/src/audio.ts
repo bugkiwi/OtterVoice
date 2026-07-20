@@ -133,6 +133,7 @@ export interface NodeAudioOutputOptions {
  * played; supply a `sink` to actually emit audio (file/speaker subprocess).
  */
 export class NodeAudioOutput implements AudioOutputAdapter {
+  private readonly playbackRequestedCbs = new Set<() => void>();
   private readonly startCbs = new Set<() => void>();
   private readonly endCbs = new Set<() => void>();
   private readonly errorCbs = new Set<(error: NormalizedVoiceError) => void>();
@@ -141,6 +142,7 @@ export class NodeAudioOutput implements AudioOutputAdapter {
   constructor(private readonly options: NodeAudioOutputOptions = {}) {}
 
   async play(input: AudioPlaybackInput): Promise<void> {
+    for (const cb of [...this.playbackRequestedCbs]) cb();
     try {
       await this.options.sink?.(input);
     } catch (err) {
@@ -157,6 +159,17 @@ export class NodeAudioOutput implements AudioOutputAdapter {
 
   async stop(): Promise<void> {
     this.played = [];
+  }
+
+  /**
+   * Subscribe when an input is about to be passed to the configured sink.
+   *
+   * @param cb - Called once for every call to {@link NodeAudioOutput.play}.
+   * @returns Unsubscribe function.
+   */
+  onPlaybackRequested(cb: () => void): () => void {
+    this.playbackRequestedCbs.add(cb);
+    return () => this.playbackRequestedCbs.delete(cb);
   }
 
   onStart(cb: () => void): () => void {

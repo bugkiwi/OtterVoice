@@ -53,6 +53,20 @@ const runtime = createExpoRuntime({
 | `writePcmChunk` | 单段 PCM16 → 临时 WAV URI |
 | `writeAudioFile` / `deleteAudioFile` | 整段缓冲落盘与清理 |
 
+`createSound` 的状态桥接必须转发原生 `playing` 字段。播放生命周期提供两个不同信号：
+
+```ts
+runtime.audioOutput.onPlaybackRequested(() => {
+  // 已准备好音频，即将调用原生 play/playAsync；后续仍可能失败或取消。
+});
+runtime.audioOutput.onStart(() => {
+  // 原生 sound/playlist 首次报告 playing: true；暂停恢复不会重复触发。
+});
+```
+
+整段音频与流式 PCM 都遵循相同顺序：`onPlaybackRequested` → `onStart` →
+`onEnd`。如果播放在出声前失败或取消，只会收到第一个信号。
+
 助手播放期间可暂停编码采集，但保留音量回调，以便检测真实 barge-in。
 
 示例：[examples/react-native-expo](https://github.com/bugkiwi/OtterVoice/tree/main/examples/react-native-expo)。类型详情：[API 参考](/docs/reference/api/ottervoice-runtime-react-native/)。

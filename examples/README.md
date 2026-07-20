@@ -27,10 +27,12 @@ packages; none need API keys to start (cognition falls back to mocks).
   served by Bun (no Vite). A policy gateway owns prompts, models, voices, and
   spend controls; the browser sends only user content and transport data.
 - **web-audio-llm-only** — the minimal browser path: caption ASR plus one native
-  audio-in/audio-out model, with no text LLM or TTS provider.
+  audio-in/audio-out model, with no text LLM or TTS provider; caption ASR and
+  response generation start in parallel after the turn audio is finalized.
 - **react-native-expo** — a runnable full-duplex Audio LLM app with native PCM
-  capture, continuous VAD/barge-in, SSE chunk playback through AudioPlaylist,
-  Expo Go QR preview, and EAS simulator/APK build profiles.
+  capture, parallel final-caption/response requests, continuous VAD/barge-in,
+  SSE chunk playback through AudioPlaylist, Expo Go QR preview, and EAS
+  simulator/APK build profiles.
 - **token-broker** — an opt-in direct-provider pattern: clients fetch short-lived
   credentials instead of holding provider secrets. It is not a substitute for
   policy enforcement when a token cannot lock route/model/budget.

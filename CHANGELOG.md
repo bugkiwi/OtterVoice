@@ -3,6 +3,28 @@
 Notable changes to OtterVoice are documented here. Prerelease versions may
 still evolve, but compatibility notes call out any required migration.
 
+## Unreleased
+
+### Added
+
+- `AudioOutputAdapter.onPlaybackRequested` separates a platform playback
+  attempt from confirmed audible playback. All built-in runtimes and mocks
+  expose the callback.
+
+### Changed
+
+- React Native `onStart` now waits for the first native `playing: true` status
+  for both one-shot and PCM playlist output. Web uses the media `playing` event
+  for encoded audio and the first scheduled output time for PCM.
+- Official Web Audio LLM and Expo examples start caption ASR and Audio LLM
+  response generation in parallel with `audioLlmStartTiming: 'after_audio'`.
+
+### Compatibility
+
+- Custom React Native `ExpoSound` bridges must forward the native `playing`
+  field in `ExpoPlaybackStatus`. `onPlaybackRequested` is optional on the base
+  `AudioOutputAdapter`, so existing third-party runtimes remain source-compatible.
+
 ## 0.2.0-alpha.1 — 2026-07-16
 
 ### Added

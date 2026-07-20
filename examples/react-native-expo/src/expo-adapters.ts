@@ -106,7 +106,11 @@ export function useExpoAudioRuntime(): ExpoRuntime {
               setOnPlaybackStatusUpdate(cb) {
                 statusSubscription?.remove();
                 statusSubscription = player.addListener('playbackStatusUpdate', (status) =>
-                  cb({ didJustFinish: status.didJustFinish, error: status.error }),
+                  cb({
+                    playing: status.playing,
+                    didJustFinish: status.didJustFinish,
+                    error: status.error,
+                  }),
                 );
               },
             };

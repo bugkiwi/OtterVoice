@@ -132,9 +132,10 @@ function DemoScreen() {
     }
 
     const session = createVoiceSession({
-    mode: 'full_duplex',
-    pipeline: 'audio_llm',
-    asrPartial: false,
+      mode: 'full_duplex',
+      pipeline: 'audio_llm',
+      audioLlmStartTiming: 'after_audio',
+      asrPartial: false,
       runtime,
       providers,
       turnDetection: {

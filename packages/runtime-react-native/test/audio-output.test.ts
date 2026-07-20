@@ -15,7 +15,7 @@ function sound(opts: { failPlay?: boolean } = {}) {
   const s: ExpoSound & {
     unloaded: boolean;
     stopped: boolean;
-    update: (status: ExpoPlaybackStatus) => void;
+    update: (status: Partial<ExpoPlaybackStatus>) => void;
     finish: () => void;
   } = {
     unloaded: false,
@@ -33,10 +33,10 @@ function sound(opts: { failPlay?: boolean } = {}) {
       statusCb = cb;
     },
     update(status) {
-      statusCb?.(status);
+      statusCb?.({ playing: false, ...status });
     },
     finish() {
-      statusCb?.({ didJustFinish: true });
+      statusCb?.({ playing: false, didJustFinish: true });
     },
   };
   return s;
@@ -96,19 +96,24 @@ function pcmPlaylist() {
 }
 
 describe('ExpoAudioOutput.play', () => {
-  it('plays an audioUrl, firing start then end, and unloads', async () => {
+  it('separates a native playback request from confirmed start and end', async () => {
     const s = sound();
     const output = new ExpoAudioOutput({ createSound: async () => s });
     const events: string[] = [];
+    output.onPlaybackRequested(() => events.push('requested'));
     output.onStart(() => events.push('start'));
     output.onEnd(() => events.push('end'));
 
     const p = output.play({ audioUrl: 'file://a.mp3' });
     await tick();
+    expect(events).toEqual(['requested']);
+    s.update({ playing: true });
+    s.update({ playing: true });
+    expect(events).toEqual(['requested', 'start']);
     s.finish();
     await p;
 
-    expect(events).toEqual(['start', 'end']);
+    expect(events).toEqual(['requested', 'start', 'end']);
     expect(s.unloaded).toBe(true);
   });
 
@@ -148,11 +153,15 @@ describe('ExpoAudioOutput.play', () => {
     const s = sound({ failPlay: true });
     const output = new ExpoAudioOutput({ createSound: async () => s });
     const errors: NormalizedVoiceError[] = [];
+    const events: string[] = [];
     output.onError((e) => errors.push(e));
+    output.onPlaybackRequested(() => events.push('requested'));
+    output.onStart(() => events.push('start'));
     await expect(output.play({ audioUrl: 'u' })).rejects.toMatchObject({
       code: 'audio_playback_failed',
     });
     expect(errors[0]?.code).toBe('audio_playback_failed');
+    expect(events).toEqual(['requested']);
     expect(s.unloaded).toBe(true);
   });
 });
@@ -173,6 +182,7 @@ describe('ExpoAudioOutput.stop', () => {
 
   it('supports unsubscribing listeners', () => {
     const output = new ExpoAudioOutput({ createSound: async () => sound() });
+    output.onPlaybackRequested(() => {})();
     output.onStart(() => {})();
     output.onEnd(() => {})();
     output.onError(() => {})();
@@ -197,6 +207,7 @@ describe('ExpoAudioOutput.startPcmStream', () => {
     });
     const events: string[] = [];
     const levels: number[] = [];
+    output.onPlaybackRequested(() => events.push('requested'));
     output.onStart(() => events.push('start'));
     output.onEnd(() => events.push('end'));
     output.onVolume((level) => levels.push(level));
@@ -211,9 +222,10 @@ describe('ExpoAudioOutput.startPcmStream', () => {
     await stream!.write(new Int16Array([8_192, -8_192]).buffer);
     expect(writes).toEqual([0, 1]);
     expect(playlist.sources).toEqual(['file://chunk-0.wav', 'file://chunk-1.wav']);
-    expect(events).toEqual(['start']);
+    expect(events).toEqual(['requested']);
 
-    playlist.update({ currentIndex: 0, currentTime: 0 });
+    playlist.update({ currentIndex: 0, currentTime: 0, playing: true });
+    expect(events).toEqual(['requested', 'start']);
     expect(levels[0]).toBeCloseTo(0.5, 3);
     const closing = stream!.close();
     await tick();
@@ -225,7 +237,7 @@ describe('ExpoAudioOutput.startPcmStream', () => {
     });
     await closing;
 
-    expect(events).toEqual(['start', 'end']);
+    expect(events).toEqual(['requested', 'start', 'end']);
     expect(playlist.destroyed).toBe(true);
     expect(deleted).toEqual(['file://chunk-0.wav', 'file://chunk-1.wav']);
   });

@@ -98,6 +98,7 @@ export interface MockAudioOutputOptions {
 
 /** In-memory audio output. Records what was "played". */
 export class MockAudioOutput implements AudioOutputAdapter {
+  private playbackRequestedCbs = new Set<() => void>();
   private startCbs = new Set<() => void>();
   private endCbs = new Set<() => void>();
   private errorCbs = new Set<(error: NormalizedVoiceError) => void>();
@@ -116,6 +117,7 @@ export class MockAudioOutput implements AudioOutputAdapter {
   }
 
   async play(input: AudioPlaybackInput): Promise<void> {
+    for (const cb of [...this.playbackRequestedCbs]) cb();
     if (this.failWith) {
       for (const cb of [...this.errorCbs]) cb(this.failWith);
       throw this.failWith;
@@ -158,6 +160,17 @@ export class MockAudioOutput implements AudioOutputAdapter {
   onVolume(cb: (level: number) => void): () => void {
     this.volumeCbs.add(cb);
     return () => this.volumeCbs.delete(cb);
+  }
+
+  /**
+   * Subscribe when mock playback is requested.
+   *
+   * @param cb - Called once for every call to {@link MockAudioOutput.play}.
+   * @returns Unsubscribe function.
+   */
+  onPlaybackRequested(cb: () => void): () => void {
+    this.playbackRequestedCbs.add(cb);
+    return () => this.playbackRequestedCbs.delete(cb);
   }
 
   onStart(cb: () => void): () => void {

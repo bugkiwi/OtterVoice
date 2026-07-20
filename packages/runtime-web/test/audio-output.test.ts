@@ -13,12 +13,14 @@ class FakeAudio implements AudioElementLike {
   volume = 1;
   paused = false;
   playCalls = 0;
+  autoPlaying = true;
   playImpl: () => Promise<void> = async () => {};
   private listeners: Record<string, Set<() => void>> = {};
-  play() {
+  async play() {
     this.playCalls += 1;
     this.paused = false;
-    return this.playImpl();
+    await this.playImpl();
+    if (this.autoPlaying) this.dispatch('playing');
   }
   pause() {
     this.paused = true;
@@ -178,19 +180,25 @@ describe('WebAudioOutput.play', () => {
     await playing;
   });
 
-  it('plays an audioUrl and fires start then end', async () => {
+  it('separates an element playback request from confirmed start and end', async () => {
     const fake = new FakeAudio();
+    fake.autoPlaying = false;
     const output = new WebAudioOutput({ createAudio: () => fake });
     const events: string[] = [];
+    output.onPlaybackRequested(() => events.push('requested'));
     output.onStart(() => events.push('start'));
     output.onEnd(() => events.push('end'));
 
     const p = output.play({ audioUrl: 'http://a.mp3', volume: 0.5 });
     await tick();
+    expect(events).toEqual(['requested']);
+    fake.dispatch('playing');
+    fake.dispatch('playing');
+    expect(events).toEqual(['requested', 'start']);
     fake.dispatch('ended');
     await p;
 
-    expect(events).toEqual(['start', 'end']);
+    expect(events).toEqual(['requested', 'start', 'end']);
     expect(fake.src).toBe('http://a.mp3');
     expect(fake.volume).toBe(0.5);
   });
@@ -250,13 +258,16 @@ describe('WebAudioOutput.play', () => {
     fake.playImpl = () => Promise.reject(new Error('blocked'));
     const output = new WebAudioOutput({ createAudio: () => fake });
     const errors: NormalizedVoiceError[] = [];
+    const requests: number[] = [];
     const starts: number[] = [];
     output.onError((e) => errors.push(e));
+    output.onPlaybackRequested(() => requests.push(1));
     output.onStart(() => starts.push(1));
     await expect(output.play({ audioUrl: 'u' })).rejects.toMatchObject({
       code: 'audio_playback_failed',
     });
     expect(errors).toHaveLength(1);
+    expect(requests).toHaveLength(1);
     expect(starts).toHaveLength(0); // start never fires on failure
   });
 });
@@ -287,9 +298,11 @@ describe('WebAudioOutput.stop', () => {
 
   it('supports unsubscribing listeners', async () => {
     const output = new WebAudioOutput({ createAudio: () => new FakeAudio() });
+    const offRequested = output.onPlaybackRequested(() => {});
     const offS = output.onStart(() => {});
     const offE = output.onEnd(() => {});
     const offErr = output.onError(() => {});
+    offRequested();
     offS();
     offE();
     offErr();
@@ -305,6 +318,7 @@ describe('WebAudioOutput.startPcmStream', () => {
       createPcmAudioContext: () => context,
     });
     const events: string[] = [];
+    output.onPlaybackRequested(() => events.push('requested'));
     output.onStart(() => events.push('start'));
     output.onEnd(() => events.push('end'));
     const stream = await output.startPcmStream({
@@ -318,7 +332,7 @@ describe('WebAudioOutput.startPcmStream', () => {
     await stream.write(first.buffer.slice(0));
     await stream.write(second.buffer.slice(0));
 
-    expect(events).toEqual(['start']);
+    expect(events).toEqual(['requested']);
     expect(context.sources).toHaveLength(2);
     expect(context.sources[1]?.startAt).toBeCloseTo(
       (context.sources[0]?.startAt ?? 0) + 0.004,
@@ -328,11 +342,14 @@ describe('WebAudioOutput.startPcmStream', () => {
     expect(samples?.[0]).toBeCloseTo(0.5, 4);
     expect(samples?.[1]).toBeCloseTo(-0.5, 4);
 
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(events).toEqual(['requested', 'start']);
+
     const closing = stream.close();
     context.sources[0]?.fireEnded();
     context.sources[1]?.fireEnded();
     await closing;
-    expect(events).toEqual(['start', 'end']);
+    expect(events).toEqual(['requested', 'start', 'end']);
   });
 
   it('pauses, resumes, and cancels queued PCM playback', async () => {
