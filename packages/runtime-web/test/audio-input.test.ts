@@ -218,6 +218,52 @@ describe('WebAudioInput lifecycle', () => {
     await input.stop();
   });
 
+  it('keeps the existing WebM header in a confirmed barge-in turn snapshot', async () => {
+    const { stream } = fakeStream();
+    let recorder!: FakeRecorder;
+    const input = new WebAudioInput({
+      getUserMedia: async () => stream,
+      mediaRecorder: class extends FakeRecorder {
+        constructor(s: MediaStreamLike, o?: { mimeType?: string }) {
+          super(s, o);
+          recorder = this;
+        }
+      },
+      mimeType: 'audio/webm;codecs=opus',
+      timesliceMs: 100,
+      bargeInPreRollMs: 200,
+    });
+    const chunks: AudioChunk[] = [];
+    input.onChunk((chunk) => chunks.push(chunk));
+    await input.start();
+
+    const webmHeader = [0x1a, 0x45, 0xdf, 0xa3];
+    recorder.dispatch('dataavailable', { data: blob(webmHeader) });
+    recorder.dispatch('dataavailable', { data: blob([1]) });
+    await tick();
+
+    // The next turn recorder is already running before assistant playback.
+    // Suspending delivery must retain its container header while discarding
+    // the pre-playback audio payload.
+    await input.suspendCapture();
+    recorder.dispatch('dataavailable', { data: blob([2]) });
+    recorder.dispatch('dataavailable', { data: blob([3]) });
+    await tick();
+    await input.resumeCapture({ includePreRoll: true });
+
+    recorder.dispatch('dataavailable', { data: blob([4]) });
+    await input.stop();
+
+    const turn = chunks.findLast((chunk) => chunk.delivery === 'turn');
+    expect(turn).toBeDefined();
+    expect([...new Uint8Array(turn!.data)]).toEqual([
+      ...webmHeader,
+      2,
+      3,
+      4,
+    ]);
+  });
+
   it('discards filtered playback audio when no barge-in was confirmed', async () => {
     const { stream } = fakeStream();
     const recorders: FakeRecorder[] = [];

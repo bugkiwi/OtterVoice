@@ -121,7 +121,7 @@ export class WebAudioInput implements AudioInputAdapter {
   private audioContext: AudioContextLike | undefined;
   private volumeTimer: ReturnType<typeof setInterval> | undefined;
   private captureSuspended = false;
-  private hasDeliveredChunk = false;
+  private recorderContainerHeader: AudioChunk | undefined;
   private suspendedContainerHeader: AudioChunk | undefined;
   private suspendedPreRoll: AudioChunk[] = [];
   private turnGeneration = 0;
@@ -149,7 +149,7 @@ export class WebAudioInput implements AudioInputAdapter {
 
   async start(options: AudioInputOptions = {}): Promise<void> {
     this.captureSuspended = false;
-    this.hasDeliveredChunk = false;
+    this.recorderContainerHeader = undefined;
     this.suspendedContainerHeader = undefined;
     this.suspendedPreRoll = [];
     this.turnGeneration += 1;
@@ -176,6 +176,7 @@ export class WebAudioInput implements AudioInputAdapter {
 
   private startRecorder(stream: MediaStreamLike): void {
     this.pendingData = Promise.resolve();
+    this.recorderContainerHeader = undefined;
     const recorder = this.options.mimeType
       ? new this.options.mediaRecorder(stream, { mimeType: this.options.mimeType })
       : new this.options.mediaRecorder(stream);
@@ -261,13 +262,20 @@ export class WebAudioInput implements AudioInputAdapter {
     const data = await blob.arrayBuffer();
     const chunk: AudioChunk = { data, timestamp: this.now() };
     if (this.options.mimeType !== undefined) chunk.encoding = this.options.mimeType;
+    const isContainerHeader = this.recorderContainerHeader === undefined;
+    if (isContainerHeader) {
+      this.recorderContainerHeader = {
+        ...chunk,
+        data: chunk.data.slice(0),
+      };
+    }
     if (capturedWhileSuspended) {
       // MediaRecorder.pause() drops the beginning of a barge-in because VAD
       // needs several foreground frames before it can confirm the user. Keep
       // recording, but withhold a bounded tail until the core decides whether
       // this was real speech or loudspeaker echo.
-      if (!this.hasDeliveredChunk && !this.suspendedContainerHeader) {
-        this.suspendedContainerHeader = chunk;
+      if (isContainerHeader) {
+        this.suspendedContainerHeader ??= this.recorderContainerHeader;
         return;
       }
       this.suspendedPreRoll.push(chunk);
@@ -303,6 +311,7 @@ export class WebAudioInput implements AudioInputAdapter {
       for (const track of stream.getTracks()) track.stop();
     }
     this.captureSuspended = false;
+    this.recorderContainerHeader = undefined;
     this.suspendedContainerHeader = undefined;
     this.suspendedPreRoll = [];
     this.turnChunks = [];
@@ -323,7 +332,12 @@ export class WebAudioInput implements AudioInputAdapter {
     this.captureSuspended = true;
     this.turnGeneration += 1;
     this.turnChunks = [];
-    this.suspendedContainerHeader = undefined;
+    this.suspendedContainerHeader = this.recorderContainerHeader
+      ? {
+          ...this.recorderContainerHeader,
+          data: this.recorderContainerHeader.data.slice(0),
+        }
+      : undefined;
     this.suspendedPreRoll = [];
   }
 
@@ -336,9 +350,9 @@ export class WebAudioInput implements AudioInputAdapter {
       // Finalize and discard the suspended recorder, then resume with a fresh,
       // independently decodable WebM container on the same microphone stream.
       await this.stopRecorder();
+      this.recorderContainerHeader = undefined;
       this.suspendedContainerHeader = undefined;
       this.suspendedPreRoll = [];
-      this.hasDeliveredChunk = false;
       this.turnGeneration += 1;
       this.turnChunks = [];
       this.captureSuspended = false;
@@ -347,8 +361,11 @@ export class WebAudioInput implements AudioInputAdapter {
     }
     // A confirmed barge-in keeps the current container header and bounded
     // pre-roll so the user's opening syllables are not lost.
+    await this.pendingData;
+    const containerHeader =
+      this.suspendedContainerHeader ?? this.recorderContainerHeader;
     const buffered = [
-      ...(this.suspendedContainerHeader ? [this.suspendedContainerHeader] : []),
+      ...(containerHeader ? [containerHeader] : []),
       ...this.suspendedPreRoll,
     ];
     this.turnGeneration += 1;
@@ -392,7 +409,6 @@ export class WebAudioInput implements AudioInputAdapter {
   }
 
   private emitChunk(chunk: AudioChunk): void {
-    this.hasDeliveredChunk = true;
     for (const cb of [...this.chunkCbs]) cb(chunk);
   }
 
