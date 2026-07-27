@@ -41,8 +41,8 @@ const handleVoice = createOpenRouterGateway({
 });
 ```
 
-Mount `handleVoice` at `/api/voice/*`. The built-in routes are profile-specific;
-an omitted profile is disabled.
+Mount `handleVoice` at `/api/voice/*`. The four built-in profiles are `asr`,
+`llm`, `tts`, and `audio-llm`; an omitted profile is disabled.
 
 Direct factories such as `createOpenRouterLLM()` remain available for trusted
 Node/server/CLI runtimes. Do not return a broad OpenRouter bearer token to a

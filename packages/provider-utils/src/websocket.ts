@@ -70,6 +70,11 @@ export interface WebSocketASRConfig {
   decode: (data: string) => ASRDecodeResult | undefined;
   /** Optional message sent on `stop()` to flush the stream. */
   finishMessage?: string;
+  /**
+   * Maximum time for `stop()` to await a final frame after flushing.
+   * Defaults to zero for protocols whose finish operation is synchronous.
+   */
+  stopTimeoutMs?: number;
 }
 
 /**
@@ -89,6 +94,13 @@ export function createWebSocketASRSession(config: WebSocketASRConfig): ASRSessio
   const queue: Array<string | ArrayBufferLike | ArrayBufferView> = [];
   let opened = false;
   let closed = false;
+  let finalCount = 0;
+  const stopWaiters = new Set<() => void>();
+
+  const resolveStopWaiters = () => {
+    for (const resolve of [...stopWaiters]) resolve();
+    stopWaiters.clear();
+  };
 
   const emitError = (error: NormalizedVoiceError) => {
     for (const cb of [...errorCbs]) cb(error);
@@ -109,7 +121,11 @@ export function createWebSocketASRSession(config: WebSocketASRConfig): ASRSessio
     if (!result) return;
     if (result.error) emitError(result.error);
     if (result.partial) for (const cb of [...partialCbs]) cb(result.partial);
-    if (result.final) for (const cb of [...finalCbs]) cb(result.final);
+    if (result.final) {
+      finalCount += 1;
+      for (const cb of [...finalCbs]) cb(result.final);
+    }
+    if (result.final) resolveStopWaiters();
   });
 
   ws.addEventListener('error', () => {
@@ -123,6 +139,7 @@ export function createWebSocketASRSession(config: WebSocketASRConfig): ASRSessio
 
   ws.addEventListener('close', () => {
     closed = true;
+    resolveStopWaiters();
   });
 
   return {
@@ -133,10 +150,29 @@ export function createWebSocketASRSession(config: WebSocketASRConfig): ASRSessio
       else queue.push(payload);
     },
     async stop(): Promise<void> {
-      if (finishMessage !== undefined && opened) ws.send(finishMessage);
+      if (finishMessage === undefined || !opened) return;
+      const alreadyFinal = finalCount > 0;
+      const timeoutMs = Math.max(0, config.stopTimeoutMs ?? 0);
+      if (alreadyFinal || timeoutMs === 0 || closed) {
+        ws.send(finishMessage);
+        return;
+      }
+      const completed = new Promise<void>((resolve) => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const finish = () => {
+          if (timer !== undefined) clearTimeout(timer);
+          stopWaiters.delete(finish);
+          resolve();
+        };
+        stopWaiters.add(finish);
+        timer = setTimeout(finish, timeoutMs);
+      });
+      ws.send(finishMessage);
+      await completed;
     },
     async close(): Promise<void> {
       closed = true;
+      resolveStopWaiters();
       ws.close();
     },
     onPartial(cb) {

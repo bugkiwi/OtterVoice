@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'bun:test';
-import { normalizeHttpError, readBody, resolveFetch } from '../src/http';
+import {
+  normalizeHttpError,
+  readBody,
+  resolveFetch,
+  streamPcm16Response,
+} from '../src/http';
 
 describe('resolveFetch', () => {
   it('returns the injected fetch', () => {
@@ -65,5 +70,22 @@ describe('readBody', () => {
   it('returns empty string when the body cannot be read', async () => {
     const broken = { text: async () => { throw new Error('no body'); } } as Response;
     expect(await readBody(broken)).toBe('');
+  });
+});
+
+describe('streamPcm16Response', () => {
+  it('carries a split sample byte across arbitrary HTTP chunks', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1, 2, 3]));
+        controller.enqueue(new Uint8Array([4, 5, 6]));
+        controller.close();
+      },
+    });
+    const chunks = [];
+    for await (const chunk of streamPcm16Response(new Response(body))) {
+      chunks.push([...new Uint8Array(chunk)]);
+    }
+    expect(chunks).toEqual([[1, 2], [3, 4, 5, 6]]);
   });
 });

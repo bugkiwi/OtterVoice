@@ -15,7 +15,10 @@ export {
   DEFAULT_TURN_DETECTION,
   resolveTurnDetection,
 } from './turn-detector.js';
-export type { TurnDetectorEvent } from './turn-detector.js';
+export type {
+  ResolvedTurnDetectionConfig,
+  TurnDetectorEvent,
+} from './turn-detector.js';
 export { UsageMeter } from './usage-meter.js';
 export { BargeInSpeechGate, PlaybackEchoFilter } from './playback-echo-filter.js';
 export type {

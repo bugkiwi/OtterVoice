@@ -113,3 +113,47 @@ export async function readBody(res: Response): Promise<string> {
     return '';
   }
 }
+
+/**
+ * Read a streaming HTTP response as frame-aligned signed 16-bit PCM blocks.
+ * Fetch chunk boundaries are arbitrary and can split a two-byte sample; this
+ * helper carries that byte into the next block so playback never drops it.
+ *
+ * @param res - Successful response containing headerless PCM16 audio.
+ * @returns Contiguous even-length PCM byte blocks in response order.
+ */
+export async function* streamPcm16Response(
+  res: Response,
+): AsyncIterable<ArrayBuffer> {
+  if (!res.body) {
+    const data = new Uint8Array(await res.arrayBuffer());
+    const length = data.byteLength - (data.byteLength % 2);
+    if (length > 0) yield data.buffer.slice(data.byteOffset, data.byteOffset + length);
+    return;
+  }
+  const reader = res.body.getReader();
+  let carry: number | undefined;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value || value.byteLength === 0) continue;
+      let joined = value;
+      if (carry !== undefined) {
+        joined = new Uint8Array(value.byteLength + 1);
+        joined[0] = carry;
+        joined.set(value, 1);
+      }
+      const length = joined.byteLength - (joined.byteLength % 2);
+      carry = length < joined.byteLength ? joined[joined.byteLength - 1] : undefined;
+      if (length > 0) {
+        yield joined.buffer.slice(
+          joined.byteOffset,
+          joined.byteOffset + length,
+        ) as ArrayBuffer;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}

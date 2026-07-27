@@ -6,6 +6,7 @@ import { TurnDetector } from './turn-detector.js';
 import { UsageMeter } from './usage-meter.js';
 import { BargeInSpeechGate, PlaybackEchoFilter } from './playback-echo-filter.js';
 import { createIdGenerator, defaultNow } from './internal/ids.js';
+import { SpeechTextSegmenter } from './internal/speech-text-segmenter.js';
 import type {
   AudioLLMAudioChunk,
   AudioLLMInputFormat,
@@ -16,6 +17,8 @@ import type {
   ASRSession,
   LLMMessage,
   NormalizedVoiceError,
+  TTSAudioChunk,
+  TTSOutput,
   VoiceSessionConfig,
   VoiceSessionEventMap,
   VoiceSessionState,
@@ -40,7 +43,7 @@ interface TurnCapture {
   audioDurationMs: number;
   asrContainerHeaderForwarded: boolean;
   ended: boolean;
-  finalResult?: ASRResult;
+  finalResults: ASRResult[];
   processingScheduled: boolean;
   interruptedAssistant: boolean;
   interimResultsGated: boolean;
@@ -276,7 +279,6 @@ export class VoiceSession {
           ? { language: this.config.language }
           : {}),
         interimResults: this.config.asrPartial !== false,
-        endpointing: true,
         sampleRate: 16_000,
         channels: 1,
         encoding: 'pcm_s16le',
@@ -303,6 +305,7 @@ export class VoiceSession {
       audioDurationMs: 0,
       asrContainerHeaderForwarded: false,
       ended: false,
+      finalResults: [],
       processingScheduled: false,
       interruptedAssistant: false,
       interimResultsGated:
@@ -361,24 +364,33 @@ export class VoiceSession {
         const turnOnly = chunk.delivery === 'turn';
         const startsNewWebmContainer = this.isWebmContainerHeader(chunk.data);
         if (!streamOnly && chunk.data.byteLength > 0) {
-          // Web runtimes may restart MediaRecorder after assistant playback so
-          // Android receives a fresh container instead of a WebM timeline with
-          // dropped clusters. A new EBML header supersedes the preserved header
-          // and any pre-playback bytes already buffered for this capture.
-          if (
-            startsNewWebmContainer &&
-            capture.audioChunks.length > 0
-          ) {
-            capture.audioChunks = [];
-            capture.audioDurationMs = 0;
+          if (turnOnly) {
+            // A runtime-provided complete turn is authoritative. Replace any
+            // legacy/default chunks so Audio LLM and persistence consume one
+            // immutable recording rather than a buffer affected by ASR resets.
+            capture.audioChunks = [chunk.data.slice(0)];
+            capture.audioDurationMs = chunk.durationMs ?? 0;
             capture.asrContainerHeaderForwarded = false;
+          } else {
+            // Web runtimes may restart MediaRecorder after assistant playback so
+            // Android receives a fresh container instead of a WebM timeline with
+            // dropped clusters. A new EBML header supersedes the preserved header
+            // and any pre-playback bytes already buffered for this capture.
+            if (
+              startsNewWebmContainer &&
+              capture.audioChunks.length > 0
+            ) {
+              capture.audioChunks = [];
+              capture.audioDurationMs = 0;
+              capture.asrContainerHeaderForwarded = false;
+            }
+            capture.audioChunks.push(chunk.data.slice(0));
+            if (chunk.durationMs !== undefined) {
+              capture.audioDurationMs += chunk.durationMs;
+            }
           }
-          capture.audioChunks.push(chunk.data.slice(0));
           capture.audioFormat ??= this.audioLlmFormat(chunk.encoding);
           capture.recordingFormat ??= chunk.encoding ?? capture.audioFormat;
-          if (chunk.durationMs !== undefined) {
-            capture.audioDurationMs += chunk.durationMs;
-          }
         }
         const isWebmHeader =
           !capture.asrContainerHeaderForwarded &&
@@ -388,11 +400,11 @@ export class VoiceSession {
         // the first chunk. Preserve that one chunk for batch ASR even while
         // assistant playback is being filtered; later assistant chunks remain
         // suppressed so the model does not transcribe loudspeaker echo.
-        const streamingAsr = this.config.providers.asr.capabilities.streaming;
+        const asrCapabilities = this.config.providers.asr.capabilities;
         const matchesAsrMode = streamOnly
-          ? streamingAsr
+          ? asrCapabilities.streaming
           : turnOnly
-            ? !streamingAsr
+            ? asrCapabilities.batch
             : true;
         if (!matchesAsrMode) return;
         if (!this.shouldForwardAsrAudio() && !isWebmHeader) return;
@@ -517,6 +529,7 @@ export class VoiceSession {
   private async speakAssistant(
     text: string,
     turnId = this.generateId(),
+    signal?: AbortSignal,
   ): Promise<void> {
     const generation = ++this.speakGeneration;
     if (
@@ -547,7 +560,7 @@ export class VoiceSession {
       return;
     }
 
-    const audio = await tts.synthesize({ text, format: 'mp3' });
+    const audio = await tts.synthesize({ text, format: 'mp3', signal });
     if (generation !== this.speakGeneration || !this.isActive()) return;
     this.usage.addTtsChars(text.length);
 
@@ -584,11 +597,316 @@ export class VoiceSession {
     }
   }
 
+  private async generateAndSpeakAssistant(
+    lastUserText: string,
+    turnId: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const provider = this.config.providers.llm;
+    const tts = this.config.providers.tts;
+    if (this.config.agent || !provider?.stream || !tts) {
+      let reply: string;
+      try {
+        reply = await this.generateReply(lastUserText, turnId, signal);
+      } catch (error) {
+        throw new VoiceError(
+          normalizeError(error, 'llm_failed', provider?.name, 'provider'),
+        );
+      }
+      try {
+        await this.speakAssistant(reply, turnId, signal);
+      } catch (error) {
+        throw new VoiceError(
+          normalizeError(error, 'tts_failed', tts?.name, 'provider'),
+        );
+      }
+      return;
+    }
+
+    await this.streamAssistantToSpeech(turnId, signal);
+  }
+
+  private async streamAssistantToSpeech(
+    turnId: string,
+    parentSignal?: AbortSignal,
+  ): Promise<void> {
+    const provider = this.config.providers.llm!;
+    const stream = provider.stream!.bind(provider);
+    const tts = this.config.providers.tts!;
+    const startPcmStream = this.config.runtime.audioOutput.startPcmStream;
+    const useStreamingTts =
+      tts.capabilities.streaming &&
+      tts.stream !== undefined &&
+      startPcmStream !== undefined;
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    if (parentSignal?.aborted) controller.abort();
+    else parentSignal?.addEventListener('abort', abort, { once: true });
+
+    const generation = ++this.speakGeneration;
+    const segmenter = new SpeechTextSegmenter();
+    const audioSnapshot: ArrayBuffer[] = [];
+    let audioSnapshotMimeType: string | undefined;
+    let audioSnapshotUrl: string | undefined;
+    let audioSnapshotAvailable = true;
+    let fullText = '';
+    let playbackChain = Promise.resolve();
+    let playbackPrepared = false;
+    let audioStarted = false;
+    let pcmOutput: AudioOutputStream | undefined;
+    let pcmFormat: Pick<TTSAudioChunk, 'encoding' | 'sampleRate' | 'channels'> | undefined;
+
+    const active = () =>
+      !controller.signal.aborted &&
+      generation === this.speakGeneration &&
+      this.isActive();
+
+    const preparePlayback = async (): Promise<boolean> => {
+      if (!active()) return false;
+      if (
+        this.config.mode === 'full_duplex' &&
+        this.config.policy?.autoStartListening !== false &&
+        !this.asrSession
+      ) {
+        await this.startListening();
+      }
+      if (!active()) return false;
+      if (!playbackPrepared) {
+        this.activeAssistantText = fullText;
+        await this.prepareAssistantPlayback();
+        if (!active()) return false;
+        if (this.state !== 'assistant_speaking') this.transition('assistant_speaking');
+        playbackPrepared = true;
+        this.assistantPlaybackActive = true;
+      }
+      return true;
+    };
+
+    const markAudioStarted = () => {
+      if (audioStarted) return;
+      audioStarted = true;
+      this.emit('assistant_audio_start', { turnId });
+    };
+
+    const recordAudio = (data: ArrayBuffer, mimeType: string) => {
+      if (!audioSnapshotAvailable) return;
+      if (audioSnapshotUrl !== undefined) {
+        audioSnapshotAvailable = false;
+        audioSnapshotUrl = undefined;
+        return;
+      }
+      if (audioSnapshotMimeType !== undefined && audioSnapshotMimeType !== mimeType) {
+        audioSnapshotAvailable = false;
+        audioSnapshot.length = 0;
+        return;
+      }
+      audioSnapshotMimeType = mimeType;
+      audioSnapshot.push(data.slice(0));
+    };
+
+    const recordAudioUrl = (audioUrl: string, mimeType: string) => {
+      if (
+        !audioSnapshotAvailable ||
+        audioSnapshot.length > 0 ||
+        audioSnapshotUrl !== undefined
+      ) {
+        audioSnapshotAvailable = false;
+        audioSnapshotUrl = undefined;
+        return;
+      }
+      audioSnapshotUrl = audioUrl;
+      audioSnapshotMimeType = mimeType;
+    };
+
+    const playStreamedSegment = async (text: string): Promise<void> => {
+      if (!active()) return;
+      this.usage.addTtsChars(text.length);
+      try {
+        for await (const chunk of tts.stream!({
+          text,
+          format: 'pcm',
+          signal: controller.signal,
+        })) {
+          if (!active()) return;
+          if (!pcmOutput) {
+            if (!(await preparePlayback()) || !active()) return;
+            pcmFormat = {
+              encoding: chunk.encoding,
+              sampleRate: chunk.sampleRate,
+              channels: chunk.channels,
+            };
+            pcmOutput = await startPcmStream!.call(
+              this.config.runtime.audioOutput,
+              pcmFormat,
+            );
+            if (!active()) return;
+            markAudioStarted();
+          } else if (
+            pcmFormat?.encoding !== chunk.encoding ||
+            pcmFormat.sampleRate !== chunk.sampleRate ||
+            pcmFormat.channels !== chunk.channels
+          ) {
+            throw new VoiceError({
+              code: 'tts_failed',
+              message: 'TTS stream changed PCM format mid-utterance',
+              provider: tts.name,
+              stage: 'provider',
+              retryable: false,
+            });
+          }
+          recordAudio(
+            chunk.data,
+            `audio/pcm;rate=${chunk.sampleRate};channels=${chunk.channels}`,
+          );
+          await pcmOutput.write(chunk.data);
+        }
+      } catch (error) {
+        throw new VoiceError(
+          normalizeError(error, 'tts_failed', tts.name, 'provider'),
+        );
+      }
+    };
+
+    const playBufferedSegment = async (text: string): Promise<void> => {
+      if (!active()) return;
+      let audio: TTSOutput;
+      try {
+        audio = await tts.synthesize({
+          text,
+          format: 'mp3',
+          signal: controller.signal,
+        });
+      } catch (error) {
+        throw new VoiceError(
+          normalizeError(error, 'tts_failed', tts.name, 'provider'),
+        );
+      }
+      this.usage.addTtsChars(text.length);
+      if (!active() || !(await preparePlayback()) || !active()) return;
+      markAudioStarted();
+      if (audio.audioBuffer !== undefined) {
+        recordAudio(audio.audioBuffer, audio.mimeType);
+      } else if (audio.audioUrl !== undefined) {
+        recordAudioUrl(audio.audioUrl, audio.mimeType);
+      } else {
+        audioSnapshotAvailable = false;
+        audioSnapshot.length = 0;
+      }
+      const playInput = audio.audioUrl !== undefined
+        ? { audioUrl: audio.audioUrl, mimeType: audio.mimeType }
+        : { audioBuffer: audio.audioBuffer, mimeType: audio.mimeType };
+      try {
+        await this.config.runtime.audioOutput.play(playInput);
+      } catch (error) {
+        throw new VoiceError(
+          normalizeError(error, 'tts_failed', undefined, 'playback'),
+        );
+      }
+    };
+
+    const enqueue = (segment: string) => {
+      playbackChain = playbackChain.then(() =>
+        useStreamingTts
+          ? playStreamedSegment(segment)
+          : playBufferedSegment(segment),
+      );
+      void playbackChain.catch(() => {});
+    };
+
+    try {
+      const input = {
+        messages: this.transcript.toMessages(),
+        signal: controller.signal,
+      };
+      try {
+        for await (const chunk of stream(input)) {
+          if (!active()) break;
+          if (chunk.type === 'text_delta' && chunk.text) {
+            fullText += chunk.text;
+            if (playbackPrepared) this.activeAssistantText = fullText;
+            this.emit('assistant_text_delta', {
+              delta: chunk.text,
+              text: fullText,
+              turnId,
+            });
+            for (const segment of segmenter.push(chunk.text)) enqueue(segment);
+          } else if (chunk.type === 'usage') {
+            this.usage.addLlmUsage(chunk.usage);
+          } else if (chunk.type === 'error' && chunk.error) {
+            throw new VoiceError(chunk.error);
+          }
+        }
+      } catch (error) {
+        throw new VoiceError(
+          normalizeError(error, 'llm_failed', provider.name, 'provider'),
+        );
+      }
+      for (const segment of segmenter.flush()) enqueue(segment);
+
+      const text = fullText.trim();
+      if (!active()) return;
+      this.transcript.add({ id: turnId, role: 'assistant', text });
+      this.emitTurnAdded();
+      this.emit('assistant_text', { text, turnId });
+      this.usage.addAssistantSpeechChars(text.length);
+      if (playbackPrepared) this.activeAssistantText = text;
+
+      await playbackChain;
+      if (!active()) return;
+      if (pcmOutput) await pcmOutput.close();
+      if (!active()) return;
+      if (
+        audioSnapshotAvailable &&
+        audioSnapshot.length > 0 &&
+        audioSnapshotMimeType !== undefined
+      ) {
+        this.emit('assistant_audio', {
+          turnId,
+          audio: this.joinAudioChunks(audioSnapshot),
+          mimeType: audioSnapshotMimeType,
+        });
+      } else if (
+        audioSnapshotAvailable &&
+        audioSnapshotUrl !== undefined &&
+        audioSnapshotMimeType !== undefined
+      ) {
+        this.emit('assistant_audio', {
+          turnId,
+          audioUrl: audioSnapshotUrl,
+          mimeType: audioSnapshotMimeType,
+        });
+      }
+      if (audioStarted) this.emit('assistant_audio_end', { turnId });
+      this.activeAssistantText = undefined;
+      if (
+        playbackPrepared &&
+        this.config.mode === 'full_duplex' &&
+        this.state === 'assistant_speaking'
+      ) {
+        await this.finishAssistantCapture();
+        this.transition('listening');
+      }
+    } catch (error) {
+      controller.abort();
+      if (generation === this.speakGeneration) {
+        this.speakGeneration += 1;
+        await this.safeStopAudioOutput();
+      }
+      throw error;
+    } finally {
+      parentSignal?.removeEventListener('abort', abort);
+      if (generation === this.speakGeneration) {
+        this.assistantPlaybackActive = false;
+      }
+    }
+  }
+
   // -- internal: ASR / turn detection ------------------------------------
 
   private onAsrPartial(result: ASRResult, capture: TurnCapture): void {
     if (this.activeCapture !== capture || capture.ended) return;
-    if (this.config.asrPartial === false || result.text.trim().length === 0) return;
+    if (result.text.trim().length === 0) return;
+    if (this.config.asrPartial === false) return;
     if (this.state === 'assistant_speaking') {
       if (
         this.tentativeInterruptionStartedAt === undefined ||
@@ -606,7 +924,7 @@ export class VoiceSession {
     ) {
       // Hybrid detection lets ASR rescue quiet speech that never crosses the
       // local RMS threshold. Once text confirms speech, local silence still
-      // closes the turn without waiting for provider endpointing.
+      // closes the turn.
       this.detector.forceSpeechStart(this.now());
     }
     this.beginUserSpeech();
@@ -620,7 +938,6 @@ export class VoiceSession {
   }
 
   private onAsrFinal(result: ASRResult, capture: TurnCapture): void {
-    if (capture.finalResult) return;
     if (this.activeCapture === capture && this.state === 'assistant_speaking') {
       if (
         this.tentativeInterruptionStartedAt === undefined ||
@@ -631,7 +948,7 @@ export class VoiceSession {
       this.confirmInterruption(this.now());
     }
     if (result.text.trim().length > 0) capture.verifiedSpeechText = true;
-    capture.finalResult = result;
+    capture.finalResults.push(result);
     if (this.activeCapture !== capture || capture.ended) return;
     this.beginUserSpeech();
     void this.finalizeCapture(capture);
@@ -688,7 +1005,7 @@ export class VoiceSession {
       this.beginUserSpeech();
       return;
     }
-    // speech_end | max_turn → flush ASR for endpointing.
+    // speech_end | max_turn -> stop capture and flush ASR.
     this.interruptionTurnActive = false;
     this.bargeInSpeechGate.reset();
     this.shortInterruptionGate.reset();
@@ -787,7 +1104,7 @@ export class VoiceSession {
         await capture.nextCaptureReady;
         await this.processFinalizedCapture(
           capture,
-          capture.finalResult ?? { text: '' },
+          this.combineAsrResults(capture.finalResults),
         );
       } catch (err) {
         if (
@@ -1151,24 +1468,16 @@ export class VoiceSession {
       }
     } else {
       const assistantTurnId = this.generateId();
-      const replyPromise = this.generateReply(text, assistantTurnId);
+      const replyPromise = this.generateAndSpeakAssistant(text, assistantTurnId);
       void replyPromise.catch(() => {});
       await nextCaptureReady;
-      let reply: string;
       try {
-        reply = await replyPromise;
+        await replyPromise;
       } catch (err) {
-        this.fail(err, 'llm_failed', 'provider', this.config.providers.llm?.name);
+        this.fail(err);
         return;
       }
       if (turnGen !== this.turnGeneration || !this.isActive()) return;
-
-      try {
-        await this.speakAssistant(reply, assistantTurnId);
-      } catch (err) {
-        this.fail(err, 'tts_failed', 'provider', this.config.providers.tts?.name);
-        return;
-      }
     }
     if (turnGen !== this.turnGeneration || !this.isActive()) return;
 
@@ -1278,17 +1587,16 @@ export class VoiceSession {
       capture.replyAbort = new AbortController();
       const outcome = await this.waitForCaptureReply(
         capture,
-        this.generateReply(text, assistantTurnId, capture.replyAbort.signal),
+        this.generateAndSpeakAssistant(
+          text,
+          assistantTurnId,
+          capture.replyAbort.signal,
+        ),
       );
       if (outcome.kind === 'cancelled') return;
       if (outcome.kind === 'error') {
         if (generation === this.turnGeneration && this.isActive()) {
-          this.fail(
-            outcome.error,
-            'llm_failed',
-            'provider',
-            this.config.providers.llm?.name,
-          );
+          this.fail(outcome.error);
         }
         return;
       }
@@ -1297,12 +1605,6 @@ export class VoiceSession {
         generation !== this.turnGeneration ||
         !this.isActive()
       ) {
-        return;
-      }
-      try {
-        await this.speakAssistant(outcome.value, assistantTurnId);
-      } catch (err) {
-        this.fail(err, 'tts_failed', 'provider', this.config.providers.tts?.name);
         return;
       }
     }
@@ -1699,6 +2001,39 @@ export class VoiceSession {
       offset += chunk.byteLength;
     }
     return joined.buffer;
+  }
+
+  private combineAsrResults(results: readonly ASRResult[]): ASRResult {
+    if (results.length === 0) return { text: '' };
+    if (results.length === 1) return results[0]!;
+    const text = results
+      .map((result) => result.text.trim())
+      .filter((segment) => segment.length > 0)
+      .reduce((joined, segment) => {
+        if (joined.length === 0) return segment;
+        const needsSpace = /[\p{Letter}\p{Number}]$/u.test(joined) &&
+          /^[\p{Letter}\p{Number}]/u.test(segment) &&
+          !/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]$/u.test(joined) &&
+          !/^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(segment);
+        return `${joined}${needsSpace ? ' ' : ''}${segment}`;
+      }, '');
+    const confidenceValues = results
+      .map((result) => result.confidence)
+      .filter((value): value is number => value !== undefined);
+    const words = results.flatMap((result) => result.words ?? []);
+    return {
+      text,
+      ...(confidenceValues.length > 0
+        ? {
+            confidence: confidenceValues.reduce((sum, value) => sum + value, 0) /
+              confidenceValues.length,
+          }
+        : {}),
+      ...(results[0]?.startMs !== undefined ? { startMs: results[0].startMs } : {}),
+      ...(results.at(-1)?.endMs !== undefined ? { endMs: results.at(-1)!.endMs } : {}),
+      ...(words.length > 0 ? { words } : {}),
+      raw: results.map((result) => result.raw),
+    };
   }
 
   private async waitForRetry(

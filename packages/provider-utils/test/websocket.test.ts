@@ -34,13 +34,14 @@ const decodeJson = (data: string): ASRDecodeResult | undefined => {
   return undefined;
 };
 
-function session(ws: FakeWS, finishMessage?: string) {
+function session(ws: FakeWS, finishMessage?: string, stopTimeoutMs?: number) {
   return createWebSocketASRSession({
     ws,
     provider: 'test',
     encodeAudio: (chunk) => chunk,
     decode: decodeJson,
     ...(finishMessage !== undefined ? { finishMessage } : {}),
+    ...(stopTimeoutMs !== undefined ? { stopTimeoutMs } : {}),
   });
 }
 
@@ -112,6 +113,21 @@ describe('createWebSocketASRSession', () => {
     ws.dispatch('open');
     await s.stop();
     expect(ws.sent).toHaveLength(0);
+  });
+
+  it('can wait for the flushed final before stop resolves', async () => {
+    const ws = new FakeWS();
+    const s = session(ws, 'FLUSH', 1_000);
+    ws.dispatch('open');
+    let stopped = false;
+    const stopping = s.stop().then(() => {
+      stopped = true;
+    });
+    await Promise.resolve();
+    expect(stopped).toBe(false);
+    ws.dispatch('message', { data: JSON.stringify({ kind: 'final', text: 'tail' }) });
+    await stopping;
+    expect(stopped).toBe(true);
   });
 
   it('stops sending after close and supports unsubscribe', async () => {

@@ -51,11 +51,21 @@ describe('createElevenLabsASR', () => {
     session.onFinal((r) => finals.push(r));
     ws.dispatch('open');
     session.sendAudio(new ArrayBuffer(4));
-    ws.dispatch('message', { data: JSON.stringify({ text: 'hi', is_final: true }) });
+    ws.dispatch('message', {
+      data: JSON.stringify({ message_type: 'committed_transcript', text: 'hi' }),
+    });
     expect(finals[0]?.text).toBe('hi');
 
     await session.stop();
-    expect(ws.sent).toContainEqual(JSON.stringify({ type: 'flush' }));
+    expect(ws.sent).toContainEqual(JSON.stringify({
+      message_type: 'input_audio_chunk',
+      audio_base_64: 'AAAAAA==',
+    }));
+    expect(ws.sent).toContainEqual(JSON.stringify({
+      message_type: 'input_audio_chunk',
+      audio_base_64: '',
+      commit: true,
+    }));
   });
 
   it('uses a broker signed URL when provided', async () => {

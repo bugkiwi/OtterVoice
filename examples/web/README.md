@@ -48,13 +48,15 @@ across a filtered playback gap. Audio decode failures are reported without a
 client-side second provider path; production fallback and idempotency belong at
 the authenticated gateway.
 
-The Web controls expose two independent switches. **Live ASR captions** maps to
+The Web controls expose three independent switches. **Live ASR captions** maps to
 the core `asrPartial` session option and can remove rolling ASR requests while
 keeping final recognition. **Input / output text** only controls whether the
-transcript UI is visible. Live ASR captions default to off to avoid rolling ASR
-costs, while the transcript defaults to on. Both are remembered in
-`localStorage`; the ASR switch is locked while a session is active because it
-is part of session construction.
+transcript UI is visible. **Web search** is available only for the classic
+ASR → LLM → TTS pipeline; it selects a separate server route that adds one
+bounded OpenRouter web-search tool while keeping the model, prompt, and search
+budget out of the browser. Live ASR captions and web search default to off,
+while the transcript defaults to on. All three preferences are remembered in
+`localStorage`; provider-affecting switches are locked while a session is active.
 
 Barge-in is playback-aware: `runtime-web` derives a synchronized RMS envelope
 from the assistant audio, and core searches 0–300 ms of acoustic delay before
@@ -100,7 +102,7 @@ or microphone access.
   upstream request construction.
 
 The browser never receives `OPENROUTER_API_KEY` or privileged policy.
-`serve.ts` reads server configuration from `.env`; the client calls four
+`serve.ts` reads server configuration from `.env`; the client calls six
 profile-specific routes below `/api/voice`. The gateway rejects privileged
 client message roles, ignores unknown/top-level policy fields, and reconstructs
 the provider body from locked server policy. It also validates same-origin
@@ -112,7 +114,7 @@ ownership checks and durable cost/rate limits.
 
 - LLM: `deepseek/deepseek-v4-flash:nitro` with reasoning disabled
 - ASR: `qwen/qwen3-asr-flash-2026-02-10`
-- TTS: `hexgrad/kokoro-82m`, voice `zf_xiaoxiao`
+- TTS: `minimax/speech-2.8-turbo`, voice `zf_xiaoxiao`
 - Native audio LLM: `openai/gpt-audio-mini`, voice `alloy`
 
 Browser MediaRecorder produces WebM/Opus, while GPT Audio accepts WAV/MP3.
@@ -132,16 +134,17 @@ Current OpenRouter list prices:
 | --- | ---: |
 | Qwen3 ASR Flash | $0.000035 / audio second |
 | DeepSeek V4 Flash | $0.077 / 1M input tokens; $0.154 / 1M output tokens |
-| Kokoro 82M | $0.62 / 1M characters |
+| MiniMax Speech 2.8 Turbo | $60 / 1M characters |
 | GPT Audio Mini | $0.60 / 1M input tokens; $2.40 / 1M output tokens |
 
 Sources: [GPT Audio Mini](https://openrouter.ai/openai/gpt-audio-mini/pricing),
 [Qwen3 ASR Flash](https://openrouter.ai/qwen/qwen3-asr-flash-2026-02-10/pricing),
 [DeepSeek V4 Flash](https://openrouter.ai/deepseek/deepseek-v4-flash/pricing), and
-[Kokoro 82M](https://openrouter.ai/hexgrad/kokoro-82m/pricing).
+[MiniMax Speech 2.8 Turbo](https://openrouter.ai/minimax/speech-2.8-turbo/pricing).
 
 On the repository's 9.99-second fixed opening clip, OpenRouter billed 6 seconds
-of non-silent ASR audio. Three live runs produced these averages:
+of non-silent ASR audio. Before the MiniMax TTS switch, three live runs produced
+these historical averages:
 
 | Pipeline | Cost / turn | Full audio ready | Relative |
 | --- | ---: | ---: | ---: |
@@ -154,7 +157,8 @@ generation, so re-run the benchmark before using its latency in planning.
 This is a workload sample, not a universal quote: conversation history, reply
 length, provider load, and silence change both token usage and latency. The
 browser also displays per-mode rolling latency measured from VAD turn end to
-playback start.
+playback start. Each assistant row records first-text and first-audio latency,
+both measured from the matching `user_audio_end` event.
 
 Re-run the comparison with your own MP3:
 
@@ -167,10 +171,13 @@ microphone and VAD remain real-time, then the completed WebM turn is sent when
 silence is detected. The microphone remains open during TTS so barge-in still
 works.
 
-For low perceived latency, the proxy memory-caches repeated speech, the LLM uses
-OpenRouter's `:nitro` throughput routing with reasoning disabled, normal turns
-close after 1 second of silence, and batch ASR drops buffered assistant playback
-after every uninterrupted reply.
+For low perceived latency, the LLM uses OpenRouter's `:nitro` throughput routing
+with reasoning disabled and a 64-token spoken-answer ceiling. Local volume
+detection closes the user turn after 500 ms of silence. In the classic
+pipeline, the first complete LLM
+clause starts a MiniMax MP3 synthesis request while later text is still being
+generated. Batch ASR still drops buffered assistant playback after every
+uninterrupted reply. Repeated speech may use the gateway memory cache.
 
 ## Showcase deployment
 
@@ -180,7 +187,7 @@ for the live demo.
 
 - `docs/site/vercel.json`: clean-clone workspace install/build, site output,
   Singapore region (required for GPT Audio availability), and Function limits
-- `docs/site/api/voice/**`: four profile-specific deployed API Functions
+- `docs/site/api/voice/**`: six profile-specific deployed API Functions
 - `docs/site/build.ts`: showcase bundle plus a best-effort prebuilt opening voice
 
 Use `docs/site` as the Vercel project's Root Directory.

@@ -29,12 +29,27 @@ export interface ElevenLabsASROptions extends CredentialOptions, ElevenLabsQuery
 
 const PROVIDER = 'elevenlabs';
 
+function bytesToBase64(bytes: Uint8Array): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let output = '';
+  for (let index = 0; index < bytes.length; index += 3) {
+    const a = bytes[index] ?? 0;
+    const b = bytes[index + 1] ?? 0;
+    const c = bytes[index + 2] ?? 0;
+    const value = (a << 16) | (b << 8) | c;
+    output += alphabet[(value >> 18) & 63];
+    output += alphabet[(value >> 12) & 63];
+    output += index + 1 < bytes.length ? alphabet[(value >> 6) & 63] : '=';
+    output += index + 2 < bytes.length ? alphabet[value & 63] : '=';
+  }
+  return output;
+}
+
 const CAPABILITIES: ASRCapabilities = {
   streaming: true,
   batch: false,
   partialResults: true,
   confidence: true,
-  endpointing: true,
   languages: [],
 };
 
@@ -63,9 +78,17 @@ export function createElevenLabsASR(options: ElevenLabsASROptions): ASRProvider 
       return createWebSocketASRSession({
         ws,
         provider: PROVIDER,
-        encodeAudio: (chunk) => chunk,
+        encodeAudio: (chunk) => JSON.stringify({
+          message_type: 'input_audio_chunk',
+          audio_base_64: bytesToBase64(new Uint8Array(chunk)),
+        }),
         decode: decodeElevenLabs,
-        finishMessage: JSON.stringify({ type: 'flush' }),
+        finishMessage: JSON.stringify({
+          message_type: 'input_audio_chunk',
+          audio_base_64: '',
+          commit: true,
+        }),
+        stopTimeoutMs: 1_500,
       });
     },
   };

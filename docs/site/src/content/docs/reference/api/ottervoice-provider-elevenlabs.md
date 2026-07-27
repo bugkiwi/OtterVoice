@@ -52,7 +52,7 @@ MIT
 
 ### ElevenLabsASROptions
 
-Defined in: [provider-elevenlabs/src/index.ts:23](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/provider-elevenlabs/src/index.ts#L23)
+Defined in: [provider-elevenlabs/src/index.ts:23](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-elevenlabs/src/index.ts#L23)
 
 Options for [createElevenLabsASR](/docs/reference/api/ottervoice-provider-elevenlabs/#createelevenlabsasr). Extends [CredentialOptions](/docs/reference/api/ottervoice-provider-utils/#credentialoptions) and
 [ElevenLabsQueryOptions](/docs/reference/api/ottervoice-provider-elevenlabs/#elevenlabsqueryoptions). Direct-client broker use is appropriate only
@@ -67,22 +67,22 @@ for a short-lived scoped credential or a server-locked signed URL.
 | Property | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
 | <a id="apikey"></a> `apiKey?` | `string` | A long-lived key (server-side only — never ship to clients). | [`CredentialOptions`](/docs/reference/api/ottervoice-provider-utils/#credentialoptions).[`apiKey`](/docs/reference/api/ottervoice-provider-utils/#apikey) | provider-utils/dist/credential.d.ts:37 |
-| <a id="baseurl"></a> `baseUrl?` | `string` | Override the realtime listen endpoint. | - | [provider-elevenlabs/src/index.ts:25](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/provider-elevenlabs/src/index.ts#L25) |
+| <a id="baseurl"></a> `baseUrl?` | `string` | Override the realtime listen endpoint. | - | [provider-elevenlabs/src/index.ts:25](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-elevenlabs/src/index.ts#L25) |
 | <a id="fetch"></a> `fetch?` | [`FetchLike`](/docs/reference/api/ottervoice-provider-utils/#fetchlike) | Custom `fetch` implementation (tests / React Native polyfills). | [`CredentialOptions`](/docs/reference/api/ottervoice-provider-utils/#credentialoptions).[`fetch`](/docs/reference/api/ottervoice-provider-utils/#fetch) | provider-utils/dist/credential.d.ts:50 |
-| <a id="language"></a> `language?` | `string` | BCP-47 language code; overridden by [ASRSessionOptions.language](/docs/reference/api/ottervoice-core/#language) when set. | [`ElevenLabsQueryOptions`](/docs/reference/api/ottervoice-provider-elevenlabs/#elevenlabsqueryoptions).[`language`](/docs/reference/api/ottervoice-provider-elevenlabs/#language-1) | [provider-elevenlabs/src/decode.ts:16](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/provider-elevenlabs/src/decode.ts#L16) |
-| <a id="modelid"></a> `modelId?` | `string` | ElevenLabs STT model id (e.g. `scribe_v2_realtime`). | [`ElevenLabsQueryOptions`](/docs/reference/api/ottervoice-provider-elevenlabs/#elevenlabsqueryoptions).[`modelId`](/docs/reference/api/ottervoice-provider-elevenlabs/#modelid-1) | [provider-elevenlabs/src/decode.ts:14](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/provider-elevenlabs/src/decode.ts#L14) |
+| <a id="language"></a> `language?` | `string` | BCP-47 language code; overridden by [ASRSessionOptions.language](/docs/reference/api/ottervoice-core/#language) when set. | [`ElevenLabsQueryOptions`](/docs/reference/api/ottervoice-provider-elevenlabs/#elevenlabsqueryoptions).[`language`](/docs/reference/api/ottervoice-provider-elevenlabs/#language-1) | [provider-elevenlabs/src/decode.ts:16](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-elevenlabs/src/decode.ts#L16) |
+| <a id="modelid"></a> `modelId?` | `string` | ElevenLabs STT model id (e.g. `scribe_v2_realtime`). | [`ElevenLabsQueryOptions`](/docs/reference/api/ottervoice-provider-elevenlabs/#elevenlabsqueryoptions).[`modelId`](/docs/reference/api/ottervoice-provider-elevenlabs/#modelid-1) | [provider-elevenlabs/src/decode.ts:14](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-elevenlabs/src/decode.ts#L14) |
 | <a id="now"></a> `now?` | () => `number` | Clock override for deterministic expiry checks in tests. | [`CredentialOptions`](/docs/reference/api/ottervoice-provider-utils/#credentialoptions).[`now`](/docs/reference/api/ottervoice-provider-utils/#now) | provider-utils/dist/credential.d.ts:52 |
 | <a id="tokenbrokercredentials"></a> `tokenBrokerCredentials?` | `RequestCredentials` | Browser credential mode for the broker request. Use `include` for a cross-origin cookie session. | [`CredentialOptions`](/docs/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerCredentials`](/docs/reference/api/ottervoice-provider-utils/#tokenbrokercredentials) | provider-utils/dist/credential.d.ts:48 |
 | <a id="tokenbrokerheaders"></a> `tokenBrokerHeaders?` | `Readonly`\<`Record`\<`string`, `string`\>\> | Application-authentication headers sent only to the token broker, such as a short-lived user session bearer token. Use browser-compatible characters. | [`CredentialOptions`](/docs/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerHeaders`](/docs/reference/api/ottervoice-provider-utils/#tokenbrokerheaders) | provider-utils/dist/credential.d.ts:44 |
 | <a id="tokenbrokersessionid"></a> `tokenBrokerSessionId?` | `string` | Application voice-session id sent to the broker for ownership checks, audit, and quotas. | [`CredentialOptions`](/docs/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerSessionId`](/docs/reference/api/ottervoice-provider-utils/#tokenbrokersessionid) | provider-utils/dist/credential.d.ts:46 |
 | <a id="tokenbrokerurl"></a> `tokenBrokerUrl?` | `string` | Endpoint that mints short-lived, least-privilege tokens; broad provider bearer tokens are not client-safe. | [`CredentialOptions`](/docs/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerUrl`](/docs/reference/api/ottervoice-provider-utils/#tokenbrokerurl) | provider-utils/dist/credential.d.ts:39 |
-| <a id="websocket"></a> `webSocket?` | [`WebSocketCtor`](/docs/reference/api/ottervoice-provider-utils/#websocketctor) | Inject a WebSocket constructor (defaults to the global). | - | [provider-elevenlabs/src/index.ts:27](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/provider-elevenlabs/src/index.ts#L27) |
+| <a id="websocket"></a> `webSocket?` | [`WebSocketCtor`](/docs/reference/api/ottervoice-provider-utils/#websocketctor) | Inject a WebSocket constructor (defaults to the global). | - | [provider-elevenlabs/src/index.ts:27](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-elevenlabs/src/index.ts#L27) |
 
 ***
 
 ### ElevenLabsQueryOptions
 
-Defined in: [provider-elevenlabs/src/decode.ts:12](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/provider-elevenlabs/src/decode.ts#L12)
+Defined in: [provider-elevenlabs/src/decode.ts:12](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-elevenlabs/src/decode.ts#L12)
 
 Query knobs mapped onto ElevenLabs realtime
 `/v1/speech-to-text/realtime` WebSocket URL.
@@ -95,8 +95,8 @@ Query knobs mapped onto ElevenLabs realtime
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="language-1"></a> `language?` | `string` | BCP-47 language code; overridden by [ASRSessionOptions.language](/docs/reference/api/ottervoice-core/#language) when set. | [provider-elevenlabs/src/decode.ts:16](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/provider-elevenlabs/src/decode.ts#L16) |
-| <a id="modelid-1"></a> `modelId?` | `string` | ElevenLabs STT model id (e.g. `scribe_v2_realtime`). | [provider-elevenlabs/src/decode.ts:14](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/provider-elevenlabs/src/decode.ts#L14) |
+| <a id="language-1"></a> `language?` | `string` | BCP-47 language code; overridden by [ASRSessionOptions.language](/docs/reference/api/ottervoice-core/#language) when set. | [provider-elevenlabs/src/decode.ts:16](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-elevenlabs/src/decode.ts#L16) |
+| <a id="modelid-1"></a> `modelId?` | `string` | ElevenLabs STT model id (e.g. `scribe_v2_realtime`). | [provider-elevenlabs/src/decode.ts:14](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-elevenlabs/src/decode.ts#L14) |
 
 ## Variables
 
@@ -106,7 +106,7 @@ Query knobs mapped onto ElevenLabs realtime
 const DEFAULT_BASE_URL: "wss://api.elevenlabs.io/v1/speech-to-text/realtime" = 'wss://api.elevenlabs.io/v1/speech-to-text/realtime';
 ```
 
-Defined in: [provider-elevenlabs/src/decode.ts:6](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/provider-elevenlabs/src/decode.ts#L6)
+Defined in: [provider-elevenlabs/src/decode.ts:6](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-elevenlabs/src/decode.ts#L6)
 
 Default ElevenLabs realtime speech-to-text WebSocket endpoint.
 
@@ -121,7 +121,7 @@ function buildElevenLabsUrl(
    asr): string;
 ```
 
-Defined in: [provider-elevenlabs/src/decode.ts:30](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/provider-elevenlabs/src/decode.ts#L30)
+Defined in: [provider-elevenlabs/src/decode.ts:30](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-elevenlabs/src/decode.ts#L30)
 
 Build the realtime STT URL. NOTE: ElevenLabs' realtime ASR wire format is
 evolving — verify parameter and message names against the current docs. In a
@@ -150,7 +150,7 @@ Fully qualified `wss://` URL including search params.
 function createElevenLabsASR(options): ASRProvider;
 ```
 
-Defined in: [provider-elevenlabs/src/index.ts:47](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/provider-elevenlabs/src/index.ts#L47)
+Defined in: [provider-elevenlabs/src/index.ts:62](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-elevenlabs/src/index.ts#L62)
 
 ElevenLabs Scribe realtime ASR provider over WebSocket. A broker-signed URL
 may be used when it locks the route/model policy server-side.
@@ -175,17 +175,20 @@ function decodeElevenLabs(data):
   | undefined;
 ```
 
-Defined in: [provider-elevenlabs/src/decode.ts:54](https://github.com/bugkiwi/OtterVoice/blob/32a17b53288150ad9b34d3fe77eaca977ba2d063/packages/provider-elevenlabs/src/decode.ts#L54)
+Defined in: [provider-elevenlabs/src/decode.ts:64](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-elevenlabs/src/decode.ts#L64)
 
-Decode an ElevenLabs realtime message into a transcript result.
+Decode one ElevenLabs realtime STT event, keeping provisional and final
+transcripts separate.
 
 #### Parameters
 
-| Parameter | Type |
-| ------ | ------ |
-| `data` | `string` |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `data` | `string` | One ElevenLabs WebSocket text frame. |
 
 #### Returns
 
   \| [`ASRDecodeResult`](/docs/reference/api/ottervoice-provider-utils/#asrdecoderesult)
   \| `undefined`
+
+A decoded transcript/error, or `undefined` for unrelated frames.

@@ -46,6 +46,22 @@ describe('decodeDeepgram', () => {
     });
   });
 
+  it('decodes stable transcript segments without turn-boundary metadata', () => {
+    expect(decodeDeepgram(JSON.stringify({
+      type: 'Results',
+      is_final: true,
+      channel: { alternatives: [{ transcript: 'first segment' }] },
+    }))).toEqual({ final: { text: 'first segment' } });
+    const last = {
+      type: 'Results',
+      is_final: true,
+      channel: { alternatives: [{ transcript: 'last segment' }] },
+    };
+    expect(decodeDeepgram(JSON.stringify(last))).toEqual({
+      final: { text: 'last segment' },
+    });
+  });
+
   it('returns a partial without confidence', () => {
     expect(decodeDeepgram(results('hel', false))).toEqual({ partial: { text: 'hel' } });
   });

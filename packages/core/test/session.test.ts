@@ -20,6 +20,7 @@ import type {
   ASRProvider,
   ASRResult,
   ASRSessionOptions,
+  LLMProvider,
   NormalizedVoiceError,
   TTSProvider,
   VoiceAgentPlugin,
@@ -121,14 +122,18 @@ function makeSession(overrides: Partial<VoiceSessionConfig> = {}): Harness {
 }
 
 /** A hand-driven ASR whose emissions tests trigger directly. */
-function controllableASR(options: { finalOnStop?: string } = {}) {
+function controllableASR(options: {
+  finalOnStop?: string;
+  batch?: boolean;
+} = {}) {
   let partialCb: ((r: ASRResult) => void) | undefined;
   let finalCb: ((r: ASRResult) => void) | undefined;
   let errorCb: ((e: NormalizedVoiceError) => void) | undefined;
   const ctl = {
     options: undefined as ASRSessionOptions | undefined,
     interimResultsEnabled: [] as boolean[],
-    sendImpl: undefined as undefined | (() => unknown),
+    sentAudio: [] as number[][],
+    sendImpl: undefined as undefined | ((chunk: ArrayBuffer) => unknown),
     stop: mock(async () => {
       if (options.finalOnStop !== undefined) {
         finalCb?.({ text: options.finalOnStop, confidence: 1 });
@@ -143,14 +148,17 @@ function controllableASR(options: { finalOnStop?: string } = {}) {
     name: 'ctl_asr',
     capabilities: {
       streaming: true,
-      batch: false,
+      batch: options.batch ?? false,
       partialResults: true,
       languages: ['en'],
     },
     async createSession(sessionOptions) {
       ctl.options = sessionOptions;
       return {
-        sendAudio: () => ctl.sendImpl?.(),
+        sendAudio: (chunk) => {
+          ctl.sentAudio.push([...new Uint8Array(chunk)]);
+          return ctl.sendImpl?.(chunk);
+        },
         setInterimResultsEnabled(enabled) {
           ctl.interimResultsEnabled.push(enabled);
         },
@@ -278,7 +286,120 @@ describe('VoiceSession lifecycle', () => {
 });
 
 describe('VoiceSession turn loop', () => {
+  it('starts sentence TTS before the LLM finishes the remaining reply', async () => {
+    let releaseRest!: () => void;
+    const rest = new Promise<void>((resolve) => {
+      releaseRest = resolve;
+    });
+    const llm: LLMProvider = {
+      name: 'gated-llm',
+      async generate() {
+        return { text: 'unused' };
+      },
+      async *stream() {
+        yield { type: 'text_delta', text: '第一句。' } as const;
+        await rest;
+        yield { type: 'text_delta', text: '第二句。' } as const;
+        yield { type: 'done' } as const;
+      },
+    };
+    const synthesized: string[] = [];
+    const tts: TTSProvider = {
+      name: 'sentence-tts',
+      capabilities: {
+        streaming: false,
+        voices: [],
+        formats: ['mp3'],
+        languages: ['zh-CN'],
+      },
+      async synthesize(input) {
+        synthesized.push(input.text);
+        return {
+          audioBuffer: new TextEncoder().encode(input.text).buffer,
+          mimeType: 'audio/mpeg',
+        };
+      },
+    };
+    const { session } = makeSession({ providers: { llm, tts } as any });
+    await session.start();
+
+    const reply = session.submitUserText('请回答');
+    for (let index = 0; index < 10 && synthesized.length === 0; index += 1) {
+      await Promise.resolve();
+    }
+    expect(synthesized).toEqual(['第一句。']);
+
+    releaseRest();
+    await reply;
+    expect(synthesized).toEqual(['第一句。', '第二句。']);
+    expect(session.getTurns().at(-1)?.text).toBe('第一句。第二句。');
+  });
+
+  it('writes streamed TTS PCM chunks without calling buffered synthesis', async () => {
+    const runtime = createMockRuntime();
+    const written: number[][] = [];
+    let closed = 0;
+    (runtime.audioOutput as any).startPcmStream = async () => ({
+      async write(data: ArrayBuffer) {
+        written.push([...new Uint8Array(data)]);
+      },
+      async close() {
+        closed += 1;
+      },
+    });
+    const tts: TTSProvider = {
+      name: 'streaming-tts',
+      capabilities: {
+        streaming: true,
+        voices: [],
+        formats: ['pcm'],
+        languages: ['zh-CN'],
+      },
+      async synthesize() {
+        throw new Error('buffered synthesis should not run');
+      },
+      async *stream() {
+        yield {
+          data: new Uint8Array([1, 2]).buffer,
+          encoding: 'pcm_s16le',
+          sampleRate: 24_000,
+          channels: 1,
+        } as const;
+        yield {
+          data: new Uint8Array([3, 4]).buffer,
+          encoding: 'pcm_s16le',
+          sampleRate: 24_000,
+          channels: 1,
+        } as const;
+      },
+    };
+    const { session, events } = makeSession({
+      runtime,
+      providers: {
+        llm: createMockLLM({ reply: () => '流式回答。' }),
+        tts,
+      } as any,
+    });
+    await session.start();
+    await session.submitUserText('开始');
+
+    expect(written).toEqual([[1, 2], [3, 4]]);
+    expect(closed).toBe(1);
+    expect(events.filter(([name]) => name === 'assistant_audio_start')).toHaveLength(1);
+    expect(events.filter(([name]) => name === 'assistant_audio_end')).toHaveLength(1);
+    const snapshot = events.find(([name]) => name === 'assistant_audio')?.[1] as {
+      audio: ArrayBuffer;
+      mimeType: string;
+    };
+    expect([...new Uint8Array(snapshot.audio)]).toEqual([1, 2, 3, 4]);
+    expect(snapshot.mimeType).toBe('audio/pcm;rate=24000;channels=1');
+  });
+
   it('emits complete user and assistant audio snapshots with stable turn ids', async () => {
+    const { provider: asr, ctl: asrCtl } = controllableASR({
+      batch: true,
+      finalOnStop: 'archived user',
+    });
     const audioLlm: AudioLLMProvider = {
       name: 'archivable-audio-llm',
       async generate() {
@@ -291,20 +412,22 @@ describe('VoiceSession turn loop', () => {
     };
     const { session, runtime, events } = makeSession({
       pipeline: 'audio_llm',
-      providers: { audioLlm } as any,
+      providers: { asr, audioLlm } as any,
     });
     await session.start();
     runtime.audioInput.emitChunk({
-      data: new Uint8Array([1, 2]).buffer,
+      data: new Uint8Array([99]).buffer,
       timestamp: 1,
       durationMs: 100,
       encoding: 'audio/webm;codecs=opus',
+      delivery: 'stream',
     });
     runtime.audioInput.emitChunk({
-      data: new Uint8Array([3, 4]).buffer,
+      data: new Uint8Array([1, 2, 3, 4]).buffer,
       timestamp: 2,
-      durationMs: 100,
+      durationMs: 200,
       encoding: 'audio/webm;codecs=opus',
+      delivery: 'turn',
     });
     const answered = nextState(session, 'assistant_speaking');
     await session.endUserTurn();
@@ -320,6 +443,7 @@ describe('VoiceSession turn loop', () => {
       turnId: string;
     };
     expect([...new Uint8Array(userAudio.audio)]).toEqual([1, 2, 3, 4]);
+    expect(asrCtl.sentAudio).toEqual([[99], [1, 2, 3, 4]]);
     expect(userAudio).toMatchObject({
       turnId: userText.turnId,
       format: 'audio/webm;codecs=opus',

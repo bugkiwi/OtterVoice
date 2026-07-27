@@ -4,7 +4,11 @@ const DEFAULT_UPSTREAM_BASE_URL = 'https://openrouter.ai/api/v1';
 const DEFAULT_GATEWAY_PREFIX = '/api/voice';
 
 /** Server-owned gateway profile selected by an explicit application route. */
-export type OpenRouterGatewayProfile = 'asr' | 'llm' | 'tts' | 'audio_llm';
+export type OpenRouterGatewayProfile =
+  | 'asr'
+  | 'llm'
+  | 'tts'
+  | 'audio_llm';
 
 /** Locked server policy for speech recognition requests. */
 export interface OpenRouterGatewayASRPolicy {
@@ -38,7 +42,7 @@ export interface OpenRouterGatewayTTSPolicy {
   voice: string;
   /** Server-selected speaking-rate multiplier. */
   speed?: number;
-  /** Server-selected output encoding. Defaults to MP3. */
+  /** Server-selected one-shot output encoding. Streaming requests force PCM. */
   responseFormat?: 'mp3' | 'pcm';
 }
 
@@ -305,7 +309,9 @@ function buildLockedBody(
       model: selected.model,
       input: body.input,
       voice: selected.voice,
-      response_format: selected.responseFormat ?? 'mp3',
+      response_format: body.stream === true
+        ? 'pcm'
+        : selected.responseFormat ?? 'mp3',
       speed: selected.speed ?? 1,
     };
   }
@@ -417,7 +423,9 @@ export function createOpenRouterGateway(
     }
 
     const upstreamBody = JSON.stringify(lockedBody);
-    const speechKey = route.profile === 'tts' && ttsCacheEntries > 0
+    const speechKey = route.profile === 'tts' &&
+      clientBody.stream !== true &&
+      ttsCacheEntries > 0
       ? upstreamBody
       : undefined;
     const cachedSpeech = speechKey ? speechCache.get(speechKey) : undefined;

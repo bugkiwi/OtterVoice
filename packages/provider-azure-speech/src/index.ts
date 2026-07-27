@@ -11,6 +11,7 @@ import {
   normalizeHttpError,
   readBody,
   resolveFetch,
+  streamPcm16Response,
   type CredentialOptions,
 } from '@ottervoice/provider-utils';
 import {
@@ -47,7 +48,7 @@ export interface AzureTTSOptions extends Omit<CredentialOptions, 'apiKey'> {
 const PROVIDER = 'azure_speech';
 
 const CAPABILITIES: TTSCapabilities = {
-  streaming: false,
+  streaming: true,
   voices: [],
   formats: ['mp3', 'wav', 'pcm', 'ogg', 'opus'],
   languages: [],
@@ -72,38 +73,43 @@ export function createAzureTTS(options: AzureTTSOptions): TTSProvider {
     { provider: PROVIDER, purpose: 'tts' },
   );
 
+  const requestSpeech = async (input: TTSInput, format: TTSFormat): Promise<Response> => {
+    const { token } = await resolveCredential();
+    const headers: Record<string, string> = {
+      'content-type': 'application/ssml+xml',
+      'x-microsoft-outputformat': azureOutputFormat(format),
+      'user-agent': 'ottervoice',
+    };
+    if (options.subscriptionKey !== undefined) {
+      headers['ocp-apim-subscription-key'] = token;
+    } else {
+      headers['authorization'] = `Bearer ${token}`;
+    }
+
+    const res = await fetchImpl(endpoint, {
+      method: 'POST',
+      headers,
+      body: buildSSML(input, { voice: options.voice, language }),
+      signal: input.signal,
+    });
+    if (!res.ok) {
+      throw new VoiceError(
+        normalizeHttpError(res.status, await readBody(res), {
+          provider: PROVIDER,
+          failureCode: 'tts_failed',
+        }),
+      );
+    }
+    return res;
+  };
+
   return {
     name: PROVIDER,
     capabilities: CAPABILITIES,
 
     async synthesize(input: TTSInput): Promise<TTSOutput> {
       const format = input.format ?? defaultFormat;
-      const { token } = await resolveCredential();
-      const headers: Record<string, string> = {
-        'content-type': 'application/ssml+xml',
-        'x-microsoft-outputformat': azureOutputFormat(format),
-        'user-agent': 'ottervoice',
-      };
-      // A short token goes in Authorization; a raw subscription key in its header.
-      if (options.subscriptionKey !== undefined) {
-        headers['ocp-apim-subscription-key'] = token;
-      } else {
-        headers['authorization'] = `Bearer ${token}`;
-      }
-
-      const res = await fetchImpl(endpoint, {
-        method: 'POST',
-        headers,
-        body: buildSSML(input, { voice: options.voice, language }),
-      });
-      if (!res.ok) {
-        throw new VoiceError(
-          normalizeHttpError(res.status, await readBody(res), {
-            provider: PROVIDER,
-            failureCode: 'tts_failed',
-          }),
-        );
-      }
+      const res = await requestSpeech(input, format);
 
       const audioBuffer = await res.arrayBuffer();
       const output: TTSOutput = {
@@ -112,6 +118,18 @@ export function createAzureTTS(options: AzureTTSOptions): TTSProvider {
         cached: input.cacheKey !== undefined,
       };
       return output;
+    },
+
+    async *stream(input) {
+      const res = await requestSpeech({ ...input, format: 'pcm' }, 'pcm');
+      for await (const data of streamPcm16Response(res)) {
+        yield {
+          data,
+          encoding: 'pcm_s16le',
+          sampleRate: 24_000,
+          channels: 1,
+        };
+      }
     },
   };
 }

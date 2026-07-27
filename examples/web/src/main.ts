@@ -13,6 +13,7 @@ import {
   createOpenRouterGatewayTTS,
 } from '@ottervoice/provider-openrouter';
 import { createWebRuntime, prepareBrowserAudio } from '@ottervoice/runtime-web';
+import { shouldMergeAdjacentUserTurn } from './turn-log';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const stateEl = $('state');
@@ -28,6 +29,7 @@ const langZhBtn = $<HTMLButtonElement>('lang-zh');
 const langEnBtn = $<HTMLButtonElement>('lang-en');
 const asrPartialToggle = $<HTMLInputElement>('asr-partial-toggle');
 const transcriptToggle = $<HTMLInputElement>('transcript-toggle');
+const webSearchToggle = $<HTMLInputElement>('web-search-toggle');
 
 type AppLanguage = 'zh' | 'en';
 
@@ -37,10 +39,11 @@ const translations = {
     navDemo: '在线体验', navNative: 'React Native', navDocs: '技术文档',
     demoEyebrow: 'Example 01 · Web full duplex', demoTitle: '现在，直接开口。',
     demoCopy: '麦克风会持续监听。停顿即提交，AI 说话时也可直接插话打断；屏幕同步保留完整文字记录。',
-    controlsAria: '对话控制', modeAria: '语音处理模式', settingsAria: '会话显示设置', transcriptAria: '对话记录',
+    controlsAria: '对话控制', modeAria: '语音处理模式', settingsAria: '会话设置', transcriptAria: '对话记录',
     modeAudio: '新 · Audio LLM', modeCascade: '旧 · ASR→LLM→TTS', liveChannel: '实时通路',
     asrPartialLabel: '实时 ASR 回显', asrPartialHint: '说话 1 秒后开始，关闭则只做终句识别',
     transcriptLabel: '输入 / 输出文本', transcriptHint: '显示实时字幕与完整对话记录',
+    webSearchLabel: '联网搜索', webSearchHint: '仅用于 ASR→LLM→TTS，由服务端按需搜索网页',
     start: '开始语音对话', finish: '结束会话',
     phoneTitle: '现在，直接开口。', phoneCopy: '持续监听；停顿提交；说话即可打断。', phoneState: '正在持续收听',
     nativeEyebrow: 'Example 02 · React Native / Expo', nativeTitle: '同一条 Audio LLM 通路，装进手机。',
@@ -72,10 +75,11 @@ const translations = {
     navDemo: 'Live demo', navNative: 'React Native', navDocs: 'Docs',
     demoEyebrow: 'Example 01 · Web full duplex', demoTitle: 'Now, just speak.',
     demoCopy: 'The microphone keeps listening. A pause submits your turn; speak over the assistant to interrupt while the full transcript stays on screen.',
-    controlsAria: 'Conversation controls', modeAria: 'Voice processing mode', settingsAria: 'Session display settings', transcriptAria: 'Transcript',
+    controlsAria: 'Conversation controls', modeAria: 'Voice processing mode', settingsAria: 'Session settings', transcriptAria: 'Transcript',
     modeAudio: 'New · Audio LLM', modeCascade: 'Classic · ASR→LLM→TTS', liveChannel: 'Live channel',
     asrPartialLabel: 'Live ASR captions', asrPartialHint: 'Starts after 1s of speech; off keeps final ASR only',
     transcriptLabel: 'Input / output text', transcriptHint: 'Show live captions and the full transcript',
+    webSearchLabel: 'Web search', webSearchHint: 'Classic pipeline only; the server searches the web when needed',
     start: 'Start voice session', finish: 'End session',
     phoneTitle: 'Now, just speak.', phoneCopy: 'Always listening. Pause to submit. Speak to interrupt.', phoneState: 'Listening continuously',
     nativeEyebrow: 'Example 02 · React Native / Expo', nativeTitle: 'The same Audio LLM path, now in your pocket.',
@@ -116,6 +120,7 @@ const storedToggle = (key: string, fallback: boolean): boolean => {
 };
 let asrPartialEnabled = storedToggle('ottervoice-asr-partial', false);
 let transcriptVisible = storedToggle('ottervoice-transcript-visible', true);
+let webSearchEnabled = storedToggle('ottervoice-web-search', false);
 
 const VOICE_GATEWAY = '/api/voice';
 type SseAudioCapture = {
@@ -132,11 +137,13 @@ const runtimeText = {
   zh: {
     you: '你', otter: 'Otter', playing: '播放中…', playFailed: '播放失败', playSse: '▶ SSE 音频',
     playTitle: '播放 OpenRouter SSE 组装后的原始音频（独立于会话播放）', chunks: '片', pending: '待测',
+    firstText: '首字', firstAudio: '首音', relativeToAskEnd: '相对提问结束',
     latencyEmpty: '完成一轮对话后显示“停顿 → 开始播放”的实测延迟',
   },
   en: {
     you: 'You', otter: 'Otter', playing: 'Playing…', playFailed: 'Playback failed', playSse: '▶ SSE audio',
     playTitle: 'Play the original audio assembled from OpenRouter SSE chunks', chunks: 'chunks', pending: 'pending',
+    firstText: 'First text', firstAudio: 'First audio', relativeToAskEnd: 'from ask end',
     latencyEmpty: 'Measured pause → first audio playback latency appears after one turn',
   },
 } as const;
@@ -171,7 +178,49 @@ function playSseAudio(capture: SseAudioCapture, button: HTMLButtonElement) {
 const turnElements = new Map<string, HTMLDivElement>();
 const turnTexts = new Map<string, string>();
 const turnIdsByElement = new Map<HTMLDivElement, string[]>();
+type TurnLatency = { firstTextMs?: number; firstAudioMs?: number };
+const turnLatencies = new Map<string, TurnLatency>();
+const assistantLatencyOrigins = new Map<string, number>();
 let liveAssistantTurnId: string | undefined;
+
+function renderTurnLatency(turnId: string) {
+  const body = turnElements.get(turnId)?.querySelector<HTMLDivElement>('.turn-body');
+  const latency = turnLatencies.get(turnId);
+  if (!body || !latency) return;
+  let meta = body.querySelector<HTMLDivElement>('.turn-latency');
+  if (!meta) {
+    meta = document.createElement('div');
+    meta.className = 'turn-latency';
+    body.append(meta);
+  }
+  const copy = runtimeText[language];
+  const format = (value: number | undefined) => value === undefined
+    ? copy.pending
+    : `${Math.round(value)} ms`;
+  meta.textContent = `${copy.firstText} ${format(latency.firstTextMs)} · ` +
+    `${copy.firstAudio} ${format(latency.firstAudioMs)} · ${copy.relativeToAskEnd}`;
+}
+
+function recordTurnLatency(
+  turnId: string,
+  metric: keyof TurnLatency,
+  pendingOrigin: { value?: number },
+): number | undefined {
+  const existing = turnLatencies.get(turnId) ?? {};
+  if (existing[metric] !== undefined) return existing[metric];
+  let origin = assistantLatencyOrigins.get(turnId);
+  if (origin === undefined && pendingOrigin.value !== undefined) {
+    origin = pendingOrigin.value;
+    pendingOrigin.value = undefined;
+    assistantLatencyOrigins.set(turnId, origin);
+  }
+  if (origin === undefined) return undefined;
+  const value = Math.max(0, Date.now() - origin);
+  existing[metric] = value;
+  turnLatencies.set(turnId, existing);
+  renderTurnLatency(turnId);
+  return value;
+}
 
 function removeTurn(turnId: string) {
   const div = turnElements.get(turnId);
@@ -179,6 +228,8 @@ function removeTurn(turnId: string) {
   for (const id of turnIdsByElement.get(div) ?? [turnId]) {
     turnElements.delete(id);
     turnTexts.delete(id);
+    turnLatencies.delete(id);
+    assistantLatencyOrigins.delete(id);
   }
   turnIdsByElement.delete(div);
   div.remove();
@@ -205,11 +256,11 @@ function addTurn(
     message = body.querySelector<HTMLSpanElement>('.turn-message')!;
   } else {
     const previous = logEl.lastElementChild;
-    const mergeWithPreviousUser =
-      role === 'user' &&
-      turnId !== undefined &&
-      previous instanceof HTMLDivElement &&
-      previous.classList.contains('user');
+    const mergeWithPreviousUser = shouldMergeAdjacentUserTurn(
+      role,
+      turnId,
+      previous instanceof HTMLDivElement && previous.classList.contains('user'),
+    );
     if (mergeWithPreviousUser) {
       div = previous;
       body = div.querySelector<HTMLDivElement>('.turn-body')!;
@@ -244,6 +295,7 @@ function addTurn(
         .join(' ')
     : text;
   message.textContent = `${displayedText}${options?.live ? ' ▍' : ''}`;
+  if (role === 'assistant' && turnId) renderTurnLatency(turnId);
 
   if (role === 'assistant' && options?.sseAudio && !body.querySelector('.sse-audio-play')) {
     const capture = options.sseAudio;
@@ -289,8 +341,14 @@ const conversationLlm = createOpenRouterGatewayLLM({
   baseUrl: `${VOICE_GATEWAY}/llm`,
 });
 
+const webSearchConversationLlm = createOpenRouterGatewayLLM({
+  baseUrl: `${VOICE_GATEWAY}/llm-online/llm`,
+});
+
 const tts = createOpenRouterGatewayTTS({
   baseUrl: `${VOICE_GATEWAY}/tts`,
+  // MiniMax Speech 2.8 Turbo accepts MP3, but rejects raw-PCM streaming.
+  pcmStreaming: false,
 });
 
 const audioLlmBase = createOpenRouterGatewayAudioLLM({
@@ -351,6 +409,8 @@ function renderPipeline() {
   audioBtn.classList.toggle('selected', isAudio);
   cascadeBtn.setAttribute('aria-pressed', String(!isAudio));
   audioBtn.setAttribute('aria-pressed', String(isAudio));
+  webSearchToggle.disabled = isAudio || Boolean(session);
+  webSearchToggle.closest('.demo-setting')?.classList.toggle('unavailable', isAudio);
 }
 
 let lastLatency: { pipeline: Pipeline; value: number } | undefined;
@@ -371,7 +431,8 @@ function renderLatency(currentPipeline: Pipeline, latest: number) {
 }
 
 function buildSession(pipeline: Pipeline) {
-  const session = createVoiceSession({
+  const pendingUserAudioEnd = { value: undefined as number | undefined };
+  const voiceSession = createVoiceSession({
     mode: 'full_duplex',
     pipeline,
     asrPartial: asrPartialEnabled,
@@ -383,14 +444,16 @@ function buildSession(pipeline: Pipeline) {
         partialIntervalMs: 1_000,
         emptyPartialBackoffMs: 3_000,
       }),
-      llm: conversationLlm,
+      llm: pipeline === 'asr_llm_tts' && webSearchEnabled
+        ? webSearchConversationLlm
+        : conversationLlm,
       tts,
       audioLlm,
     },
     turnDetection: {
       strategy: 'volume',
       minSpeechMs: 180,
-      silenceTimeoutMs: 450,
+      silenceTimeoutMs: 500,
       maxTurnMs: 80_000,
       volumeThreshold: 0.025,
     },
@@ -414,9 +477,7 @@ function buildSession(pipeline: Pipeline) {
     },
   });
 
-  let userAudioEndedAt: number | undefined;
-
-  session.on('statechange', (event) => {
+  voiceSession.on('statechange', (event) => {
     renderState(event.to);
     if (event.to === 'user_speaking') {
       // A newer utterance supersedes an answer that only streamed partially.
@@ -424,31 +485,37 @@ function buildSession(pipeline: Pipeline) {
       removeLiveAssistantTurn();
     }
   });
-  session.on('asr_partial', (event) => {
+  voiceSession.on('asr_partial', (event) => {
     if (event.text.trim().length > 0) {
       addTurn('user', event.text, { turnId: event.turnId, live: true });
     }
   });
-  session.on('asr_final', (event) => {
+  voiceSession.on('asr_final', (event) => {
     if (event.text.trim().length > 0) {
       addTurn('user', event.text, { turnId: event.turnId });
     }
   });
-  session.on('user_audio_end', (event) => {
-    userAudioEndedAt = event.at;
+  voiceSession.on('user_audio_end', (event) => {
+    pendingUserAudioEnd.value = event.at;
   });
-  session.on('assistant_text_delta', (event) => {
+  voiceSession.on('assistant_text_delta', (event) => {
     if (liveAssistantTurnId && liveAssistantTurnId !== event.turnId) {
       removeLiveAssistantTurn();
     }
     liveAssistantTurnId = event.turnId;
+    if (event.text.trim().length > 0) {
+      recordTurnLatency(event.turnId, 'firstTextMs', pendingUserAudioEnd);
+    }
     addTurn('assistant', event.text, { turnId: event.turnId, live: true });
   });
-  session.on('assistant_text', (event) => {
+  voiceSession.on('assistant_text', (event) => {
     if (liveAssistantTurnId && liveAssistantTurnId !== event.turnId) {
       removeLiveAssistantTurn();
     } else if (liveAssistantTurnId === event.turnId) {
       liveAssistantTurnId = undefined;
+    }
+    if (event.text.trim().length > 0) {
+      recordTurnLatency(event.turnId, 'firstTextMs', pendingUserAudioEnd);
     }
     const sseAudio = pipeline === 'audio_llm' ? lastSseAudio : undefined;
     addTurn('assistant', event.text, {
@@ -457,14 +524,13 @@ function buildSession(pipeline: Pipeline) {
     });
     lastSseAudio = undefined;
   });
-  session.on('assistant_audio_start', () => {
-    if (userAudioEndedAt === undefined) return;
-    const latency = Date.now() - userAudioEndedAt;
+  voiceSession.on('assistant_audio_start', (event) => {
+    const latency = recordTurnLatency(event.turnId, 'firstAudioMs', pendingUserAudioEnd);
+    if (latency === undefined) return;
     latencySamples[pipeline].push(latency);
     renderLatency(pipeline, latency);
-    userAudioEndedAt = undefined;
   });
-  session.on('error', (event) => {
+  voiceSession.on('error', (event) => {
     removeLiveAssistantTurn();
     renderState('error');
     addTurn('assistant', `${event.code}: ${event.message}`);
@@ -473,8 +539,10 @@ function buildSession(pipeline: Pipeline) {
     cascadeBtn.disabled = false;
     audioBtn.disabled = false;
     asrPartialToggle.disabled = false;
+    session = undefined;
+    renderPipeline();
   });
-  session.on('finished', () => {
+  voiceSession.on('finished', () => {
     removeLiveAssistantTurn();
     renderState('finished');
     startBtn.disabled = false;
@@ -482,9 +550,11 @@ function buildSession(pipeline: Pipeline) {
     cascadeBtn.disabled = false;
     audioBtn.disabled = false;
     asrPartialToggle.disabled = false;
+    session = undefined;
+    renderPipeline();
     meterEl.style.setProperty('--level', '0');
   });
-  return session;
+  return voiceSession;
 }
 
 let session: ReturnType<typeof buildSession> | undefined;
@@ -505,6 +575,8 @@ startBtn.addEventListener('click', async () => {
   turnElements.clear();
   turnTexts.clear();
   turnIdsByElement.clear();
+  turnLatencies.clear();
+  assistantLatencyOrigins.clear();
   liveAssistantTurnId = undefined;
   lastSseAudio = undefined;
   debugAudioPlayer?.pause();
@@ -512,6 +584,7 @@ startBtn.addEventListener('click', async () => {
   cascadeBtn.disabled = true;
   audioBtn.disabled = true;
   asrPartialToggle.disabled = true;
+  webSearchToggle.disabled = true;
   const pipeline = selectedPipeline;
   session = buildSession(pipeline);
   await session.start();
@@ -539,6 +612,11 @@ transcriptToggle.addEventListener('change', () => {
   transcriptVisible = transcriptToggle.checked;
   localStorage.setItem('ottervoice-transcript-visible', String(transcriptVisible));
   renderTranscriptVisibility();
+});
+
+webSearchToggle.addEventListener('change', () => {
+  webSearchEnabled = webSearchToggle.checked;
+  localStorage.setItem('ottervoice-web-search', String(webSearchEnabled));
 });
 
 function applyLanguage(next: AppLanguage) {
@@ -574,6 +652,7 @@ function applyLanguage(next: AppLanguage) {
     button.textContent = runtimeText[next].playSse;
     button.title = runtimeText[next].playTitle;
   });
+  for (const turnId of turnLatencies.keys()) renderTurnLatency(turnId);
 
   renderPipeline();
   renderState(stateEl.dataset.state ?? 'idle');
@@ -586,5 +665,6 @@ langEnBtn.addEventListener('click', () => applyLanguage('en'));
 
 asrPartialToggle.checked = asrPartialEnabled;
 transcriptToggle.checked = transcriptVisible;
+webSearchToggle.checked = webSearchEnabled;
 renderTranscriptVisibility();
 applyLanguage(language);

@@ -262,7 +262,7 @@ export type AudioEncoding = 'pcm_s16le' | 'opus' | 'webm' | 'wav' | 'mp3';
 /**
  * Feature flags advertised by an {@link ASRProvider}.
  * Core uses these to choose streaming vs batch capture and whether to expect
- * partials / endpointing.
+ * partial transcripts.
  */
 export interface ASRCapabilities {
   /** True when the provider accepts live chunked audio over a persistent session. */
@@ -275,8 +275,6 @@ export interface ASRCapabilities {
   wordTimestamps?: boolean;
   /** Whether {@link ASRResult.confidence} may be populated. */
   confidence?: boolean;
-  /** Whether the provider can emit utterance-end / endpoint signals. */
-  endpointing?: boolean;
   /** BCP-47 language tags the provider claims to support (empty = unspecified). */
   languages: string[];
 }
@@ -293,8 +291,6 @@ export interface ASRSessionOptions {
   encoding?: AudioEncoding;
   /** Request provisional partials when the provider supports them. */
   interimResults?: boolean;
-  /** Ask the provider to emit endpointing / utterance-end signals when available. */
-  endpointing?: boolean;
   /** Opaque metadata forwarded to the adapter (not interpreted by core). */
   metadata?: Record<string, unknown>;
 }
@@ -583,7 +579,7 @@ export interface TTSVoice {
 
 /** Declared voices / formats for a {@link TTSProvider}. */
 export interface TTSCapabilities {
-  /** Whether the provider can stream partial audio (future use). */
+  /** Whether the provider implements low-latency {@link TTSProvider.stream}. */
   streaming: boolean;
   /** Voices advertised by the adapter. */
   voices: TTSVoice[];
@@ -611,6 +607,20 @@ export interface TTSInput {
   cacheKey?: string;
   /** Opaque metadata forwarded to the adapter. */
   metadata?: Record<string, unknown>;
+  /** Cancels synthesis when the turn is interrupted or superseded. */
+  signal?: AbortSignal;
+}
+
+/** One raw-PCM fragment yielded by {@link TTSProvider.stream}. */
+export interface TTSAudioChunk {
+  /** Raw interleaved PCM bytes ready for incremental playback. */
+  data: ArrayBuffer;
+  /** Linear signed 16-bit little-endian PCM. */
+  encoding: 'pcm_s16le';
+  /** Sample rate of {@link TTSAudioChunk.data} in Hz. */
+  sampleRate: number;
+  /** Channel count of {@link TTSAudioChunk.data}. */
+  channels: number;
 }
 
 /** Audio returned by {@link TTSProvider.synthesize}. */
@@ -644,6 +654,16 @@ export interface TTSProvider {
    * @param input - Text plus optional voice / format hints.
    */
   synthesize(input: TTSInput): Promise<TTSOutput>;
+  /**
+   * Optionally stream raw PCM while speech is still being synthesized.
+   * Implement this together with `capabilities.streaming: true`; core falls
+   * back to sentence-sized {@link TTSProvider.synthesize} calls when absent.
+   *
+   * @param input - Text, voice hints, and cancellation signal. Providers may
+   *   force `pcm` because streamed chunks must match {@link TTSAudioChunk}.
+   * @returns An async sequence of contiguous PCM chunks.
+   */
+  stream?(input: TTSInput): AsyncIterable<TTSAudioChunk>;
 }
 
 // ---------------------------------------------------------------------------
@@ -1077,25 +1097,20 @@ export interface VoiceAgentPlugin {
 // ---------------------------------------------------------------------------
 
 /**
- * How end-of-utterance is decided while listening:
+ * How user turns are detected while listening:
  * - `volume` — local RMS VAD ({@link TurnDetectionConfig.volumeThreshold})
- * - `asr_endpointing` — trust provider utterance-end signals
  * - `manual` — caller drives {@link VoiceSession.endUserTurn}
- * - `hybrid` — combine ASR speech confirmation / endpointing with local silence
+ * - `hybrid` — combine ASR speech confirmation with local silence detection
  */
-export type TurnDetectionStrategy =
-  | 'volume'
-  | 'asr_endpointing'
-  | 'manual'
-  | 'hybrid';
+export type TurnDetectionStrategy = 'volume' | 'manual' | 'hybrid';
 
 /**
- * Voice-activity and endpointing knobs while listening for the user.
+ * Voice-activity knobs while listening for the user.
  * Passed via {@link VoiceSessionConfig.turnDetection}; pair with
  * {@link VoiceSessionConfig.interruptionDetection} for barge-in thresholds.
  */
 export interface TurnDetectionConfig {
-  /** How end-of-utterance is decided. */
+  /** How speech start and the end of a user turn are detected. */
   strategy: TurnDetectionStrategy;
   /** Minimum voiced time before speech is considered started. */
   minSpeechMs?: number;
@@ -1103,7 +1118,7 @@ export interface TurnDetectionConfig {
   silenceTimeoutMs?: number;
   /** Hard local cap on a single user turn length. The server must enforce its own request/audio limit. */
   maxTurnMs?: number;
-  /** RMS threshold when using volume-based strategies (≈0–1). */
+  /** RMS threshold when using local volume detection (approximately 0–1). */
   volumeThreshold?: number;
 }
 
@@ -1223,7 +1238,7 @@ export interface VoiceSessionConfig {
   };
   /** Optional higher-level dialog plugin (opening line, next line, finish rule). */
   agent?: VoiceAgentPlugin;
-  /** VAD / endpointing while listening for the user. */
+  /** Local voice-activity detection while listening for the user. */
   turnDetection?: TurnDetectionConfig;
   /**
    * Stricter VAD used only while assistant audio is playing. Keeping this

@@ -347,7 +347,7 @@ describe('WebAudioInput lifecycle', () => {
 
     releaseFirst();
     await input.stop();
-    expect(chunks).toEqual([[1], [2]]);
+    expect(chunks).toEqual([[1], [2], [1, 2]]);
   });
 
   it('uses the delivery state from the dataavailable event, not Blob read completion', async () => {
@@ -418,6 +418,8 @@ describe('WebAudioInput lifecycle', () => {
     releaseFinalChunk();
     await stopping;
     expect(new Uint8Array(chunks[0]!.data)).toEqual(new Uint8Array([4, 5, 6]));
+    expect(chunks.map((chunk) => chunk.delivery)).toEqual(['stream', 'turn']);
+    expect(new Uint8Array(chunks[1]!.data)).toEqual(new Uint8Array([4, 5, 6]));
     expect(stopped).toHaveLength(1);
   });
 });

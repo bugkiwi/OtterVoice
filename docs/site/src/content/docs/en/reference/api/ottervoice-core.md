@@ -37,7 +37,7 @@ bun add @ottervoice/core
 | `StateMachine`, `canTransition`, `isTerminal` | Session state transitions. |
 | `TypedEmitter` | Strongly-typed, unsubscribe-returning event emitter. |
 | `TranscriptBuffer` | Ordered turns → LLM message projection. |
-| `TurnDetector` | Rule-based VAD / endpointing from volume samples. |
+| `TurnDetector` | Deterministic local VAD from volume samples. |
 | `UsageMeter` | Per-session usage snapshot (you bill; it measures). |
 | `ProviderRegistry`, `providerProfiles`, `resolveProfile` | Provider routing. |
 | `createVoiceError`, `normalizeError`, `VoiceError` | Unified error model. |
@@ -66,12 +66,16 @@ needed. Core passes that preference to the ASR session while preserving
 `ASRSession.setInterimResultsEnabled()`; volume-based sessions use it to defer
 paid partial work until VAD confirms speech.
 
+Use `turnDetection.strategy: 'volume'` for local RMS-based turn boundaries, or
+`'hybrid'` when ASR partial text should also confirm quiet speech before the
+same local silence timer closes the turn. Use `'manual'` for push-to-talk.
+
 ## Session events
 
-`statechange`, `asr_partial`, `asr_final`, `user_audio_end`, `assistant_text`,
-`assistant_audio_start`, `assistant_audio_end`, `turn`, `usage`, `finished`,
-`error`. Subscribe with `session.on(event, cb)`; the returned function
-unsubscribes.
+`statechange`, `asr_partial`, `asr_final`, `user_audio_end`,
+`user_audio_final`, `assistant_text`, `assistant_audio_start`,
+`assistant_audio_end`, `turn`, `usage`, `finished`, `error`. Subscribe with
+`session.on(event, cb)`; the returned function unsubscribes.
 
 ## Example
 
@@ -87,7 +91,7 @@ MIT
 
 ### BargeInSpeechGate
 
-Defined in: [packages/core/src/playback-echo-filter.ts:44](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L44)
+Defined in: [packages/core/src/playback-echo-filter.ts:44](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L44)
 
 Detects speech-shaped residual energy without requiring every audio frame to
 be loud. Natural speech contains short gaps between syllables; a vote over a
@@ -101,7 +105,7 @@ moving window rejects isolated knocks while preserving those gaps.
 new BargeInSpeechGate(options?): BargeInSpeechGate;
 ```
 
-Defined in: [packages/core/src/playback-echo-filter.ts:50](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L50)
+Defined in: [packages/core/src/playback-echo-filter.ts:50](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L50)
 
 ###### Parameters
 
@@ -121,7 +125,7 @@ Defined in: [packages/core/src/playback-echo-filter.ts:50](https://github.com/bu
 push(level): boolean;
 ```
 
-Defined in: [packages/core/src/playback-echo-filter.ts:56](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L56)
+Defined in: [packages/core/src/playback-echo-filter.ts:56](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L56)
 
 ###### Parameters
 
@@ -139,7 +143,7 @@ Defined in: [packages/core/src/playback-echo-filter.ts:56](https://github.com/bu
 reset(): void;
 ```
 
-Defined in: [packages/core/src/playback-echo-filter.ts:62](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L62)
+Defined in: [packages/core/src/playback-echo-filter.ts:62](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L62)
 
 ###### Returns
 
@@ -149,7 +153,7 @@ Defined in: [packages/core/src/playback-echo-filter.ts:62](https://github.com/bu
 
 ### MockAudioInput
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:24](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L24)
+Defined in: [packages/core/src/providers/mock-runtime.ts:24](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L24)
 
 In-memory audio input. Tests drive it by calling [MockAudioInput.emitChunk](/docs/en/reference/api/ottervoice-core/#emitchunk)
 / [MockAudioInput.emitVolume](/docs/en/reference/api/ottervoice-core/#emitvolume); nothing touches a real microphone.
@@ -166,7 +170,7 @@ In-memory audio input. Tests drive it by calling [MockAudioInput.emitChunk](/doc
 new MockAudioInput(options?): MockAudioInput;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:33](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L33)
+Defined in: [packages/core/src/providers/mock-runtime.ts:33](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L33)
 
 ###### Parameters
 
@@ -182,9 +186,9 @@ Defined in: [packages/core/src/providers/mock-runtime.ts:33](https://github.com/
 
 | Property | Type | Default value | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="lastoptions"></a> `lastOptions` | \| [`AudioInputOptions`](/docs/en/reference/api/ottervoice-core/#audioinputoptions) \| `undefined` | `undefined` | [packages/core/src/providers/mock-runtime.ts:31](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L31) |
-| <a id="paused"></a> `paused` | `boolean` | `false` | [packages/core/src/providers/mock-runtime.ts:30](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L30) |
-| <a id="started"></a> `started` | `boolean` | `false` | [packages/core/src/providers/mock-runtime.ts:29](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L29) |
+| <a id="lastoptions"></a> `lastOptions` | \| [`AudioInputOptions`](/docs/en/reference/api/ottervoice-core/#audioinputoptions) \| `undefined` | `undefined` | [packages/core/src/providers/mock-runtime.ts:31](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L31) |
+| <a id="paused"></a> `paused` | `boolean` | `false` | [packages/core/src/providers/mock-runtime.ts:30](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L30) |
+| <a id="started"></a> `started` | `boolean` | `false` | [packages/core/src/providers/mock-runtime.ts:29](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L29) |
 
 #### Methods
 
@@ -194,7 +198,7 @@ Defined in: [packages/core/src/providers/mock-runtime.ts:33](https://github.com/
 emitChunk(chunk): void;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:60](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L60)
+Defined in: [packages/core/src/providers/mock-runtime.ts:60](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L60)
 
 ###### Parameters
 
@@ -212,7 +216,7 @@ Defined in: [packages/core/src/providers/mock-runtime.ts:60](https://github.com/
 emitError(error): void;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:68](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L68)
+Defined in: [packages/core/src/providers/mock-runtime.ts:68](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L68)
 
 ###### Parameters
 
@@ -230,7 +234,7 @@ Defined in: [packages/core/src/providers/mock-runtime.ts:68](https://github.com/
 emitVolume(level): void;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:64](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L64)
+Defined in: [packages/core/src/providers/mock-runtime.ts:64](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L64)
 
 ###### Parameters
 
@@ -248,7 +252,7 @@ Defined in: [packages/core/src/providers/mock-runtime.ts:64](https://github.com/
 onChunk(cb): () => void;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:72](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L72)
+Defined in: [packages/core/src/providers/mock-runtime.ts:72](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L72)
 
 Subscribe to encoded / PCM chunks.
 
@@ -274,7 +278,7 @@ Unsubscribe function.
 onError(cb): () => void;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:82](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L82)
+Defined in: [packages/core/src/providers/mock-runtime.ts:82](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L82)
 
 Subscribe to capture failures.
 
@@ -300,7 +304,7 @@ Unsubscribe function.
 onVolume(cb): () => void;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:77](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L77)
+Defined in: [packages/core/src/providers/mock-runtime.ts:77](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L77)
 
 Subscribe to normalized volume levels in `0..1` for VAD.
 
@@ -326,7 +330,7 @@ Unsubscribe function.
 pause(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:52](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L52)
+Defined in: [packages/core/src/providers/mock-runtime.ts:52](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L52)
 
 Pause capture without tearing down permission / hardware (optional).
 
@@ -344,7 +348,7 @@ Pause capture without tearing down permission / hardware (optional).
 requestPermission(): Promise<boolean>;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:37](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L37)
+Defined in: [packages/core/src/providers/mock-runtime.ts:37](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L37)
 
 Prompt for mic permission; `false` should surface as a session error.
 
@@ -362,7 +366,7 @@ Prompt for mic permission; `false` should surface as a session error.
 resume(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:56](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L56)
+Defined in: [packages/core/src/providers/mock-runtime.ts:56](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L56)
 
 Resume after [pause](/docs/en/reference/api/ottervoice-core/#pause-3).
 
@@ -380,7 +384,7 @@ Resume after [pause](/docs/en/reference/api/ottervoice-core/#pause-3).
 start(options): Promise<void>;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:41](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L41)
+Defined in: [packages/core/src/providers/mock-runtime.ts:41](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L41)
 
 Begin capture.
 
@@ -404,7 +408,7 @@ Begin capture.
 stop(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:47](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L47)
+Defined in: [packages/core/src/providers/mock-runtime.ts:47](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L47)
 
 Stop capture and release resources tied to the current start.
 
@@ -420,7 +424,7 @@ Stop capture and release resources tied to the current start.
 
 ### MockAudioOutput
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:100](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L100)
+Defined in: [packages/core/src/providers/mock-runtime.ts:100](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L100)
 
 In-memory audio output. Records what was "played".
 
@@ -436,7 +440,7 @@ In-memory audio output. Records what was "played".
 new MockAudioOutput(options?): MockAudioOutput;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:114](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L114)
+Defined in: [packages/core/src/providers/mock-runtime.ts:114](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L114)
 
 ###### Parameters
 
@@ -452,10 +456,10 @@ Defined in: [packages/core/src/providers/mock-runtime.ts:114](https://github.com
 
 | Property | Type | Default value | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="paused-1"></a> `paused` | `number` | `0` | [packages/core/src/providers/mock-runtime.ts:110](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L110) |
-| <a id="played"></a> `played` | [`AudioPlaybackInput`](/docs/en/reference/api/ottervoice-core/#audioplaybackinput)[] | `[]` | [packages/core/src/providers/mock-runtime.ts:108](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L108) |
-| <a id="resumed"></a> `resumed` | `number` | `0` | [packages/core/src/providers/mock-runtime.ts:111](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L111) |
-| <a id="stopped"></a> `stopped` | `number` | `0` | [packages/core/src/providers/mock-runtime.ts:109](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L109) |
+| <a id="paused-1"></a> `paused` | `number` | `0` | [packages/core/src/providers/mock-runtime.ts:110](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L110) |
+| <a id="played"></a> `played` | [`AudioPlaybackInput`](/docs/en/reference/api/ottervoice-core/#audioplaybackinput)[] | `[]` | [packages/core/src/providers/mock-runtime.ts:108](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L108) |
+| <a id="resumed"></a> `resumed` | `number` | `0` | [packages/core/src/providers/mock-runtime.ts:111](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L111) |
+| <a id="stopped"></a> `stopped` | `number` | `0` | [packages/core/src/providers/mock-runtime.ts:109](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L109) |
 
 #### Methods
 
@@ -465,7 +469,7 @@ Defined in: [packages/core/src/providers/mock-runtime.ts:114](https://github.com
 emitVolume(level): void;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:156](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L156)
+Defined in: [packages/core/src/providers/mock-runtime.ts:156](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L156)
 
 ###### Parameters
 
@@ -483,7 +487,7 @@ Defined in: [packages/core/src/providers/mock-runtime.ts:156](https://github.com
 fireEnd(): void;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:150](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L150)
+Defined in: [packages/core/src/providers/mock-runtime.ts:150](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L150)
 
 ###### Returns
 
@@ -495,7 +499,7 @@ Defined in: [packages/core/src/providers/mock-runtime.ts:150](https://github.com
 onEnd(cb): () => void;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:181](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L181)
+Defined in: [packages/core/src/providers/mock-runtime.ts:181](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L181)
 
 Subscribe to playback end (natural finish or stop).
 
@@ -521,7 +525,7 @@ Unsubscribe function.
 onError(cb): () => void;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:186](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L186)
+Defined in: [packages/core/src/providers/mock-runtime.ts:186](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L186)
 
 Subscribe to playback failures.
 
@@ -547,7 +551,7 @@ Unsubscribe function.
 onPlaybackRequested(cb): () => void;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:171](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L171)
+Defined in: [packages/core/src/providers/mock-runtime.ts:171](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L171)
 
 Subscribe when mock playback is requested.
 
@@ -573,7 +577,7 @@ Unsubscribe function.
 onStart(cb): () => void;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:176](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L176)
+Defined in: [packages/core/src/providers/mock-runtime.ts:176](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L176)
 
 Subscribe to confirmed playback start. Adapters with playback telemetry
 fire this once per utterance when the platform first reports active
@@ -602,7 +606,7 @@ Unsubscribe function.
 onVolume(cb): () => void;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:160](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L160)
+Defined in: [packages/core/src/providers/mock-runtime.ts:160](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L160)
 
 Subscribe to normalized RMS of the assistant audio currently being played
 (used as an acoustic echo reference for barge-in).
@@ -629,7 +633,7 @@ Unsubscribe function.
 pause(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:142](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L142)
+Defined in: [packages/core/src/providers/mock-runtime.ts:142](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L142)
 
 Pause playback without discarding the current utterance (optional).
 
@@ -647,7 +651,7 @@ Pause playback without discarding the current utterance (optional).
 play(input): Promise<void>;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:119](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L119)
+Defined in: [packages/core/src/providers/mock-runtime.ts:119](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L119)
 
 Play a complete encoded buffer or URL.
 
@@ -671,7 +675,7 @@ Play a complete encoded buffer or URL.
 resume(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:146](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L146)
+Defined in: [packages/core/src/providers/mock-runtime.ts:146](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L146)
 
 Resume after [AudioOutputAdapter.pause](/docs/en/reference/api/ottervoice-core/#pause-4).
 
@@ -689,7 +693,7 @@ Resume after [AudioOutputAdapter.pause](/docs/en/reference/api/ottervoice-core/#
 stop(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:136](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L136)
+Defined in: [packages/core/src/providers/mock-runtime.ts:136](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L136)
 
 Stop current playback and cancel any open PCM stream.
 
@@ -705,7 +709,7 @@ Stop current playback and cancel any open PCM stream.
 
 ### PlaybackEchoFilter
 
-Defined in: [packages/core/src/playback-echo-filter.ts:72](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L72)
+Defined in: [packages/core/src/playback-echo-filter.ts:72](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L72)
 
 Removes the component of microphone RMS that is correlated with assistant
 playback. It searches a short delay window because browser playback,
@@ -719,7 +723,7 @@ loudspeaker travel and microphone analysis are not sample-synchronous.
 new PlaybackEchoFilter(options?): PlaybackEchoFilter;
 ```
 
-Defined in: [packages/core/src/playback-echo-filter.ts:84](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L84)
+Defined in: [packages/core/src/playback-echo-filter.ts:84](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L84)
 
 ###### Parameters
 
@@ -739,7 +743,7 @@ Defined in: [packages/core/src/playback-echo-filter.ts:84](https://github.com/bu
 filter(microphoneLevel, at): number;
 ```
 
-Defined in: [packages/core/src/playback-echo-filter.ts:118](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L118)
+Defined in: [packages/core/src/playback-echo-filter.ts:118](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L118)
 
 ###### Parameters
 
@@ -758,7 +762,7 @@ Defined in: [packages/core/src/playback-echo-filter.ts:118](https://github.com/b
 isReady(at): boolean;
 ```
 
-Defined in: [packages/core/src/playback-echo-filter.ts:163](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L163)
+Defined in: [packages/core/src/playback-echo-filter.ts:163](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L163)
 
 True once enough playback reference frames exist to estimate echo.
 
@@ -778,7 +782,7 @@ True once enough playback reference frames exist to estimate echo.
 pushOutput(level, at): void;
 ```
 
-Defined in: [packages/core/src/playback-echo-filter.ts:110](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L110)
+Defined in: [packages/core/src/playback-echo-filter.ts:110](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L110)
 
 ###### Parameters
 
@@ -797,7 +801,7 @@ Defined in: [packages/core/src/playback-echo-filter.ts:110](https://github.com/b
 reset(): void;
 ```
 
-Defined in: [packages/core/src/playback-echo-filter.ts:155](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L155)
+Defined in: [packages/core/src/playback-echo-filter.ts:155](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L155)
 
 ###### Returns
 
@@ -809,7 +813,7 @@ Defined in: [packages/core/src/playback-echo-filter.ts:155](https://github.com/b
 start(_at): void;
 ```
 
-Defined in: [packages/core/src/playback-echo-filter.ts:96](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L96)
+Defined in: [packages/core/src/playback-echo-filter.ts:96](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L96)
 
 ###### Parameters
 
@@ -827,7 +831,7 @@ Defined in: [packages/core/src/playback-echo-filter.ts:96](https://github.com/bu
 stop(): void;
 ```
 
-Defined in: [packages/core/src/playback-echo-filter.ts:106](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L106)
+Defined in: [packages/core/src/playback-echo-filter.ts:106](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L106)
 
 ###### Returns
 
@@ -837,7 +841,7 @@ Defined in: [packages/core/src/playback-echo-filter.ts:106](https://github.com/b
 
 ### ProviderRegistry
 
-Defined in: [packages/core/src/provider-router.ts:164](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L164)
+Defined in: [packages/core/src/provider-router.ts:164](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L164)
 
 Maps provider ids (as used in [ProviderProfile](/docs/en/reference/api/ottervoice-core/#providerprofile)) to concrete provider
 instances, and resolves a profile into a usable [ResolvedProviders](/docs/en/reference/api/ottervoice-core/#resolvedproviders)
@@ -851,7 +855,7 @@ bundle for a import('./session').VoiceSession.
 new ProviderRegistry(initial?): ProviderRegistry;
 ```
 
-Defined in: [packages/core/src/provider-router.ts:170](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L170)
+Defined in: [packages/core/src/provider-router.ts:170](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L170)
 
 ###### Parameters
 
@@ -871,7 +875,7 @@ Defined in: [packages/core/src/provider-router.ts:170](https://github.com/bugkiw
 getProfile(name): ProviderProfile;
 ```
 
-Defined in: [packages/core/src/provider-router.ts:207](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L207)
+Defined in: [packages/core/src/provider-router.ts:207](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L207)
 
 ###### Parameters
 
@@ -889,7 +893,7 @@ Defined in: [packages/core/src/provider-router.ts:207](https://github.com/bugkiw
 registerASR(id, provider): this;
 ```
 
-Defined in: [packages/core/src/provider-router.ts:187](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L187)
+Defined in: [packages/core/src/provider-router.ts:187](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L187)
 
 ###### Parameters
 
@@ -908,7 +912,7 @@ Defined in: [packages/core/src/provider-router.ts:187](https://github.com/bugkiw
 registerLLM(id, provider): this;
 ```
 
-Defined in: [packages/core/src/provider-router.ts:192](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L192)
+Defined in: [packages/core/src/provider-router.ts:192](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L192)
 
 ###### Parameters
 
@@ -927,7 +931,7 @@ Defined in: [packages/core/src/provider-router.ts:192](https://github.com/bugkiw
 registerPronunciation(id, provider): this;
 ```
 
-Defined in: [packages/core/src/provider-router.ts:202](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L202)
+Defined in: [packages/core/src/provider-router.ts:202](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L202)
 
 ###### Parameters
 
@@ -946,7 +950,7 @@ Defined in: [packages/core/src/provider-router.ts:202](https://github.com/bugkiw
 registerTTS(id, provider): this;
 ```
 
-Defined in: [packages/core/src/provider-router.ts:197](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L197)
+Defined in: [packages/core/src/provider-router.ts:197](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L197)
 
 ###### Parameters
 
@@ -965,7 +969,7 @@ Defined in: [packages/core/src/provider-router.ts:197](https://github.com/bugkiw
 resolve(profileOrName): ResolvedProviders;
 ```
 
-Defined in: [packages/core/src/provider-router.ts:211](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L211)
+Defined in: [packages/core/src/provider-router.ts:211](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L211)
 
 ###### Parameters
 
@@ -981,7 +985,7 @@ Defined in: [packages/core/src/provider-router.ts:211](https://github.com/bugkiw
 
 ### StateMachine
 
-Defined in: [packages/core/src/state-machine.ts:77](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/state-machine.ts#L77)
+Defined in: [packages/core/src/state-machine.ts:77](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/state-machine.ts#L77)
 
 Pure state container. The session owns one of these and is the only thing
 that mutates it via [StateMachine.transition](/docs/en/reference/api/ottervoice-core/#transition).
@@ -994,7 +998,7 @@ that mutates it via [StateMachine.transition](/docs/en/reference/api/ottervoice-
 new StateMachine(initial?): StateMachine;
 ```
 
-Defined in: [packages/core/src/state-machine.ts:80](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/state-machine.ts#L80)
+Defined in: [packages/core/src/state-machine.ts:80](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/state-machine.ts#L80)
 
 ###### Parameters
 
@@ -1016,7 +1020,7 @@ Defined in: [packages/core/src/state-machine.ts:80](https://github.com/bugkiwi/O
 get state(): VoiceSessionState;
 ```
 
-Defined in: [packages/core/src/state-machine.ts:84](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/state-machine.ts#L84)
+Defined in: [packages/core/src/state-machine.ts:84](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/state-machine.ts#L84)
 
 ###### Returns
 
@@ -1030,7 +1034,7 @@ Defined in: [packages/core/src/state-machine.ts:84](https://github.com/bugkiwi/O
 can(to): boolean;
 ```
 
-Defined in: [packages/core/src/state-machine.ts:88](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/state-machine.ts#L88)
+Defined in: [packages/core/src/state-machine.ts:88](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/state-machine.ts#L88)
 
 ###### Parameters
 
@@ -1048,7 +1052,7 @@ Defined in: [packages/core/src/state-machine.ts:88](https://github.com/bugkiwi/O
 transition(to): VoiceSessionState;
 ```
 
-Defined in: [packages/core/src/state-machine.ts:96](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/state-machine.ts#L96)
+Defined in: [packages/core/src/state-machine.ts:96](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/state-machine.ts#L96)
 
 Move to `to`, returning the previous state. Throws a [VoiceError](/docs/en/reference/api/ottervoice-core/#voiceerror)
 with code `invalid_state` when the transition is not allowed.
@@ -1067,7 +1071,7 @@ with code `invalid_state` when the transition is not allowed.
 
 ### TranscriptBuffer
 
-Defined in: [packages/core/src/transcript-buffer.ts:30](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/transcript-buffer.ts#L30)
+Defined in: [packages/core/src/transcript-buffer.ts:30](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/transcript-buffer.ts#L30)
 
 Ordered store of conversation turns. Owns nothing about providers — it just
 accumulates turns and projects them into the shape the LLM expects.
@@ -1080,7 +1084,7 @@ accumulates turns and projects them into the shape the LLM expects.
 new TranscriptBuffer(generateId, now): TranscriptBuffer;
 ```
 
-Defined in: [packages/core/src/transcript-buffer.ts:33](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/transcript-buffer.ts#L33)
+Defined in: [packages/core/src/transcript-buffer.ts:33](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/transcript-buffer.ts#L33)
 
 ###### Parameters
 
@@ -1103,7 +1107,7 @@ Defined in: [packages/core/src/transcript-buffer.ts:33](https://github.com/bugki
 get size(): number;
 ```
 
-Defined in: [packages/core/src/transcript-buffer.ts:63](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/transcript-buffer.ts#L63)
+Defined in: [packages/core/src/transcript-buffer.ts:63](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/transcript-buffer.ts#L63)
 
 ###### Returns
 
@@ -1117,7 +1121,7 @@ Defined in: [packages/core/src/transcript-buffer.ts:63](https://github.com/bugki
 add(input): VoiceTurn;
 ```
 
-Defined in: [packages/core/src/transcript-buffer.ts:38](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/transcript-buffer.ts#L38)
+Defined in: [packages/core/src/transcript-buffer.ts:38](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/transcript-buffer.ts#L38)
 
 ###### Parameters
 
@@ -1135,7 +1139,7 @@ Defined in: [packages/core/src/transcript-buffer.ts:38](https://github.com/bugki
 all(): VoiceTurn[];
 ```
 
-Defined in: [packages/core/src/transcript-buffer.ts:68](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/transcript-buffer.ts#L68)
+Defined in: [packages/core/src/transcript-buffer.ts:68](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/transcript-buffer.ts#L68)
 
 Immutable snapshot of all turns.
 
@@ -1149,7 +1153,7 @@ Immutable snapshot of all turns.
 clear(): void;
 ```
 
-Defined in: [packages/core/src/transcript-buffer.ts:82](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/transcript-buffer.ts#L82)
+Defined in: [packages/core/src/transcript-buffer.ts:82](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/transcript-buffer.ts#L82)
 
 ###### Returns
 
@@ -1163,7 +1167,7 @@ last():
   | undefined;
 ```
 
-Defined in: [packages/core/src/transcript-buffer.ts:59](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/transcript-buffer.ts#L59)
+Defined in: [packages/core/src/transcript-buffer.ts:59](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/transcript-buffer.ts#L59)
 
 The most recently added turn, or `undefined` when empty.
 
@@ -1178,7 +1182,7 @@ The most recently added turn, or `undefined` when empty.
 toMessages(): LLMMessage[];
 ```
 
-Defined in: [packages/core/src/transcript-buffer.ts:73](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/transcript-buffer.ts#L73)
+Defined in: [packages/core/src/transcript-buffer.ts:73](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/transcript-buffer.ts#L73)
 
 Project turns into LLM messages, dropping any with empty text.
 
@@ -1190,9 +1194,9 @@ Project turns into LLM messages, dropping any with empty text.
 
 ### TurnDetector
 
-Defined in: [packages/core/src/turn-detector.ts:51](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/turn-detector.ts#L51)
+Defined in: [packages/core/src/turn-detector.ts:55](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/turn-detector.ts#L55)
 
-Rule-based voice-activity / endpointing detector.
+Rule-based local voice-activity detector.
 
 It is driven purely by `(volume, timestampMs)` samples fed via
 [TurnDetector.pushVolume](/docs/en/reference/api/ottervoice-core/#pushvolume). It tracks whether the user has begun
@@ -1209,7 +1213,7 @@ session supplies the clock.
 new TurnDetector(config?): TurnDetector;
 ```
 
-Defined in: [packages/core/src/turn-detector.ts:58](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/turn-detector.ts#L58)
+Defined in: [packages/core/src/turn-detector.ts:62](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/turn-detector.ts#L62)
 
 ###### Parameters
 
@@ -1231,7 +1235,9 @@ Defined in: [packages/core/src/turn-detector.ts:58](https://github.com/bugkiwi/O
 get isSpeaking(): boolean;
 ```
 
-Defined in: [packages/core/src/turn-detector.ts:62](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/turn-detector.ts#L62)
+Defined in: [packages/core/src/turn-detector.ts:67](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/turn-detector.ts#L67)
+
+Whether sustained user speech is currently active.
 
 ###### Returns
 
@@ -1242,14 +1248,16 @@ Defined in: [packages/core/src/turn-detector.ts:62](https://github.com/bugkiwi/O
 ###### Get Signature
 
 ```ts
-get options(): Required<TurnDetectionConfig>;
+get options(): ResolvedTurnDetectionConfig;
 ```
 
-Defined in: [packages/core/src/turn-detector.ts:66](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/turn-detector.ts#L66)
+Defined in: [packages/core/src/turn-detector.ts:72](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/turn-detector.ts#L72)
+
+Fully resolved detection settings for this detector.
 
 ###### Returns
 
-`Required`\<[`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig)\>
+[`ResolvedTurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#resolvedturndetectionconfig)
 
 #### Methods
 
@@ -1259,15 +1267,15 @@ Defined in: [packages/core/src/turn-detector.ts:66](https://github.com/bugkiwi/O
 forceSpeechStart(timestampMs): void;
 ```
 
-Defined in: [packages/core/src/turn-detector.ts:71](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/turn-detector.ts#L71)
+Defined in: [packages/core/src/turn-detector.ts:81](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/turn-detector.ts#L81)
 
-Continue endpointing after another detector has already confirmed speech.
+Continue local silence detection after ASR has already confirmed speech.
 
 ###### Parameters
 
-| Parameter | Type |
-| ------ | ------ |
-| `timestampMs` | `number` |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `timestampMs` | `number` | Timestamp to use as the beginning of the active speech turn. |
 
 ###### Returns
 
@@ -1281,7 +1289,7 @@ pushVolume(volume, timestampMs):
   | undefined;
 ```
 
-Defined in: [packages/core/src/turn-detector.ts:86](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/turn-detector.ts#L86)
+Defined in: [packages/core/src/turn-detector.ts:100](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/turn-detector.ts#L100)
 
 Feed a volume sample. Returns an event when a boundary is crossed, else
 `undefined`.
@@ -1292,15 +1300,17 @@ Feed a volume sample. Returns an event when a boundary is crossed, else
 
 ###### Parameters
 
-| Parameter | Type |
-| ------ | ------ |
-| `volume` | `number` |
-| `timestampMs` | `number` |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `volume` | `number` | Normalized input volume, typically in `0..1`. |
+| `timestampMs` | `number` | Sample timestamp in a monotonic clock domain. |
 
 ###### Returns
 
   \| [`TurnDetectorEvent`](/docs/en/reference/api/ottervoice-core/#turndetectorevent)
   \| `undefined`
+
+The boundary crossed by this sample, or `undefined`.
 
 ##### reset()
 
@@ -1308,7 +1318,9 @@ Feed a volume sample. Returns an event when a boundary is crossed, else
 reset(): void;
 ```
 
-Defined in: [packages/core/src/turn-detector.ts:127](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/turn-detector.ts#L127)
+Defined in: [packages/core/src/turn-detector.ts:141](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/turn-detector.ts#L141)
+
+Reset all speech and silence timing state.
 
 ###### Returns
 
@@ -1318,7 +1330,7 @@ Defined in: [packages/core/src/turn-detector.ts:127](https://github.com/bugkiwi/
 
 ### TypedEmitter
 
-Defined in: [packages/core/src/emitter.ts:8](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/emitter.ts#L8)
+Defined in: [packages/core/src/emitter.ts:8](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/emitter.ts#L8)
 
 Minimal, dependency-free, strongly-typed event emitter.
 
@@ -1340,7 +1352,7 @@ original callback.
 new TypedEmitter<EventMap>(): TypedEmitter<EventMap>;
 ```
 
-Defined in: [packages/core/src/emitter.ts:11](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/emitter.ts#L11)
+Defined in: [packages/core/src/emitter.ts:11](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/emitter.ts#L11)
 
 ###### Returns
 
@@ -1354,7 +1366,7 @@ Defined in: [packages/core/src/emitter.ts:11](https://github.com/bugkiwi/OtterVo
 emit<K>(event, payload): void;
 ```
 
-Defined in: [packages/core/src/emitter.ts:49](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/emitter.ts#L49)
+Defined in: [packages/core/src/emitter.ts:49](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/emitter.ts#L49)
 
 ###### Type Parameters
 
@@ -1379,7 +1391,7 @@ Defined in: [packages/core/src/emitter.ts:49](https://github.com/bugkiwi/OtterVo
 listenerCount<K>(event): number;
 ```
 
-Defined in: [packages/core/src/emitter.ts:59](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/emitter.ts#L59)
+Defined in: [packages/core/src/emitter.ts:59](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/emitter.ts#L59)
 
 Number of registered listeners for an event (primarily for testing).
 
@@ -1405,7 +1417,7 @@ Number of registered listeners for an event (primarily for testing).
 off<K>(event, cb): void;
 ```
 
-Defined in: [packages/core/src/emitter.ts:39](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/emitter.ts#L39)
+Defined in: [packages/core/src/emitter.ts:39](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/emitter.ts#L39)
 
 ###### Type Parameters
 
@@ -1430,7 +1442,7 @@ Defined in: [packages/core/src/emitter.ts:39](https://github.com/bugkiwi/OtterVo
 on<K>(event, cb): () => void;
 ```
 
-Defined in: [packages/core/src/emitter.ts:15](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/emitter.ts#L15)
+Defined in: [packages/core/src/emitter.ts:15](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/emitter.ts#L15)
 
 ###### Type Parameters
 
@@ -1455,7 +1467,7 @@ Defined in: [packages/core/src/emitter.ts:15](https://github.com/bugkiwi/OtterVo
 once<K>(event, cb): () => void;
 ```
 
-Defined in: [packages/core/src/emitter.ts:28](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/emitter.ts#L28)
+Defined in: [packages/core/src/emitter.ts:28](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/emitter.ts#L28)
 
 ###### Type Parameters
 
@@ -1480,7 +1492,7 @@ Defined in: [packages/core/src/emitter.ts:28](https://github.com/bugkiwi/OtterVo
 removeAllListeners(): void;
 ```
 
-Defined in: [packages/core/src/emitter.ts:64](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/emitter.ts#L64)
+Defined in: [packages/core/src/emitter.ts:64](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/emitter.ts#L64)
 
 Drop every listener. Called when a session is disposed.
 
@@ -1492,7 +1504,7 @@ Drop every listener. Called when a session is disposed.
 
 ### UsageMeter
 
-Defined in: [packages/core/src/usage-meter.ts:7](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/usage-meter.ts#L7)
+Defined in: [packages/core/src/usage-meter.ts:7](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/usage-meter.ts#L7)
 
 Accumulates per-session usage. The SDK measures, it does not bill — business
 code consumes the [VoiceUsageSnapshot](/docs/en/reference/api/ottervoice-core/#voiceusagesnapshot) to enforce quotas/plans.
@@ -1505,7 +1517,7 @@ code consumes the [VoiceUsageSnapshot](/docs/en/reference/api/ottervoice-core/#v
 new UsageMeter(now): UsageMeter;
 ```
 
-Defined in: [packages/core/src/usage-meter.ts:19](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/usage-meter.ts#L19)
+Defined in: [packages/core/src/usage-meter.ts:19](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/usage-meter.ts#L19)
 
 ###### Parameters
 
@@ -1525,7 +1537,7 @@ Defined in: [packages/core/src/usage-meter.ts:19](https://github.com/bugkiwi/Ott
 addAsrAudioMs(ms): void;
 ```
 
-Defined in: [packages/core/src/usage-meter.ts:33](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/usage-meter.ts#L33)
+Defined in: [packages/core/src/usage-meter.ts:33](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/usage-meter.ts#L33)
 
 ###### Parameters
 
@@ -1543,7 +1555,7 @@ Defined in: [packages/core/src/usage-meter.ts:33](https://github.com/bugkiwi/Ott
 addAssistantSpeechChars(chars): void;
 ```
 
-Defined in: [packages/core/src/usage-meter.ts:37](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/usage-meter.ts#L37)
+Defined in: [packages/core/src/usage-meter.ts:37](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/usage-meter.ts#L37)
 
 ###### Parameters
 
@@ -1561,7 +1573,7 @@ Defined in: [packages/core/src/usage-meter.ts:37](https://github.com/bugkiwi/Ott
 addLlmUsage(usage): void;
 ```
 
-Defined in: [packages/core/src/usage-meter.ts:45](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/usage-meter.ts#L45)
+Defined in: [packages/core/src/usage-meter.ts:45](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/usage-meter.ts#L45)
 
 ###### Parameters
 
@@ -1579,7 +1591,7 @@ Defined in: [packages/core/src/usage-meter.ts:45](https://github.com/bugkiwi/Ott
 addProviderCost(provider, cost): void;
 ```
 
-Defined in: [packages/core/src/usage-meter.ts:57](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/usage-meter.ts#L57)
+Defined in: [packages/core/src/usage-meter.ts:57](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/usage-meter.ts#L57)
 
 ###### Parameters
 
@@ -1598,7 +1610,7 @@ Defined in: [packages/core/src/usage-meter.ts:57](https://github.com/bugkiwi/Ott
 addTtsChars(chars): void;
 ```
 
-Defined in: [packages/core/src/usage-meter.ts:41](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/usage-meter.ts#L41)
+Defined in: [packages/core/src/usage-meter.ts:41](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/usage-meter.ts#L41)
 
 ###### Parameters
 
@@ -1616,7 +1628,7 @@ Defined in: [packages/core/src/usage-meter.ts:41](https://github.com/bugkiwi/Ott
 addUserSpeechMs(ms): void;
 ```
 
-Defined in: [packages/core/src/usage-meter.ts:29](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/usage-meter.ts#L29)
+Defined in: [packages/core/src/usage-meter.ts:29](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/usage-meter.ts#L29)
 
 ###### Parameters
 
@@ -1634,7 +1646,7 @@ Defined in: [packages/core/src/usage-meter.ts:29](https://github.com/bugkiwi/Ott
 endSession(at?): void;
 ```
 
-Defined in: [packages/core/src/usage-meter.ts:25](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/usage-meter.ts#L25)
+Defined in: [packages/core/src/usage-meter.ts:25](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/usage-meter.ts#L25)
 
 ###### Parameters
 
@@ -1652,7 +1664,7 @@ Defined in: [packages/core/src/usage-meter.ts:25](https://github.com/bugkiwi/Ott
 snapshot(): VoiceUsageSnapshot;
 ```
 
-Defined in: [packages/core/src/usage-meter.ts:68](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/usage-meter.ts#L68)
+Defined in: [packages/core/src/usage-meter.ts:68](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/usage-meter.ts#L68)
 
 ###### Returns
 
@@ -1664,7 +1676,7 @@ Defined in: [packages/core/src/usage-meter.ts:68](https://github.com/bugkiwi/Ott
 startSession(at?): void;
 ```
 
-Defined in: [packages/core/src/usage-meter.ts:21](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/usage-meter.ts#L21)
+Defined in: [packages/core/src/usage-meter.ts:21](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/usage-meter.ts#L21)
 
 ###### Parameters
 
@@ -1680,7 +1692,7 @@ Defined in: [packages/core/src/usage-meter.ts:21](https://github.com/bugkiwi/Ott
 
 ### VoiceError
 
-Defined in: [packages/core/src/errors.ts:36](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L36)
+Defined in: [packages/core/src/errors.ts:36](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L36)
 
 Typed error wrapper so a [NormalizedVoiceError](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) can flow through
 `throw`/`catch` and `Promise` rejection while remaining structurally
@@ -1702,7 +1714,7 @@ inspectable.
 new VoiceError(error): VoiceError;
 ```
 
-Defined in: [packages/core/src/errors.ts:59](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L59)
+Defined in: [packages/core/src/errors.ts:59](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L59)
 
 ###### Parameters
 
@@ -1724,18 +1736,18 @@ Error.constructor
 
 | Property | Modifier | Type | Description | Overrides | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ | ------ | ------ |
-| <a id="cause"></a> `cause?` | `readonly` | `unknown` | Original thrown value. May contain user or provider data. | [`NormalizedVoiceError`](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror).[`cause`](/docs/en/reference/api/ottervoice-core/#cause-2) `Error.cause` | - | [packages/core/src/errors.ts:52](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L52) |
-| <a id="code"></a> `code` | `readonly` | [`VoiceErrorCode`](/docs/en/reference/api/ottervoice-core/#voiceerrorcode-1) | Stable application error code. | - | - | [packages/core/src/errors.ts:38](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L38) |
-| <a id="fatal"></a> `fatal?` | `readonly` | `boolean` | Whether the session entered its terminal `error` state. | - | - | [packages/core/src/errors.ts:48](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L48) |
-| <a id="httpstatus"></a> `httpStatus?` | `readonly` | `number` | Upstream HTTP status when a response was received. | - | - | [packages/core/src/errors.ts:44](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L44) |
+| <a id="cause"></a> `cause?` | `readonly` | `unknown` | Original thrown value. May contain user or provider data. | [`NormalizedVoiceError`](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror).[`cause`](/docs/en/reference/api/ottervoice-core/#cause-2) `Error.cause` | - | [packages/core/src/errors.ts:52](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L52) |
+| <a id="code"></a> `code` | `readonly` | [`VoiceErrorCode`](/docs/en/reference/api/ottervoice-core/#voiceerrorcode-1) | Stable application error code. | - | - | [packages/core/src/errors.ts:38](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L38) |
+| <a id="fatal"></a> `fatal?` | `readonly` | `boolean` | Whether the session entered its terminal `error` state. | - | - | [packages/core/src/errors.ts:48](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L48) |
+| <a id="httpstatus"></a> `httpStatus?` | `readonly` | `number` | Upstream HTTP status when a response was received. | - | - | [packages/core/src/errors.ts:44](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L44) |
 | <a id="message"></a> `message` | `public` | `string` | Human-readable message suitable for logs (not always UI-safe). | - | [`NormalizedVoiceError`](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror).[`message`](/docs/en/reference/api/ottervoice-core/#message-1) `Error.message` | node\_modules/.bun/typescript@5.9.3/node\_modules/typescript/lib/lib.es5.d.ts:1077 |
 | <a id="name"></a> `name` | `public` | `string` | - | - | `Error.name` | node\_modules/.bun/typescript@5.9.3/node\_modules/typescript/lib/lib.es5.d.ts:1076 |
-| <a id="provider"></a> `provider?` | `readonly` | `string` | Provider name when the failure originated in an adapter. | - | - | [packages/core/src/errors.ts:40](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L40) |
-| <a id="raw"></a> `raw?` | `readonly` | `unknown` | Original provider payload or HTTP body. May contain sensitive data. | - | - | [packages/core/src/errors.ts:54](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L54) |
-| <a id="retryable"></a> `retryable?` | `readonly` | `boolean` | Hint for UI retry; not enforced by the session. | - | - | [packages/core/src/errors.ts:46](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L46) |
-| <a id="safemessage"></a> `safeMessage?` | `readonly` | `string` | Sanitized summary safe for production logs and user-facing diagnostics. | - | - | [packages/core/src/errors.ts:50](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L50) |
+| <a id="provider"></a> `provider?` | `readonly` | `string` | Provider name when the failure originated in an adapter. | - | - | [packages/core/src/errors.ts:40](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L40) |
+| <a id="raw"></a> `raw?` | `readonly` | `unknown` | Original provider payload or HTTP body. May contain sensitive data. | - | - | [packages/core/src/errors.ts:54](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L54) |
+| <a id="retryable"></a> `retryable?` | `readonly` | `boolean` | Hint for UI retry; not enforced by the session. | - | - | [packages/core/src/errors.ts:46](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L46) |
+| <a id="safemessage"></a> `safeMessage?` | `readonly` | `string` | Sanitized summary safe for production logs and user-facing diagnostics. | - | - | [packages/core/src/errors.ts:50](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L50) |
 | <a id="stack"></a> `stack?` | `public` | `string` | - | - | `Error.stack` | node\_modules/.bun/typescript@5.9.3/node\_modules/typescript/lib/lib.es5.d.ts:1078 |
-| <a id="stage"></a> `stage?` | `readonly` | [`VoiceErrorStage`](/docs/en/reference/api/ottervoice-core/#voiceerrorstage-1) | Processing boundary where the failure occurred. | - | - | [packages/core/src/errors.ts:42](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L42) |
+| <a id="stage"></a> `stage?` | `readonly` | [`VoiceErrorStage`](/docs/en/reference/api/ottervoice-core/#voiceerrorstage-1) | Processing boundary where the failure occurred. | - | - | [packages/core/src/errors.ts:42](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L42) |
 | <a id="stacktracelimit"></a> `stackTraceLimit` | `static` | `number` | The `Error.stackTraceLimit` property specifies the number of stack frames collected by a stack trace (whether generated by `new Error().stack` or `Error.captureStackTrace(obj)`). The default value is `10` but may be set to any valid JavaScript number. Changes will affect any stack trace captured _after_ the value has been changed. If set to a non-number value, or set to a negative number, stack traces will not capture any frames. | - | `Error.stackTraceLimit` | node\_modules/.bun/@types+node@26.0.1/node\_modules/@types/node/globals.d.ts:67 |
 
 #### Methods
@@ -1746,7 +1758,7 @@ Error.constructor
 toNormalized(): NormalizedVoiceError;
 ```
 
-Defined in: [packages/core/src/errors.ts:77](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L77)
+Defined in: [packages/core/src/errors.ts:77](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L77)
 
 Flatten back to a plain [NormalizedVoiceError](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) for events / logs.
 
@@ -1913,7 +1925,7 @@ Error.prepareStackTrace
 
 ### VoiceSession
 
-Defined in: [packages/core/src/session.ts:72](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L72)
+Defined in: [packages/core/src/session.ts:75](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L75)
 
 Voice conversation session with automatic turn-taking and optional
 full-duplex barge-in.
@@ -1931,7 +1943,7 @@ supplied through [VoiceSessionConfig](/docs/en/reference/api/ottervoice-core/#vo
 new VoiceSession(config): VoiceSession;
 ```
 
-Defined in: [packages/core/src/session.ts:110](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L110)
+Defined in: [packages/core/src/session.ts:113](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L113)
 
 ###### Parameters
 
@@ -1953,7 +1965,7 @@ Defined in: [packages/core/src/session.ts:110](https://github.com/bugkiwi/OtterV
 get state(): VoiceSessionState;
 ```
 
-Defined in: [packages/core/src/session.ts:159](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L159)
+Defined in: [packages/core/src/session.ts:162](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L162)
 
 Current finite-state machine value (see [VoiceSessionState](/docs/en/reference/api/ottervoice-core/#voicesessionstate-1)).
 
@@ -1969,7 +1981,7 @@ Current finite-state machine value (see [VoiceSessionState](/docs/en/reference/a
 dispose(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/session.ts:491](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L491)
+Defined in: [packages/core/src/session.ts:503](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L503)
 
 Tear everything down and drop all listeners. Safe to call multiple times.
 Prefer [VoiceSession.finish](/docs/en/reference/api/ottervoice-core/#finish) for a graceful end that emits `finished`.
@@ -1984,7 +1996,7 @@ Prefer [VoiceSession.finish](/docs/en/reference/api/ottervoice-core/#finish) for
 endUserTurn(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/session.ts:435](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L435)
+Defined in: [packages/core/src/session.ts:447](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L447)
 
 Manually end the current user turn (push-to-talk release, or a UI "done"
 button). Flushes the ASR session so its final result drives the loop.
@@ -1999,7 +2011,7 @@ button). Flushes the ASR session so its final result drives the loop.
 finish(reason?): Promise<void>;
 ```
 
-Defined in: [packages/core/src/session.ts:483](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L483)
+Defined in: [packages/core/src/session.ts:495](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L495)
 
 End the session normally, emitting a final usage snapshot and `finished`.
 
@@ -2019,7 +2031,7 @@ End the session normally, emitting a final usage snapshot and `finished`.
 getTurns(): VoiceTurn[];
 ```
 
-Defined in: [packages/core/src/session.ts:203](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L203)
+Defined in: [packages/core/src/session.ts:206](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L206)
 
 Committed user/assistant turns recorded so far.
 
@@ -2033,7 +2045,7 @@ Committed user/assistant turns recorded so far.
 getUsage(): VoiceUsageSnapshot;
 ```
 
-Defined in: [packages/core/src/session.ts:208](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L208)
+Defined in: [packages/core/src/session.ts:211](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L211)
 
 Aggregate usage meters for the active (or last) session.
 
@@ -2047,7 +2059,7 @@ Aggregate usage meters for the active (or last) session.
 off<K>(event, cb): void;
 ```
 
-Defined in: [packages/core/src/session.ts:195](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L195)
+Defined in: [packages/core/src/session.ts:198](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L198)
 
 Remove a previously registered handler.
 
@@ -2074,7 +2086,7 @@ Remove a previously registered handler.
 on<K>(event, cb): () => void;
 ```
 
-Defined in: [packages/core/src/session.ts:169](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L169)
+Defined in: [packages/core/src/session.ts:172](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L172)
 
 Subscribe to a session event. Returns an unsubscribe function.
 
@@ -2101,7 +2113,7 @@ Subscribe to a session event. Returns an unsubscribe function.
 once<K>(event, cb): () => void;
 ```
 
-Defined in: [packages/core/src/session.ts:182](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L182)
+Defined in: [packages/core/src/session.ts:185](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L185)
 
 Subscribe for a single delivery, then auto-unsubscribe.
 
@@ -2128,7 +2140,7 @@ Subscribe for a single delivery, then auto-unsubscribe.
 pause(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/session.ts:462](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L462)
+Defined in: [packages/core/src/session.ts:474](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L474)
 
 Pause the session: cancel in-flight replies, stop mic/ASR/playback, and
 enter the `paused` state. No-op if the transition is illegal.
@@ -2143,7 +2155,7 @@ enter the `paused` state. No-op if the transition is illegal.
 resume(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/session.ts:473](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L473)
+Defined in: [packages/core/src/session.ts:485](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L485)
 
 Resume from `paused` by reopening the microphone for the next user turn.
 
@@ -2157,7 +2169,7 @@ Resume from `paused` by reopening the microphone for the next user turn.
 start(initialPrompt?): Promise<void>;
 ```
 
-Defined in: [packages/core/src/session.ts:220](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L220)
+Defined in: [packages/core/src/session.ts:223](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L223)
 
 Begin the session. Speaks the initial assistant message (from the agent
 plugin or `initialPrompt`) and then, unless disabled, opens the mic.
@@ -2178,7 +2190,7 @@ plugin or `initialPrompt`) and then, unless disabled, opens the mic.
 startListening(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/session.ts:249](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L249)
+Defined in: [packages/core/src/session.ts:252](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L252)
 
 Open the microphone and wire ASR for the next user turn.
 
@@ -2192,7 +2204,7 @@ Open the microphone and wire ASR for the next user turn.
 submitUserText(text): Promise<void>;
 ```
 
-Defined in: [packages/core/src/session.ts:453](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L453)
+Defined in: [packages/core/src/session.ts:465](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L465)
 
 Inject user text directly, bypassing audio/ASR. Useful for text fallback
 and deterministic flows.
@@ -2211,7 +2223,7 @@ and deterministic flows.
 
 ### AddTurnInput
 
-Defined in: [packages/core/src/transcript-buffer.ts:7](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/transcript-buffer.ts#L7)
+Defined in: [packages/core/src/transcript-buffer.ts:7](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/transcript-buffer.ts#L7)
 
 Input for [TranscriptBuffer.add](/docs/en/reference/api/ottervoice-core/#add).
 Prefer supplying `id` when the same id already appears on streaming events.
@@ -2220,20 +2232,20 @@ Prefer supplying `id` when the same id already appears on streaming events.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="audiourl"></a> `audioUrl?` | `string` | Optional playback URL when audio was recorded. | [packages/core/src/transcript-buffer.ts:15](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/transcript-buffer.ts#L15) |
-| <a id="durationms"></a> `durationMs?` | `number` | Explicit duration; otherwise derived from `endedAt - startedAt` when possible. | [packages/core/src/transcript-buffer.ts:21](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/transcript-buffer.ts#L21) |
-| <a id="endedat"></a> `endedAt?` | `number` | Epoch millis when the turn ended. | [packages/core/src/transcript-buffer.ts:19](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/transcript-buffer.ts#L19) |
-| <a id="id"></a> `id?` | `string` | Supply a pre-generated id so event ids and turn ids stay in sync. | [packages/core/src/transcript-buffer.ts:13](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/transcript-buffer.ts#L13) |
-| <a id="metadata"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque app metadata attached to the turn. | [packages/core/src/transcript-buffer.ts:23](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/transcript-buffer.ts#L23) |
-| <a id="role"></a> `role` | [`TurnRole`](/docs/en/reference/api/ottervoice-core/#turnrole) | Speaker role for the new turn. | [packages/core/src/transcript-buffer.ts:9](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/transcript-buffer.ts#L9) |
-| <a id="startedat"></a> `startedAt?` | `number` | Epoch millis when the turn started; defaults to now. | [packages/core/src/transcript-buffer.ts:17](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/transcript-buffer.ts#L17) |
-| <a id="text"></a> `text` | `string` | Final text content. | [packages/core/src/transcript-buffer.ts:11](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/transcript-buffer.ts#L11) |
+| <a id="audiourl"></a> `audioUrl?` | `string` | Optional playback URL when audio was recorded. | [packages/core/src/transcript-buffer.ts:15](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/transcript-buffer.ts#L15) |
+| <a id="durationms"></a> `durationMs?` | `number` | Explicit duration; otherwise derived from `endedAt - startedAt` when possible. | [packages/core/src/transcript-buffer.ts:21](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/transcript-buffer.ts#L21) |
+| <a id="endedat"></a> `endedAt?` | `number` | Epoch millis when the turn ended. | [packages/core/src/transcript-buffer.ts:19](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/transcript-buffer.ts#L19) |
+| <a id="id"></a> `id?` | `string` | Supply a pre-generated id so event ids and turn ids stay in sync. | [packages/core/src/transcript-buffer.ts:13](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/transcript-buffer.ts#L13) |
+| <a id="metadata"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque app metadata attached to the turn. | [packages/core/src/transcript-buffer.ts:23](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/transcript-buffer.ts#L23) |
+| <a id="role"></a> `role` | [`TurnRole`](/docs/en/reference/api/ottervoice-core/#turnrole) | Speaker role for the new turn. | [packages/core/src/transcript-buffer.ts:9](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/transcript-buffer.ts#L9) |
+| <a id="startedat"></a> `startedAt?` | `number` | Epoch millis when the turn started; defaults to now. | [packages/core/src/transcript-buffer.ts:17](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/transcript-buffer.ts#L17) |
+| <a id="text"></a> `text` | `string` | Final text content. | [packages/core/src/transcript-buffer.ts:11](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/transcript-buffer.ts#L11) |
 
 ***
 
 ### AgentSessionInput
 
-Defined in: [packages/core/src/types.ts:1041](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1041)
+Defined in: [packages/core/src/types.ts:1061](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1061)
 
 Arguments passed to [VoiceAgentPlugin.shouldFinishSession](/docs/en/reference/api/ottervoice-core/#shouldfinishsession) and
 [VoiceAgentPlugin.generateReport](/docs/en/reference/api/ottervoice-core/#generatereport).
@@ -2242,13 +2254,13 @@ Arguments passed to [VoiceAgentPlugin.shouldFinishSession](/docs/en/reference/ap
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="turns"></a> `turns` | [`VoiceTurn`](/docs/en/reference/api/ottervoice-core/#voiceturn)[] | Completed turns in chronological order. | [packages/core/src/types.ts:1043](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1043) |
+| <a id="turns"></a> `turns` | [`VoiceTurn`](/docs/en/reference/api/ottervoice-core/#voiceturn)[] | Completed turns in chronological order. | [packages/core/src/types.ts:1063](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1063) |
 
 ***
 
 ### AgentTurnInput
 
-Defined in: [packages/core/src/types.ts:1030](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1030)
+Defined in: [packages/core/src/types.ts:1050](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1050)
 
 Arguments passed to [VoiceAgentPlugin.generateNextAssistantMessage](/docs/en/reference/api/ottervoice-core/#generatenextassistantmessage).
 Contains the full turn history plus the latest user utterance for convenience.
@@ -2257,36 +2269,35 @@ Contains the full turn history plus the latest user utterance for convenience.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="lastusertext"></a> `lastUserText` | `string` | Text of the most recent user turn. | [packages/core/src/types.ts:1034](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1034) |
-| <a id="turns-1"></a> `turns` | [`VoiceTurn`](/docs/en/reference/api/ottervoice-core/#voiceturn)[] | Completed turns in chronological order (includes the latest user turn). | [packages/core/src/types.ts:1032](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1032) |
+| <a id="lastusertext"></a> `lastUserText` | `string` | Text of the most recent user turn. | [packages/core/src/types.ts:1054](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1054) |
+| <a id="turns-1"></a> `turns` | [`VoiceTurn`](/docs/en/reference/api/ottervoice-core/#voiceturn)[] | Completed turns in chronological order (includes the latest user turn). | [packages/core/src/types.ts:1052](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1052) |
 
 ***
 
 ### ASRCapabilities
 
-Defined in: [packages/core/src/types.ts:267](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L267)
+Defined in: [packages/core/src/types.ts:267](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L267)
 
 Feature flags advertised by an [ASRProvider](/docs/en/reference/api/ottervoice-core/#asrprovider).
 Core uses these to choose streaming vs batch capture and whether to expect
-partials / endpointing.
+partial transcripts.
 
 #### Properties
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="batch"></a> `batch` | `boolean` | True when the provider expects complete turn audio (batch / rolling). | [packages/core/src/types.ts:271](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L271) |
-| <a id="confidence"></a> `confidence?` | `boolean` | Whether [ASRResult.confidence](/docs/en/reference/api/ottervoice-core/#confidence-1) may be populated. | [packages/core/src/types.ts:277](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L277) |
-| <a id="endpointing"></a> `endpointing?` | `boolean` | Whether the provider can emit utterance-end / endpoint signals. | [packages/core/src/types.ts:279](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L279) |
-| <a id="languages"></a> `languages` | `string`[] | BCP-47 language tags the provider claims to support (empty = unspecified). | [packages/core/src/types.ts:281](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L281) |
-| <a id="partialresults"></a> `partialResults` | `boolean` | Whether provisional results are available via [ASRSession.onPartial](/docs/en/reference/api/ottervoice-core/#onpartial). | [packages/core/src/types.ts:273](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L273) |
-| <a id="streaming"></a> `streaming` | `boolean` | True when the provider accepts live chunked audio over a persistent session. | [packages/core/src/types.ts:269](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L269) |
-| <a id="wordtimestamps"></a> `wordTimestamps?` | `boolean` | Whether [ASRResult.words](/docs/en/reference/api/ottervoice-core/#words) may include timing. | [packages/core/src/types.ts:275](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L275) |
+| <a id="batch"></a> `batch` | `boolean` | True when the provider expects complete turn audio (batch / rolling). | [packages/core/src/types.ts:271](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L271) |
+| <a id="confidence"></a> `confidence?` | `boolean` | Whether [ASRResult.confidence](/docs/en/reference/api/ottervoice-core/#confidence-1) may be populated. | [packages/core/src/types.ts:277](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L277) |
+| <a id="languages"></a> `languages` | `string`[] | BCP-47 language tags the provider claims to support (empty = unspecified). | [packages/core/src/types.ts:279](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L279) |
+| <a id="partialresults"></a> `partialResults` | `boolean` | Whether provisional results are available via [ASRSession.onPartial](/docs/en/reference/api/ottervoice-core/#onpartial). | [packages/core/src/types.ts:273](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L273) |
+| <a id="streaming"></a> `streaming` | `boolean` | True when the provider accepts live chunked audio over a persistent session. | [packages/core/src/types.ts:269](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L269) |
+| <a id="wordtimestamps"></a> `wordTimestamps?` | `boolean` | Whether [ASRResult.words](/docs/en/reference/api/ottervoice-core/#words) may include timing. | [packages/core/src/types.ts:275](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L275) |
 
 ***
 
 ### ASRProvider
 
-Defined in: [packages/core/src/types.ts:381](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L381)
+Defined in: [packages/core/src/types.ts:377](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L377)
 
 Speech-to-text adapter. Implement this to plug a vendor ASR or a mock.
 Declare [ASRCapabilities.streaming](/docs/en/reference/api/ottervoice-core/#streaming) accurately so core chooses live
@@ -2296,8 +2307,8 @@ chunks vs complete-turn audio.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="capabilities"></a> `capabilities` | [`ASRCapabilities`](/docs/en/reference/api/ottervoice-core/#asrcapabilities) | Declared feature flags used by the session when routing audio. | [packages/core/src/types.ts:385](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L385) |
-| <a id="name-1"></a> `name` | `string` | Stable provider id used in errors and usage (e.g. `deepgram`). | [packages/core/src/types.ts:383](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L383) |
+| <a id="capabilities"></a> `capabilities` | [`ASRCapabilities`](/docs/en/reference/api/ottervoice-core/#asrcapabilities) | Declared feature flags used by the session when routing audio. | [packages/core/src/types.ts:381](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L381) |
+| <a id="name-1"></a> `name` | `string` | Stable provider id used in errors and usage (e.g. `deepgram`). | [packages/core/src/types.ts:379](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L379) |
 
 #### Methods
 
@@ -2307,7 +2318,7 @@ chunks vs complete-turn audio.
 createSession(options): Promise<ASRSession>;
 ```
 
-Defined in: [packages/core/src/types.ts:391](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L391)
+Defined in: [packages/core/src/types.ts:387](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L387)
 
 Open a recognition session.
 
@@ -2325,7 +2336,7 @@ Open a recognition session.
 
 ### ASRResult
 
-Defined in: [packages/core/src/types.ts:315](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L315)
+Defined in: [packages/core/src/types.ts:311](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L311)
 
 A partial or final transcript emitted by an ASR session.
 
@@ -2333,18 +2344,18 @@ A partial or final transcript emitted by an ASR session.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="confidence-1"></a> `confidence?` | `number` | Provider confidence in `[0, 1]` when available. | [packages/core/src/types.ts:319](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L319) |
-| <a id="endms"></a> `endMs?` | `number` | Utterance end offset in milliseconds. | [packages/core/src/types.ts:323](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L323) |
-| <a id="raw-1"></a> `raw?` | `unknown` | Raw provider payload for debugging. | [packages/core/src/types.ts:327](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L327) |
-| <a id="startms"></a> `startMs?` | `number` | Utterance start offset in milliseconds. | [packages/core/src/types.ts:321](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L321) |
-| <a id="text-1"></a> `text` | `string` | Transcript text (accumulated for the current utterance). | [packages/core/src/types.ts:317](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L317) |
-| <a id="words"></a> `words?` | [`ASRWord`](/docs/en/reference/api/ottervoice-core/#asrword)[] | Optional word timestamps. | [packages/core/src/types.ts:325](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L325) |
+| <a id="confidence-1"></a> `confidence?` | `number` | Provider confidence in `[0, 1]` when available. | [packages/core/src/types.ts:315](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L315) |
+| <a id="endms"></a> `endMs?` | `number` | Utterance end offset in milliseconds. | [packages/core/src/types.ts:319](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L319) |
+| <a id="raw-1"></a> `raw?` | `unknown` | Raw provider payload for debugging. | [packages/core/src/types.ts:323](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L323) |
+| <a id="startms"></a> `startMs?` | `number` | Utterance start offset in milliseconds. | [packages/core/src/types.ts:317](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L317) |
+| <a id="text-1"></a> `text` | `string` | Transcript text (accumulated for the current utterance). | [packages/core/src/types.ts:313](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L313) |
+| <a id="words"></a> `words?` | [`ASRWord`](/docs/en/reference/api/ottervoice-core/#asrword)[] | Optional word timestamps. | [packages/core/src/types.ts:321](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L321) |
 
 ***
 
 ### ASRSession
 
-Defined in: [packages/core/src/types.ts:335](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L335)
+Defined in: [packages/core/src/types.ts:331](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L331)
 
 Live recognition session returned by [ASRProvider.createSession](/docs/en/reference/api/ottervoice-core/#createsession).
 Core feeds audio via [ASRSession.sendAudio](/docs/en/reference/api/ottervoice-core/#sendaudio) and upserts UI from
@@ -2358,7 +2369,7 @@ Core feeds audio via [ASRSession.sendAudio](/docs/en/reference/api/ottervoice-co
 close(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:355](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L355)
+Defined in: [packages/core/src/types.ts:351](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L351)
 
 Tear down the underlying connection / resources.
 
@@ -2372,7 +2383,7 @@ Tear down the underlying connection / resources.
 onError(cb): () => void;
 ```
 
-Defined in: [packages/core/src/types.ts:373](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L373)
+Defined in: [packages/core/src/types.ts:369](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L369)
 
 Subscribe to provider failures.
 
@@ -2392,7 +2403,7 @@ Subscribe to provider failures.
 onFinal(cb): () => void;
 ```
 
-Defined in: [packages/core/src/types.ts:367](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L367)
+Defined in: [packages/core/src/types.ts:363](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L363)
 
 Subscribe to authoritative finals for the current utterance.
 
@@ -2412,7 +2423,7 @@ Subscribe to authoritative finals for the current utterance.
 onPartial(cb): () => void;
 ```
 
-Defined in: [packages/core/src/types.ts:361](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L361)
+Defined in: [packages/core/src/types.ts:357](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L357)
 
 Subscribe to provisional transcripts.
 
@@ -2432,7 +2443,7 @@ Subscribe to provisional transcripts.
 optional resetAudio(): void | Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:343](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L343)
+Defined in: [packages/core/src/types.ts:339](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L339)
 
 Drop buffered non-user audio while keeping the session connected.
 
@@ -2446,7 +2457,7 @@ Drop buffered non-user audio while keeping the session connected.
 sendAudio(chunk): void | Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:341](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L341)
+Defined in: [packages/core/src/types.ts:337](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L337)
 
 Push the next audio fragment to the provider.
 
@@ -2466,7 +2477,7 @@ Push the next audio fragment to the provider.
 optional setInterimResultsEnabled(enabled): void | Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:351](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L351)
+Defined in: [packages/core/src/types.ts:347](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L347)
 
 Pause or resume provisional transcript work without affecting the final
 transcript. Batch-backed providers can use this to avoid paid rolling
@@ -2488,7 +2499,7 @@ requests until voice activity confirms that the user is speaking.
 stop(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:353](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L353)
+Defined in: [packages/core/src/types.ts:349](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L349)
 
 Signal end-of-audio and wait for a final transcript when applicable.
 
@@ -2500,7 +2511,7 @@ Signal end-of-audio and wait for a final transcript when applicable.
 
 ### ASRSessionOptions
 
-Defined in: [packages/core/src/types.ts:285](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L285)
+Defined in: [packages/core/src/types.ts:283](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L283)
 
 Options passed to [ASRProvider.createSession](/docs/en/reference/api/ottervoice-core/#createsession).
 
@@ -2508,19 +2519,18 @@ Options passed to [ASRProvider.createSession](/docs/en/reference/api/ottervoice-
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="channels"></a> `channels?` | `number` | Channel count; typically `1` for voice. | [packages/core/src/types.ts:291](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L291) |
-| <a id="encoding"></a> `encoding?` | [`AudioEncoding`](/docs/en/reference/api/ottervoice-core/#audioencoding) | Encoding of audio bytes sent via [ASRSession.sendAudio](/docs/en/reference/api/ottervoice-core/#sendaudio). | [packages/core/src/types.ts:293](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L293) |
-| <a id="endpointing-1"></a> `endpointing?` | `boolean` | Ask the provider to emit endpointing / utterance-end signals when available. | [packages/core/src/types.ts:297](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L297) |
-| <a id="interimresults"></a> `interimResults?` | `boolean` | Request provisional partials when the provider supports them. | [packages/core/src/types.ts:295](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L295) |
-| <a id="language"></a> `language?` | `string` | Preferred recognition language (e.g. `zh-CN`). | [packages/core/src/types.ts:287](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L287) |
-| <a id="metadata-1"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque metadata forwarded to the adapter (not interpreted by core). | [packages/core/src/types.ts:299](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L299) |
-| <a id="samplerate"></a> `sampleRate?` | `number` | Input sample rate in Hz when the provider needs it (e.g. PCM streams). | [packages/core/src/types.ts:289](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L289) |
+| <a id="channels"></a> `channels?` | `number` | Channel count; typically `1` for voice. | [packages/core/src/types.ts:289](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L289) |
+| <a id="encoding"></a> `encoding?` | [`AudioEncoding`](/docs/en/reference/api/ottervoice-core/#audioencoding) | Encoding of audio bytes sent via [ASRSession.sendAudio](/docs/en/reference/api/ottervoice-core/#sendaudio). | [packages/core/src/types.ts:291](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L291) |
+| <a id="interimresults"></a> `interimResults?` | `boolean` | Request provisional partials when the provider supports them. | [packages/core/src/types.ts:293](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L293) |
+| <a id="language"></a> `language?` | `string` | Preferred recognition language (e.g. `zh-CN`). | [packages/core/src/types.ts:285](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L285) |
+| <a id="metadata-1"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque metadata forwarded to the adapter (not interpreted by core). | [packages/core/src/types.ts:295](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L295) |
+| <a id="samplerate"></a> `sampleRate?` | `number` | Input sample rate in Hz when the provider needs it (e.g. PCM streams). | [packages/core/src/types.ts:287](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L287) |
 
 ***
 
 ### ASRWord
 
-Defined in: [packages/core/src/types.ts:303](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L303)
+Defined in: [packages/core/src/types.ts:299](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L299)
 
 Optional word-level timing from an ASR provider.
 
@@ -2528,16 +2538,16 @@ Optional word-level timing from an ASR provider.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="confidence-2"></a> `confidence?` | `number` | Provider confidence in `[0, 1]` when available. | [packages/core/src/types.ts:311](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L311) |
-| <a id="endms-1"></a> `endMs?` | `number` | Word end offset within the utterance, in milliseconds. | [packages/core/src/types.ts:309](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L309) |
-| <a id="startms-1"></a> `startMs?` | `number` | Word start offset within the utterance, in milliseconds. | [packages/core/src/types.ts:307](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L307) |
-| <a id="text-2"></a> `text` | `string` | Recognized token / word. | [packages/core/src/types.ts:305](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L305) |
+| <a id="confidence-2"></a> `confidence?` | `number` | Provider confidence in `[0, 1]` when available. | [packages/core/src/types.ts:307](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L307) |
+| <a id="endms-1"></a> `endMs?` | `number` | Word end offset within the utterance, in milliseconds. | [packages/core/src/types.ts:305](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L305) |
+| <a id="startms-1"></a> `startMs?` | `number` | Word start offset within the utterance, in milliseconds. | [packages/core/src/types.ts:303](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L303) |
+| <a id="text-2"></a> `text` | `string` | Recognized token / word. | [packages/core/src/types.ts:301](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L301) |
 
 ***
 
 ### AudioChunk
 
-Defined in: [packages/core/src/types.ts:735](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L735)
+Defined in: [packages/core/src/types.ts:755](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L755)
 
 Encoded or PCM audio fragment from [AudioInputAdapter](/docs/en/reference/api/ottervoice-core/#audioinputadapter).
 
@@ -2545,19 +2555,19 @@ Encoded or PCM audio fragment from [AudioInputAdapter](/docs/en/reference/api/ot
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="channels-1"></a> `channels?` | `number` | Channel count when known. | [packages/core/src/types.ts:745](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L745) |
-| <a id="data"></a> `data` | `ArrayBuffer` | Audio bytes (container or raw PCM depending on `encoding`). | [packages/core/src/types.ts:737](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L737) |
-| <a id="delivery"></a> `delivery?` | `"stream"` \| `"turn"` | `stream` is a low-latency fragment for streaming ASR; `turn` is the complete VAD-delimited recording for batch ASR and audio-LLM input. Omitted keeps the legacy behavior and makes the chunk available to both. | [packages/core/src/types.ts:753](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L753) |
-| <a id="durationms-1"></a> `durationMs?` | `number` | Approximate duration of this fragment. | [packages/core/src/types.ts:741](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L741) |
-| <a id="encoding-1"></a> `encoding?` | `string` | Codec / container label (e.g. `webm`, `pcm_s16le`). | [packages/core/src/types.ts:747](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L747) |
-| <a id="samplerate-1"></a> `sampleRate?` | `number` | Sample rate in Hz when known (PCM). | [packages/core/src/types.ts:743](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L743) |
-| <a id="timestamp"></a> `timestamp` | `number` | Capture time in epoch millis. | [packages/core/src/types.ts:739](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L739) |
+| <a id="channels-1"></a> `channels?` | `number` | Channel count when known. | [packages/core/src/types.ts:765](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L765) |
+| <a id="data"></a> `data` | `ArrayBuffer` | Audio bytes (container or raw PCM depending on `encoding`). | [packages/core/src/types.ts:757](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L757) |
+| <a id="delivery"></a> `delivery?` | `"stream"` \| `"turn"` | `stream` is a low-latency fragment for streaming ASR; `turn` is the complete VAD-delimited recording for batch ASR and audio-LLM input. Omitted keeps the legacy behavior and makes the chunk available to both. | [packages/core/src/types.ts:773](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L773) |
+| <a id="durationms-1"></a> `durationMs?` | `number` | Approximate duration of this fragment. | [packages/core/src/types.ts:761](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L761) |
+| <a id="encoding-1"></a> `encoding?` | `string` | Codec / container label (e.g. `webm`, `pcm_s16le`). | [packages/core/src/types.ts:767](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L767) |
+| <a id="samplerate-1"></a> `sampleRate?` | `number` | Sample rate in Hz when known (PCM). | [packages/core/src/types.ts:763](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L763) |
+| <a id="timestamp"></a> `timestamp` | `number` | Capture time in epoch millis. | [packages/core/src/types.ts:759](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L759) |
 
 ***
 
 ### AudioInputAdapter
 
-Defined in: [packages/core/src/types.ts:757](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L757)
+Defined in: [packages/core/src/types.ts:777](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L777)
 
 Platform microphone capture injected via [RuntimeAdapter](/docs/en/reference/api/ottervoice-core/#runtimeadapter).
 
@@ -2569,7 +2579,7 @@ Platform microphone capture injected via [RuntimeAdapter](/docs/en/reference/api
 onChunk(cb): () => void;
 ```
 
-Defined in: [packages/core/src/types.ts:789](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L789)
+Defined in: [packages/core/src/types.ts:809](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L809)
 
 Subscribe to encoded / PCM chunks.
 
@@ -2591,7 +2601,7 @@ Unsubscribe function.
 onError(cb): () => void;
 ```
 
-Defined in: [packages/core/src/types.ts:801](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L801)
+Defined in: [packages/core/src/types.ts:821](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L821)
 
 Subscribe to capture failures.
 
@@ -2613,7 +2623,7 @@ Unsubscribe function.
 optional onVolume(cb): () => void;
 ```
 
-Defined in: [packages/core/src/types.ts:795](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L795)
+Defined in: [packages/core/src/types.ts:815](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L815)
 
 Subscribe to normalized volume levels in `0..1` for VAD.
 
@@ -2635,7 +2645,7 @@ Unsubscribe function.
 optional pause(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:781](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L781)
+Defined in: [packages/core/src/types.ts:801](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L801)
 
 Pause capture without tearing down permission / hardware (optional).
 
@@ -2649,7 +2659,7 @@ Pause capture without tearing down permission / hardware (optional).
 requestPermission(): Promise<boolean>;
 ```
 
-Defined in: [packages/core/src/types.ts:759](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L759)
+Defined in: [packages/core/src/types.ts:779](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L779)
 
 Prompt for mic permission; `false` should surface as a session error.
 
@@ -2663,7 +2673,7 @@ Prompt for mic permission; `false` should surface as a session error.
 optional resume(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:783](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L783)
+Defined in: [packages/core/src/types.ts:803](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L803)
 
 Resume after [pause](/docs/en/reference/api/ottervoice-core/#pause-3).
 
@@ -2677,7 +2687,7 @@ Resume after [pause](/docs/en/reference/api/ottervoice-core/#pause-3).
 optional resumeCapture(options?): Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:779](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L779)
+Defined in: [packages/core/src/types.ts:799](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L799)
 
 Resume encoded chunk capture after [suspendCapture](/docs/en/reference/api/ottervoice-core/#suspendcapture). Runtimes with a
 barge-in pre-roll buffer may include it when `includePreRoll` is true.
@@ -2699,7 +2709,7 @@ barge-in pre-roll buffer may include it when `includePreRoll` is true.
 start(options): Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:765](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L765)
+Defined in: [packages/core/src/types.ts:785](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L785)
 
 Begin capture.
 
@@ -2719,7 +2729,7 @@ Begin capture.
 stop(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:767](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L767)
+Defined in: [packages/core/src/types.ts:787](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L787)
 
 Stop capture and release resources tied to the current start.
 
@@ -2733,7 +2743,7 @@ Stop capture and release resources tied to the current start.
 optional suspendCapture(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:772](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L772)
+Defined in: [packages/core/src/types.ts:792](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L792)
 
 Suspend encoded chunk delivery while leaving volume/VAD monitoring active.
 A runtime may retain a bounded barge-in pre-roll internally.
@@ -2746,7 +2756,7 @@ A runtime may retain a bounded barge-in pre-roll internally.
 
 ### AudioInputOptions
 
-Defined in: [packages/core/src/types.ts:717](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L717)
+Defined in: [packages/core/src/types.ts:737](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L737)
 
 Capture hints passed to [AudioInputAdapter.start](/docs/en/reference/api/ottervoice-core/#start-3).
 Runtimes may ignore unsupported fields (e.g. browser MediaRecorder encodings).
@@ -2755,19 +2765,19 @@ Runtimes may ignore unsupported fields (e.g. browser MediaRecorder encodings).
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="autogaincontrol"></a> `autoGainControl?` | `boolean` | Request auto gain control when available. | [packages/core/src/types.ts:731](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L731) |
-| <a id="channels-2"></a> `channels?` | `number` | Channel count; typically `1` for voice. | [packages/core/src/types.ts:721](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L721) |
-| <a id="chunkms"></a> `chunkMs?` | `number` | Preferred encoded chunk duration in milliseconds. | [packages/core/src/types.ts:725](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L725) |
-| <a id="echocancellation"></a> `echoCancellation?` | `boolean` | Request hardware / browser echo cancellation when available. | [packages/core/src/types.ts:727](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L727) |
-| <a id="encoding-2"></a> `encoding?` | `"pcm_s16le"` \| `"opus"` \| `"webm"` | Encoded chunk format when the runtime can choose. | [packages/core/src/types.ts:723](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L723) |
-| <a id="noisesuppression"></a> `noiseSuppression?` | `boolean` | Request noise suppression when available. | [packages/core/src/types.ts:729](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L729) |
-| <a id="samplerate-2"></a> `sampleRate?` | `number` | Target sample rate in Hz (e.g. `16000` for PCM runtimes). | [packages/core/src/types.ts:719](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L719) |
+| <a id="autogaincontrol"></a> `autoGainControl?` | `boolean` | Request auto gain control when available. | [packages/core/src/types.ts:751](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L751) |
+| <a id="channels-2"></a> `channels?` | `number` | Channel count; typically `1` for voice. | [packages/core/src/types.ts:741](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L741) |
+| <a id="chunkms"></a> `chunkMs?` | `number` | Preferred encoded chunk duration in milliseconds. | [packages/core/src/types.ts:745](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L745) |
+| <a id="echocancellation"></a> `echoCancellation?` | `boolean` | Request hardware / browser echo cancellation when available. | [packages/core/src/types.ts:747](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L747) |
+| <a id="encoding-2"></a> `encoding?` | `"pcm_s16le"` \| `"opus"` \| `"webm"` | Encoded chunk format when the runtime can choose. | [packages/core/src/types.ts:743](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L743) |
+| <a id="noisesuppression"></a> `noiseSuppression?` | `boolean` | Request noise suppression when available. | [packages/core/src/types.ts:749](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L749) |
+| <a id="samplerate-2"></a> `sampleRate?` | `number` | Target sample rate in Hz (e.g. `16000` for PCM runtimes). | [packages/core/src/types.ts:739](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L739) |
 
 ***
 
 ### AudioLLMAudioChunk
 
-Defined in: [packages/core/src/types.ts:493](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L493)
+Defined in: [packages/core/src/types.ts:489](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L489)
 
 Streaming PCM fragment from an [AudioLLMProvider](/docs/en/reference/api/ottervoice-core/#audiollmprovider).
 
@@ -2775,16 +2785,16 @@ Streaming PCM fragment from an [AudioLLMProvider](/docs/en/reference/api/ottervo
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="channels-3"></a> `channels` | `number` | Channel count of `data`. | [packages/core/src/types.ts:501](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L501) |
-| <a id="data-1"></a> `data` | `ArrayBuffer` | Raw interleaved PCM bytes for immediate playback. | [packages/core/src/types.ts:495](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L495) |
-| <a id="encoding-3"></a> `encoding` | `"pcm_s16le"` | Always linear 16-bit PCM for runtime players. | [packages/core/src/types.ts:497](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L497) |
-| <a id="samplerate-3"></a> `sampleRate` | `number` | Sample rate of `data` in Hz. | [packages/core/src/types.ts:499](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L499) |
+| <a id="channels-3"></a> `channels` | `number` | Channel count of `data`. | [packages/core/src/types.ts:497](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L497) |
+| <a id="data-1"></a> `data` | `ArrayBuffer` | Raw interleaved PCM bytes for immediate playback. | [packages/core/src/types.ts:491](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L491) |
+| <a id="encoding-3"></a> `encoding` | `"pcm_s16le"` | Always linear 16-bit PCM for runtime players. | [packages/core/src/types.ts:493](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L493) |
+| <a id="samplerate-3"></a> `sampleRate` | `number` | Sample rate of `data` in Hz. | [packages/core/src/types.ts:495](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L495) |
 
 ***
 
 ### AudioLLMGenerateInput
 
-Defined in: [packages/core/src/types.ts:505](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L505)
+Defined in: [packages/core/src/types.ts:501](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L501)
 
 Input for [AudioLLMProvider.generate](/docs/en/reference/api/ottervoice-core/#generate).
 
@@ -2792,22 +2802,22 @@ Input for [AudioLLMProvider.generate](/docs/en/reference/api/ottervoice-core/#ge
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="audio"></a> `audio` | `ArrayBuffer` | Complete audio for the current VAD-delimited user turn. | [packages/core/src/types.ts:507](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L507) |
-| <a id="format"></a> `format` | [`AudioLLMInputFormat`](/docs/en/reference/api/ottervoice-core/#audiollminputformat) | Container / codec of `audio`. | [packages/core/src/types.ts:509](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L509) |
-| <a id="maxtokens"></a> `maxTokens?` | `number` | Soft cap on output tokens. A server gateway must enforce its own hard ceiling. | [packages/core/src/types.ts:520](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L520) |
-| <a id="messages"></a> `messages` | [`LLMMessage`](/docs/en/reference/api/ottervoice-core/#llmmessage)[] | Text history from completed earlier turns. | [packages/core/src/types.ts:511](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L511) |
-| <a id="metadata-2"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque metadata forwarded to the adapter. | [packages/core/src/types.ts:522](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L522) |
-| <a id="onaudiochunk"></a> `onAudioChunk?` | (`chunk`) => `void` \| `Promise`\<`void`\> | Receives decoded output audio while the model response is still streaming. | [packages/core/src/types.ts:526](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L526) |
-| <a id="ontranscriptdelta"></a> `onTranscriptDelta?` | (`text`) => `void` \| `Promise`\<`void`\> | Receives the model's spoken transcript while output audio is streaming. | [packages/core/src/types.ts:528](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L528) |
-| <a id="signal"></a> `signal?` | `AbortSignal` | Cancels an in-flight provider request when this turn is superseded. | [packages/core/src/types.ts:524](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L524) |
-| <a id="system"></a> `system?` | `string` | Optional system instruction for trusted/server-side use. A policy gateway must discard client values and inject its own instruction. | [packages/core/src/types.ts:516](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L516) |
-| <a id="temperature"></a> `temperature?` | `number` | Sampling temperature; provider default when omitted. Lock server-side for untrusted clients. | [packages/core/src/types.ts:518](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L518) |
+| <a id="audio"></a> `audio` | `ArrayBuffer` | Complete audio for the current VAD-delimited user turn. | [packages/core/src/types.ts:503](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L503) |
+| <a id="format"></a> `format` | [`AudioLLMInputFormat`](/docs/en/reference/api/ottervoice-core/#audiollminputformat) | Container / codec of `audio`. | [packages/core/src/types.ts:505](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L505) |
+| <a id="maxtokens"></a> `maxTokens?` | `number` | Soft cap on output tokens. A server gateway must enforce its own hard ceiling. | [packages/core/src/types.ts:516](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L516) |
+| <a id="messages"></a> `messages` | [`LLMMessage`](/docs/en/reference/api/ottervoice-core/#llmmessage)[] | Text history from completed earlier turns. | [packages/core/src/types.ts:507](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L507) |
+| <a id="metadata-2"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque metadata forwarded to the adapter. | [packages/core/src/types.ts:518](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L518) |
+| <a id="onaudiochunk"></a> `onAudioChunk?` | (`chunk`) => `void` \| `Promise`\<`void`\> | Receives decoded output audio while the model response is still streaming. | [packages/core/src/types.ts:522](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L522) |
+| <a id="ontranscriptdelta"></a> `onTranscriptDelta?` | (`text`) => `void` \| `Promise`\<`void`\> | Receives the model's spoken transcript while output audio is streaming. | [packages/core/src/types.ts:524](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L524) |
+| <a id="signal"></a> `signal?` | `AbortSignal` | Cancels an in-flight provider request when this turn is superseded. | [packages/core/src/types.ts:520](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L520) |
+| <a id="system"></a> `system?` | `string` | Optional system instruction for trusted/server-side use. A policy gateway must discard client values and inject its own instruction. | [packages/core/src/types.ts:512](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L512) |
+| <a id="temperature"></a> `temperature?` | `number` | Sampling temperature; provider default when omitted. Lock server-side for untrusted clients. | [packages/core/src/types.ts:514](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L514) |
 
 ***
 
 ### AudioLLMGenerateOutput
 
-Defined in: [packages/core/src/types.ts:532](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L532)
+Defined in: [packages/core/src/types.ts:528](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L528)
 
 Completed reply from [AudioLLMProvider.generate](/docs/en/reference/api/ottervoice-core/#generate).
 
@@ -2815,17 +2825,17 @@ Completed reply from [AudioLLMProvider.generate](/docs/en/reference/api/ottervoi
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="audiobuffer"></a> `audioBuffer` | `ArrayBuffer` | Full assistant audio buffer (may be empty if only streamed via callbacks). | [packages/core/src/types.ts:536](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L536) |
-| <a id="mimetype"></a> `mimeType` | `string` | MIME type of `audioBuffer`. | [packages/core/src/types.ts:538](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L538) |
-| <a id="raw-2"></a> `raw?` | `unknown` | Provider timing/cost metadata, when available. | [packages/core/src/types.ts:542](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L542) |
-| <a id="text-3"></a> `text` | `string` | Transcript of the generated assistant audio. | [packages/core/src/types.ts:534](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L534) |
-| <a id="usage"></a> `usage?` | [`LLMUsage`](/docs/en/reference/api/ottervoice-core/#llmusage) | Token usage when reported. | [packages/core/src/types.ts:540](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L540) |
+| <a id="audiobuffer"></a> `audioBuffer` | `ArrayBuffer` | Full assistant audio buffer (may be empty if only streamed via callbacks). | [packages/core/src/types.ts:532](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L532) |
+| <a id="mimetype"></a> `mimeType` | `string` | MIME type of `audioBuffer`. | [packages/core/src/types.ts:534](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L534) |
+| <a id="raw-2"></a> `raw?` | `unknown` | Provider timing/cost metadata, when available. | [packages/core/src/types.ts:538](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L538) |
+| <a id="text-3"></a> `text` | `string` | Transcript of the generated assistant audio. | [packages/core/src/types.ts:530](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L530) |
+| <a id="usage"></a> `usage?` | [`LLMUsage`](/docs/en/reference/api/ottervoice-core/#llmusage) | Token usage when reported. | [packages/core/src/types.ts:536](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L536) |
 
 ***
 
 ### AudioLLMProvider
 
-Defined in: [packages/core/src/types.ts:549](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L549)
+Defined in: [packages/core/src/types.ts:545](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L545)
 
 A single model that consumes user audio and directly generates speech
 (used when [VoiceSessionConfig.pipeline](/docs/en/reference/api/ottervoice-core/#pipeline) is `audio_llm`).
@@ -2834,7 +2844,7 @@ A single model that consumes user audio and directly generates speech
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="name-2"></a> `name` | `string` | Stable provider id used in errors and usage. | [packages/core/src/types.ts:551](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L551) |
+| <a id="name-2"></a> `name` | `string` | Stable provider id used in errors and usage. | [packages/core/src/types.ts:547](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L547) |
 
 #### Methods
 
@@ -2844,7 +2854,7 @@ A single model that consumes user audio and directly generates speech
 generate(input): Promise<AudioLLMGenerateOutput>;
 ```
 
-Defined in: [packages/core/src/types.ts:557](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L557)
+Defined in: [packages/core/src/types.ts:553](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L553)
 
 Run one audio-in / audio-out turn.
 
@@ -2862,7 +2872,7 @@ Run one audio-in / audio-out turn.
 
 ### AudioLLMRetryPolicy
 
-Defined in: [packages/core/src/types.ts:1156](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1156)
+Defined in: [packages/core/src/types.ts:1171](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1171)
 
 Retry and recovery policy for one native Audio LLM turn.
 Use this when a transient gateway/provider failure should not terminate the
@@ -2872,17 +2882,17 @@ surrounding [VoiceSession](/docs/en/reference/api/ottervoice-core/#voicesession)
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="backoffms"></a> `backoffMs?` | `number` | Delay before the second attempt in milliseconds. Defaults to `250`; each delay is capped at 30 seconds. | [packages/core/src/types.ts:1160](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1160) |
-| <a id="continuesessiononfailure"></a> `continueSessionOnFailure?` | `boolean` | Emit `error` and resume listening after exhaustion instead of entering the terminal `error` state. | [packages/core/src/types.ts:1166](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1166) |
-| <a id="exponentialbackoff"></a> `exponentialBackoff?` | `boolean` | Multiply `backoffMs` by `2^(attempt - 2)`. Defaults to `true`. | [packages/core/src/types.ts:1162](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1162) |
-| <a id="maxattempts"></a> `maxAttempts?` | `number` | Total client attempts including the first request. Defaults to `1`; values above `10` are clamped. Server budgets must not trust this value. | [packages/core/src/types.ts:1158](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1158) |
-| <a id="retryableonly"></a> `retryableOnly?` | `boolean` | Retry only errors marked `retryable`. Defaults to `true`. | [packages/core/src/types.ts:1164](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1164) |
+| <a id="backoffms"></a> `backoffMs?` | `number` | Delay before the second attempt in milliseconds. Defaults to `250`; each delay is capped at 30 seconds. | [packages/core/src/types.ts:1175](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1175) |
+| <a id="continuesessiononfailure"></a> `continueSessionOnFailure?` | `boolean` | Emit `error` and resume listening after exhaustion instead of entering the terminal `error` state. | [packages/core/src/types.ts:1181](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1181) |
+| <a id="exponentialbackoff"></a> `exponentialBackoff?` | `boolean` | Multiply `backoffMs` by `2^(attempt - 2)`. Defaults to `true`. | [packages/core/src/types.ts:1177](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1177) |
+| <a id="maxattempts"></a> `maxAttempts?` | `number` | Total client attempts including the first request. Defaults to `1`; values above `10` are clamped. Server budgets must not trust this value. | [packages/core/src/types.ts:1173](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1173) |
+| <a id="retryableonly"></a> `retryableOnly?` | `boolean` | Retry only errors marked `retryable`. Defaults to `true`. | [packages/core/src/types.ts:1179](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1179) |
 
 ***
 
 ### AudioOutputAdapter
 
-Defined in: [packages/core/src/types.ts:849](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L849)
+Defined in: [packages/core/src/types.ts:869](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L869)
 
 Platform speaker / playback side injected via [RuntimeAdapter.audioOutput](/docs/en/reference/api/ottervoice-core/#audiooutput-1).
 Supports one-shot [AudioOutputAdapter.play](/docs/en/reference/api/ottervoice-core/#play-1) and optional gapless
@@ -2896,7 +2906,7 @@ Supports one-shot [AudioOutputAdapter.play](/docs/en/reference/api/ottervoice-co
 onEnd(cb): () => void;
 ```
 
-Defined in: [packages/core/src/types.ts:903](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L903)
+Defined in: [packages/core/src/types.ts:923](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L923)
 
 Subscribe to playback end (natural finish or stop).
 
@@ -2918,7 +2928,7 @@ Unsubscribe function.
 onError(cb): () => void;
 ```
 
-Defined in: [packages/core/src/types.ts:909](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L909)
+Defined in: [packages/core/src/types.ts:929](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L929)
 
 Subscribe to playback failures.
 
@@ -2940,7 +2950,7 @@ Unsubscribe function.
 optional onPlaybackRequested(cb): () => void;
 ```
 
-Defined in: [packages/core/src/types.ts:887](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L887)
+Defined in: [packages/core/src/types.ts:907](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L907)
 
 Subscribe when an output adapter has accepted an utterance and is about to
 invoke its platform playback primitive. This can fire without a matching
@@ -2965,7 +2975,7 @@ Unsubscribe function.
 onStart(cb): () => void;
 ```
 
-Defined in: [packages/core/src/types.ts:897](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L897)
+Defined in: [packages/core/src/types.ts:917](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L917)
 
 Subscribe to confirmed playback start. Adapters with playback telemetry
 fire this once per utterance when the platform first reports active
@@ -2990,7 +3000,7 @@ Unsubscribe function.
 optional onVolume(cb): () => void;
 ```
 
-Defined in: [packages/core/src/types.ts:877](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L877)
+Defined in: [packages/core/src/types.ts:897](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L897)
 
 Subscribe to normalized RMS of the assistant audio currently being played
 (used as an acoustic echo reference for barge-in).
@@ -3013,7 +3023,7 @@ Unsubscribe function.
 optional pause(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:868](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L868)
+Defined in: [packages/core/src/types.ts:888](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L888)
 
 Pause playback without discarding the current utterance (optional).
 
@@ -3027,7 +3037,7 @@ Pause playback without discarding the current utterance (optional).
 play(input): Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:857](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L857)
+Defined in: [packages/core/src/types.ts:877](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L877)
 
 Play a complete encoded buffer or URL.
 
@@ -3047,7 +3057,7 @@ Play a complete encoded buffer or URL.
 optional resume(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:870](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L870)
+Defined in: [packages/core/src/types.ts:890](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L890)
 
 Resume after [AudioOutputAdapter.pause](/docs/en/reference/api/ottervoice-core/#pause-4).
 
@@ -3061,7 +3071,7 @@ Resume after [AudioOutputAdapter.pause](/docs/en/reference/api/ottervoice-core/#
 optional startPcmStream(options): Promise<AudioOutputStream>;
 ```
 
-Defined in: [packages/core/src/types.ts:864](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L864)
+Defined in: [packages/core/src/types.ts:884](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L884)
 
 Begin incremental raw-PCM playback for low-latency speech streaming.
 
@@ -3083,7 +3093,7 @@ An [AudioOutputStream](/docs/en/reference/api/ottervoice-core/#audiooutputstream
 stop(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:866](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L866)
+Defined in: [packages/core/src/types.ts:886](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L886)
 
 Stop current playback and cancel any open PCM stream.
 
@@ -3097,7 +3107,7 @@ Stop current playback and cancel any open PCM stream.
 optional unlock(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:851](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L851)
+Defined in: [packages/core/src/types.ts:871](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L871)
 
 Prime browser autoplay permission from a direct user gesture.
 
@@ -3109,7 +3119,7 @@ Prime browser autoplay permission from a direct user gesture.
 
 ### AudioOutputStream
 
-Defined in: [packages/core/src/types.ts:833](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L833)
+Defined in: [packages/core/src/types.ts:853](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L853)
 
 Incremental PCM writer returned by [AudioOutputAdapter.startPcmStream](/docs/en/reference/api/ottervoice-core/#startpcmstream).
 Call [AudioOutputStream.write](/docs/en/reference/api/ottervoice-core/#write) for each contiguous block, then
@@ -3123,7 +3133,7 @@ Call [AudioOutputStream.write](/docs/en/reference/api/ottervoice-core/#write) fo
 close(): Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:841](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L841)
+Defined in: [packages/core/src/types.ts:861](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L861)
 
 Signal end-of-stream and resolve after all queued audio has played.
 
@@ -3137,7 +3147,7 @@ Signal end-of-stream and resolve after all queued audio has played.
 write(data): Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:839](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L839)
+Defined in: [packages/core/src/types.ts:859](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L859)
 
 Queue another contiguous PCM block for playback.
 
@@ -3155,7 +3165,7 @@ Queue another contiguous PCM block for playback.
 
 ### AudioPlaybackInput
 
-Defined in: [packages/core/src/types.ts:805](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L805)
+Defined in: [packages/core/src/types.ts:825](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L825)
 
 Input for one-shot [AudioOutputAdapter.play](/docs/en/reference/api/ottervoice-core/#play-1).
 
@@ -3163,16 +3173,16 @@ Input for one-shot [AudioOutputAdapter.play](/docs/en/reference/api/ottervoice-c
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="audiobuffer-1"></a> `audioBuffer?` | `ArrayBuffer` | In-memory audio bytes (takes precedence when both are set, if supported). | [packages/core/src/types.ts:809](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L809) |
-| <a id="audiourl-1"></a> `audioUrl?` | `string` | Remote or blob URL to fetch and play. | [packages/core/src/types.ts:807](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L807) |
-| <a id="mimetype-1"></a> `mimeType?` | `string` | MIME type of the audio payload. | [packages/core/src/types.ts:811](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L811) |
-| <a id="volume"></a> `volume?` | `number` | Playback gain in `[0, 1]`. | [packages/core/src/types.ts:813](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L813) |
+| <a id="audiobuffer-1"></a> `audioBuffer?` | `ArrayBuffer` | In-memory audio bytes (takes precedence when both are set, if supported). | [packages/core/src/types.ts:829](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L829) |
+| <a id="audiourl-1"></a> `audioUrl?` | `string` | Remote or blob URL to fetch and play. | [packages/core/src/types.ts:827](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L827) |
+| <a id="mimetype-1"></a> `mimeType?` | `string` | MIME type of the audio payload. | [packages/core/src/types.ts:831](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L831) |
+| <a id="volume"></a> `volume?` | `number` | Playback gain in `[0, 1]`. | [packages/core/src/types.ts:833](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L833) |
 
 ***
 
 ### BargeInSpeechGateOptions
 
-Defined in: [packages/core/src/playback-echo-filter.ts:30](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L30)
+Defined in: [packages/core/src/playback-echo-filter.ts:30](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L30)
 
 Tuning knobs for [BargeInSpeechGate](/docs/en/reference/api/ottervoice-core/#bargeinspeechgate).
 Raise thresholds to reduce false barge-in from knocks; lower them for quieter speech.
@@ -3181,15 +3191,15 @@ Raise thresholds to reduce false barge-in from knocks; lower them for quieter sp
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="requiredvoicedframes"></a> `requiredVoicedFrames?` | `number` | Voiced frames required inside the window to open the gate. Default 4. | [packages/core/src/playback-echo-filter.ts:36](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L36) |
-| <a id="volumethreshold"></a> `volumeThreshold?` | `number` | Per-frame RMS (post-echo) above which a frame counts as voiced. Default 0.008. | [packages/core/src/playback-echo-filter.ts:32](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L32) |
-| <a id="windowframes"></a> `windowFrames?` | `number` | Moving-window length in frames for the voiced-frame vote. Default 12. | [packages/core/src/playback-echo-filter.ts:34](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L34) |
+| <a id="requiredvoicedframes"></a> `requiredVoicedFrames?` | `number` | Voiced frames required inside the window to open the gate. Default 4. | [packages/core/src/playback-echo-filter.ts:36](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L36) |
+| <a id="volumethreshold"></a> `volumeThreshold?` | `number` | Per-frame RMS (post-echo) above which a frame counts as voiced. Default 0.008. | [packages/core/src/playback-echo-filter.ts:32](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L32) |
+| <a id="windowframes"></a> `windowFrames?` | `number` | Moving-window length in frames for the voiced-frame vote. Default 12. | [packages/core/src/playback-echo-filter.ts:34](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L34) |
 
 ***
 
 ### CreateVoiceErrorOptions
 
-Defined in: [packages/core/src/errors.ts:98](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L98)
+Defined in: [packages/core/src/errors.ts:98](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L98)
 
 Optional metadata for [createVoiceError](/docs/en/reference/api/ottervoice-core/#createvoiceerror).
 Omitted fields get sensible defaults (`retryable` from known network/ASR codes).
@@ -3198,20 +3208,20 @@ Omitted fields get sensible defaults (`retryable` from known network/ASR codes).
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="cause-1"></a> `cause?` | `unknown` | Original thrown value. May contain user or provider data. | [packages/core/src/errors.ts:112](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L112) |
-| <a id="fatal-1"></a> `fatal?` | `boolean` | Whether the session entered its terminal `error` state. | [packages/core/src/errors.ts:108](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L108) |
-| <a id="httpstatus-1"></a> `httpStatus?` | `number` | Upstream HTTP status when a response was received. | [packages/core/src/errors.ts:104](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L104) |
-| <a id="provider-1"></a> `provider?` | `string` | Provider name when the failure originated in an adapter. | [packages/core/src/errors.ts:100](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L100) |
-| <a id="raw-3"></a> `raw?` | `unknown` | Original provider payload or HTTP body. May contain sensitive data. | [packages/core/src/errors.ts:114](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L114) |
-| <a id="retryable-1"></a> `retryable?` | `boolean` | Override the default retryability for [VoiceErrorCode](/docs/en/reference/api/ottervoice-core/#voiceerrorcode-1). | [packages/core/src/errors.ts:106](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L106) |
-| <a id="safemessage-1"></a> `safeMessage?` | `string` | Sanitized summary; defaults to a stable message for the error code. | [packages/core/src/errors.ts:110](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L110) |
-| <a id="stage-1"></a> `stage?` | [`VoiceErrorStage`](/docs/en/reference/api/ottervoice-core/#voiceerrorstage-1) | Processing boundary where the failure occurred. | [packages/core/src/errors.ts:102](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L102) |
+| <a id="cause-1"></a> `cause?` | `unknown` | Original thrown value. May contain user or provider data. | [packages/core/src/errors.ts:112](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L112) |
+| <a id="fatal-1"></a> `fatal?` | `boolean` | Whether the session entered its terminal `error` state. | [packages/core/src/errors.ts:108](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L108) |
+| <a id="httpstatus-1"></a> `httpStatus?` | `number` | Upstream HTTP status when a response was received. | [packages/core/src/errors.ts:104](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L104) |
+| <a id="provider-1"></a> `provider?` | `string` | Provider name when the failure originated in an adapter. | [packages/core/src/errors.ts:100](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L100) |
+| <a id="raw-3"></a> `raw?` | `unknown` | Original provider payload or HTTP body. May contain sensitive data. | [packages/core/src/errors.ts:114](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L114) |
+| <a id="retryable-1"></a> `retryable?` | `boolean` | Override the default retryability for [VoiceErrorCode](/docs/en/reference/api/ottervoice-core/#voiceerrorcode-1). | [packages/core/src/errors.ts:106](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L106) |
+| <a id="safemessage-1"></a> `safeMessage?` | `string` | Sanitized summary; defaults to a stable message for the error code. | [packages/core/src/errors.ts:110](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L110) |
+| <a id="stage-1"></a> `stage?` | [`VoiceErrorStage`](/docs/en/reference/api/ottervoice-core/#voiceerrorstage-1) | Processing boundary where the failure occurred. | [packages/core/src/errors.ts:102](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L102) |
 
 ***
 
 ### LLMGenerateInput
 
-Defined in: [packages/core/src/types.ts:417](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L417)
+Defined in: [packages/core/src/types.ts:413](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L413)
 
 Input for [LLMProvider.generate](/docs/en/reference/api/ottervoice-core/#generate-1) / [LLMProvider.stream](/docs/en/reference/api/ottervoice-core/#stream).
 
@@ -3219,19 +3229,19 @@ Input for [LLMProvider.generate](/docs/en/reference/api/ottervoice-core/#generat
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="maxtokens-1"></a> `maxTokens?` | `number` | Soft cap on completion tokens. A server gateway must enforce its own hard ceiling. | [packages/core/src/types.ts:428](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L428) |
-| <a id="messages-1"></a> `messages` | [`LLMMessage`](/docs/en/reference/api/ottervoice-core/#llmmessage)[] | Chronological chat history for the model. | [packages/core/src/types.ts:424](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L424) |
-| <a id="metadata-3"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque metadata forwarded to the adapter. | [packages/core/src/types.ts:432](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L432) |
-| <a id="responseformat"></a> `responseFormat?` | `"text"` \| `"json"` | Prefer plain text or structured JSON when the model supports it. | [packages/core/src/types.ts:430](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L430) |
-| <a id="signal-1"></a> `signal?` | `AbortSignal` | Cancels an in-flight provider request when this turn is superseded. | [packages/core/src/types.ts:434](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L434) |
-| <a id="system-1"></a> `system?` | `string` | Optional system instruction for this request. Treat as trusted policy: untrusted clients must not send it through a passthrough provider gateway. | [packages/core/src/types.ts:422](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L422) |
-| <a id="temperature-1"></a> `temperature?` | `number` | Sampling temperature; provider default when omitted. Lock server-side for untrusted clients. | [packages/core/src/types.ts:426](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L426) |
+| <a id="maxtokens-1"></a> `maxTokens?` | `number` | Soft cap on completion tokens. A server gateway must enforce its own hard ceiling. | [packages/core/src/types.ts:424](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L424) |
+| <a id="messages-1"></a> `messages` | [`LLMMessage`](/docs/en/reference/api/ottervoice-core/#llmmessage)[] | Chronological chat history for the model. | [packages/core/src/types.ts:420](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L420) |
+| <a id="metadata-3"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque metadata forwarded to the adapter. | [packages/core/src/types.ts:428](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L428) |
+| <a id="responseformat"></a> `responseFormat?` | `"text"` \| `"json"` | Prefer plain text or structured JSON when the model supports it. | [packages/core/src/types.ts:426](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L426) |
+| <a id="signal-1"></a> `signal?` | `AbortSignal` | Cancels an in-flight provider request when this turn is superseded. | [packages/core/src/types.ts:430](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L430) |
+| <a id="system-1"></a> `system?` | `string` | Optional system instruction for this request. Treat as trusted policy: untrusted clients must not send it through a passthrough provider gateway. | [packages/core/src/types.ts:418](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L418) |
+| <a id="temperature-1"></a> `temperature?` | `number` | Sampling temperature; provider default when omitted. Lock server-side for untrusted clients. | [packages/core/src/types.ts:422](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L422) |
 
 ***
 
 ### LLMGenerateOutput
 
-Defined in: [packages/core/src/types.ts:438](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L438)
+Defined in: [packages/core/src/types.ts:434](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L434)
 
 Non-streaming completion from [LLMProvider.generate](/docs/en/reference/api/ottervoice-core/#generate-1).
 
@@ -3239,16 +3249,16 @@ Non-streaming completion from [LLMProvider.generate](/docs/en/reference/api/otte
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="json"></a> `json?` | `unknown` | Parsed JSON when `responseFormat` was `json`. | [packages/core/src/types.ts:442](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L442) |
-| <a id="raw-4"></a> `raw?` | `unknown` | Raw provider payload for debugging. | [packages/core/src/types.ts:446](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L446) |
-| <a id="text-4"></a> `text` | `string` | Assistant reply text. | [packages/core/src/types.ts:440](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L440) |
-| <a id="usage-1"></a> `usage?` | [`LLMUsage`](/docs/en/reference/api/ottervoice-core/#llmusage) | Token usage when reported. | [packages/core/src/types.ts:444](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L444) |
+| <a id="json"></a> `json?` | `unknown` | Parsed JSON when `responseFormat` was `json`. | [packages/core/src/types.ts:438](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L438) |
+| <a id="raw-4"></a> `raw?` | `unknown` | Raw provider payload for debugging. | [packages/core/src/types.ts:442](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L442) |
+| <a id="text-4"></a> `text` | `string` | Assistant reply text. | [packages/core/src/types.ts:436](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L436) |
+| <a id="usage-1"></a> `usage?` | [`LLMUsage`](/docs/en/reference/api/ottervoice-core/#llmusage) | Token usage when reported. | [packages/core/src/types.ts:440](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L440) |
 
 ***
 
 ### LLMMessage
 
-Defined in: [packages/core/src/types.ts:399](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L399)
+Defined in: [packages/core/src/types.ts:395](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L395)
 
 One chat message forwarded to an [LLMProvider](/docs/en/reference/api/ottervoice-core/#llmprovider).
 
@@ -3256,14 +3266,14 @@ One chat message forwarded to an [LLMProvider](/docs/en/reference/api/ottervoice
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="content"></a> `content` | `string` | Plain text content. | [packages/core/src/types.ts:403](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L403) |
-| <a id="role-1"></a> `role` | `"user"` \| `"assistant"` \| `"system"` | Message role in the conversation. | [packages/core/src/types.ts:401](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L401) |
+| <a id="content"></a> `content` | `string` | Plain text content. | [packages/core/src/types.ts:399](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L399) |
+| <a id="role-1"></a> `role` | `"user"` \| `"assistant"` \| `"system"` | Message role in the conversation. | [packages/core/src/types.ts:397](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L397) |
 
 ***
 
 ### LLMProvider
 
-Defined in: [packages/core/src/types.ts:465](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L465)
+Defined in: [packages/core/src/types.ts:461](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L461)
 
 Text LLM used by the classic `asr_llm_tts` pipeline.
 Prefer implementing [LLMProvider.stream](/docs/en/reference/api/ottervoice-core/#stream) so the UI can show incremental text.
@@ -3272,7 +3282,7 @@ Prefer implementing [LLMProvider.stream](/docs/en/reference/api/ottervoice-core/
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="name-3"></a> `name` | `string` | Stable provider id used in errors and usage. | [packages/core/src/types.ts:467](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L467) |
+| <a id="name-3"></a> `name` | `string` | Stable provider id used in errors and usage. | [packages/core/src/types.ts:463](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L463) |
 
 #### Methods
 
@@ -3282,7 +3292,7 @@ Prefer implementing [LLMProvider.stream](/docs/en/reference/api/ottervoice-core/
 generate(input): Promise<LLMGenerateOutput>;
 ```
 
-Defined in: [packages/core/src/types.ts:473](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L473)
+Defined in: [packages/core/src/types.ts:469](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L469)
 
 Produce a complete reply for the current turn.
 
@@ -3302,7 +3312,7 @@ Produce a complete reply for the current turn.
 optional stream(input): AsyncIterable<LLMStreamChunk>;
 ```
 
-Defined in: [packages/core/src/types.ts:479](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L479)
+Defined in: [packages/core/src/types.ts:475](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L475)
 
 Optional token stream used when available (lower time-to-first-text).
 
@@ -3320,7 +3330,7 @@ Optional token stream used when available (lower time-to-first-text).
 
 ### LLMStreamChunk
 
-Defined in: [packages/core/src/types.ts:450](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L450)
+Defined in: [packages/core/src/types.ts:446](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L446)
 
 One chunk from [LLMProvider.stream](/docs/en/reference/api/ottervoice-core/#stream).
 
@@ -3328,16 +3338,16 @@ One chunk from [LLMProvider.stream](/docs/en/reference/api/ottervoice-core/#stre
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="error"></a> `error?` | [`NormalizedVoiceError`](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) | Normalized failure for `error`. | [packages/core/src/types.ts:458](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L458) |
-| <a id="text-5"></a> `text?` | `string` | New text for `text_delta`. | [packages/core/src/types.ts:454](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L454) |
-| <a id="type"></a> `type` | `"error"` \| `"text_delta"` \| `"usage"` \| `"done"` | Chunk kind: text fragment, usage update, completion, or error. | [packages/core/src/types.ts:452](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L452) |
-| <a id="usage-2"></a> `usage?` | [`LLMUsage`](/docs/en/reference/api/ottervoice-core/#llmusage) | Usage snapshot for `usage` / `done`. | [packages/core/src/types.ts:456](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L456) |
+| <a id="error"></a> `error?` | [`NormalizedVoiceError`](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) | Normalized failure for `error`. | [packages/core/src/types.ts:454](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L454) |
+| <a id="text-5"></a> `text?` | `string` | New text for `text_delta`. | [packages/core/src/types.ts:450](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L450) |
+| <a id="type"></a> `type` | `"error"` \| `"text_delta"` \| `"usage"` \| `"done"` | Chunk kind: text fragment, usage update, completion, or error. | [packages/core/src/types.ts:448](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L448) |
+| <a id="usage-2"></a> `usage?` | [`LLMUsage`](/docs/en/reference/api/ottervoice-core/#llmusage) | Usage snapshot for `usage` / `done`. | [packages/core/src/types.ts:452](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L452) |
 
 ***
 
 ### LLMUsage
 
-Defined in: [packages/core/src/types.ts:407](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L407)
+Defined in: [packages/core/src/types.ts:403](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L403)
 
 Optional token usage reported by an LLM or Audio LLM provider.
 
@@ -3345,15 +3355,15 @@ Optional token usage reported by an LLM or Audio LLM provider.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="inputtokens"></a> `inputTokens?` | `number` | Prompt / input tokens when the provider reports them. | [packages/core/src/types.ts:409](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L409) |
-| <a id="outputtokens"></a> `outputTokens?` | `number` | Completion / output tokens when the provider reports them. | [packages/core/src/types.ts:411](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L411) |
-| <a id="totaltokens"></a> `totalTokens?` | `number` | Total tokens when the provider reports a combined figure. | [packages/core/src/types.ts:413](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L413) |
+| <a id="inputtokens"></a> `inputTokens?` | `number` | Prompt / input tokens when the provider reports them. | [packages/core/src/types.ts:405](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L405) |
+| <a id="outputtokens"></a> `outputTokens?` | `number` | Completion / output tokens when the provider reports them. | [packages/core/src/types.ts:407](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L407) |
+| <a id="totaltokens"></a> `totalTokens?` | `number` | Total tokens when the provider reports a combined figure. | [packages/core/src/types.ts:409](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L409) |
 
 ***
 
 ### LoggerAdapter
 
-Defined in: [packages/core/src/types.ts:993](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L993)
+Defined in: [packages/core/src/types.ts:1013](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1013)
 
 Optional structured logger injected via [RuntimeAdapter.logger](/docs/en/reference/api/ottervoice-core/#logger-1).
 
@@ -3365,7 +3375,7 @@ Optional structured logger injected via [RuntimeAdapter.logger](/docs/en/referen
 debug(...args): void;
 ```
 
-Defined in: [packages/core/src/types.ts:995](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L995)
+Defined in: [packages/core/src/types.ts:1015](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1015)
 
 Verbose diagnostics (disabled in production by default).
 
@@ -3385,7 +3395,7 @@ Verbose diagnostics (disabled in production by default).
 error(...args): void;
 ```
 
-Defined in: [packages/core/src/types.ts:1001](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1001)
+Defined in: [packages/core/src/types.ts:1021](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1021)
 
 Failures that typically surface as session errors.
 
@@ -3405,7 +3415,7 @@ Failures that typically surface as session errors.
 info(...args): void;
 ```
 
-Defined in: [packages/core/src/types.ts:997](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L997)
+Defined in: [packages/core/src/types.ts:1017](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1017)
 
 Informational lifecycle messages.
 
@@ -3425,7 +3435,7 @@ Informational lifecycle messages.
 warn(...args): void;
 ```
 
-Defined in: [packages/core/src/types.ts:999](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L999)
+Defined in: [packages/core/src/types.ts:1019](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1019)
 
 Recoverable anomalies.
 
@@ -3443,7 +3453,7 @@ Recoverable anomalies.
 
 ### MockASROptions
 
-Defined in: [packages/core/src/providers/mock.ts:26](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L26)
+Defined in: [packages/core/src/providers/mock.ts:26](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L26)
 
 Options for [createMockASR](/docs/en/reference/api/ottervoice-core/#createmockasr).
 Use when wiring tests or the developer profile without a live STT backend.
@@ -3452,15 +3462,15 @@ Use when wiring tests or the developer profile without a live STT backend.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="emitpartials"></a> `emitPartials?` | `boolean` | Emit a partial (half-length) result before each final. Default true. | [packages/core/src/providers/mock.ts:30](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L30) |
-| <a id="failwith"></a> `failWith?` | [`NormalizedVoiceError`](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) | When set, the next `sendAudio` triggers this error instead of a result. | [packages/core/src/providers/mock.ts:32](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L32) |
-| <a id="transcripts"></a> `transcripts` | `string`[] | Scripted final transcripts, emitted one per `sendAudio` call. | [packages/core/src/providers/mock.ts:28](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L28) |
+| <a id="emitpartials"></a> `emitPartials?` | `boolean` | Emit a partial (half-length) result before each final. Default true. | [packages/core/src/providers/mock.ts:30](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L30) |
+| <a id="failwith"></a> `failWith?` | [`NormalizedVoiceError`](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) | When set, the next `sendAudio` triggers this error instead of a result. | [packages/core/src/providers/mock.ts:32](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L32) |
+| <a id="transcripts"></a> `transcripts` | `string`[] | Scripted final transcripts, emitted one per `sendAudio` call. | [packages/core/src/providers/mock.ts:28](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L28) |
 
 ***
 
 ### MockAudioInputOptions
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:15](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L15)
+Defined in: [packages/core/src/providers/mock-runtime.ts:15](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L15)
 
 Options for [MockAudioInput](/docs/en/reference/api/ottervoice-core/#mockaudioinput).
 Use when constructing a mock mic for tests without a real capture device.
@@ -3469,13 +3479,13 @@ Use when constructing a mock mic for tests without a real capture device.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="permission"></a> `permission?` | `boolean` | Permission result returned by `requestPermission`. Default true. | [packages/core/src/providers/mock-runtime.ts:17](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L17) |
+| <a id="permission"></a> `permission?` | `boolean` | Permission result returned by `requestPermission`. Default true. | [packages/core/src/providers/mock-runtime.ts:17](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L17) |
 
 ***
 
 ### MockAudioOutputOptions
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:92](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L92)
+Defined in: [packages/core/src/providers/mock-runtime.ts:92](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L92)
 
 Options for [MockAudioOutput](/docs/en/reference/api/ottervoice-core/#mockaudiooutput).
 Use when tests need to control whether `play` auto-completes or fails.
@@ -3484,14 +3494,14 @@ Use when tests need to control whether `play` auto-completes or fails.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="autocomplete"></a> `autoComplete?` | `boolean` | Auto-fire start/end around `play`. Default true. | [packages/core/src/providers/mock-runtime.ts:94](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L94) |
-| <a id="failwith-1"></a> `failWith?` | [`NormalizedVoiceError`](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) | When set, `play` rejects with this error. | [packages/core/src/providers/mock-runtime.ts:96](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L96) |
+| <a id="autocomplete"></a> `autoComplete?` | `boolean` | Auto-fire start/end around `play`. Default true. | [packages/core/src/providers/mock-runtime.ts:94](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L94) |
+| <a id="failwith-1"></a> `failWith?` | [`NormalizedVoiceError`](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) | When set, `play` rejects with this error. | [packages/core/src/providers/mock-runtime.ts:96](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L96) |
 
 ***
 
 ### MockLLMOptions
 
-Defined in: [packages/core/src/providers/mock.ts:114](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L114)
+Defined in: [packages/core/src/providers/mock.ts:114](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L114)
 
 Options for [createMockLLM](/docs/en/reference/api/ottervoice-core/#createmockllm).
 Use in tests or demos that need a deterministic text reply without a live LLM.
@@ -3500,15 +3510,15 @@ Use in tests or demos that need a deterministic text reply without a live LLM.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="failwith-2"></a> `failWith?` | [`NormalizedVoiceError`](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) | When set, `generate`/`stream` reject with this error. | [packages/core/src/providers/mock.ts:123](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L123) |
-| <a id="reply"></a> `reply?` | (`input`, `callIndex`) => `string` | Reply generator. Receives the input and 0-based call index. Defaults to echoing the last user message. | [packages/core/src/providers/mock.ts:119](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L119) |
-| <a id="usage-3"></a> `usage?` | [`LLMUsage`](/docs/en/reference/api/ottervoice-core/#llmusage) | Token usage returned on every `generate` / stream completion. | [packages/core/src/providers/mock.ts:121](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L121) |
+| <a id="failwith-2"></a> `failWith?` | [`NormalizedVoiceError`](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) | When set, `generate`/`stream` reject with this error. | [packages/core/src/providers/mock.ts:123](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L123) |
+| <a id="reply"></a> `reply?` | (`input`, `callIndex`) => `string` | Reply generator. Receives the input and 0-based call index. Defaults to echoing the last user message. | [packages/core/src/providers/mock.ts:119](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L119) |
+| <a id="usage-3"></a> `usage?` | [`LLMUsage`](/docs/en/reference/api/ottervoice-core/#llmusage) | Token usage returned on every `generate` / stream completion. | [packages/core/src/providers/mock.ts:121](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L121) |
 
 ***
 
 ### MockPronunciationOptions
 
-Defined in: [packages/core/src/providers/mock.ts:239](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L239)
+Defined in: [packages/core/src/providers/mock.ts:239](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L239)
 
 Options for [createMockPronunciation](/docs/en/reference/api/ottervoice-core/#createmockpronunciation).
 Use when pronunciation scoring is optional in tests but the provider slot
@@ -3518,14 +3528,14 @@ must still be filled.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="failwith-3"></a> `failWith?` | [`NormalizedVoiceError`](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) | When set, `assess` rejects with this error. | [packages/core/src/providers/mock.ts:243](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L243) |
-| <a id="score"></a> `score?` | `number` | Overall / per-dimension score returned for every assessment. Default 80. | [packages/core/src/providers/mock.ts:241](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L241) |
+| <a id="failwith-3"></a> `failWith?` | [`NormalizedVoiceError`](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) | When set, `assess` rejects with this error. | [packages/core/src/providers/mock.ts:243](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L243) |
+| <a id="score"></a> `score?` | `number` | Overall / per-dimension score returned for every assessment. Default 80. | [packages/core/src/providers/mock.ts:241](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L241) |
 
 ***
 
 ### MockRuntime
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:207](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L207)
+Defined in: [packages/core/src/providers/mock-runtime.ts:207](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L207)
 
 In-memory [RuntimeAdapter](/docs/en/reference/api/ottervoice-core/#runtimeadapter) with typed mock input/output adapters.
 Prefer [createMockRuntime](/docs/en/reference/api/ottervoice-core/#createmockruntime) over constructing this shape by hand.
@@ -3538,17 +3548,17 @@ Prefer [createMockRuntime](/docs/en/reference/api/ottervoice-core/#createmockrun
 
 | Property | Type | Description | Overrides | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ | ------ |
-| <a id="audioinput"></a> `audioInput` | [`MockAudioInput`](/docs/en/reference/api/ottervoice-core/#mockaudioinput) | Controllable mock microphone. | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`audioInput`](/docs/en/reference/api/ottervoice-core/#audioinput-1) | - | [packages/core/src/providers/mock-runtime.ts:209](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L209) |
-| <a id="audiooutput"></a> `audioOutput` | [`MockAudioOutput`](/docs/en/reference/api/ottervoice-core/#mockaudiooutput) | Controllable mock speaker. | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`audioOutput`](/docs/en/reference/api/ottervoice-core/#audiooutput-1) | - | [packages/core/src/providers/mock-runtime.ts:211](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L211) |
-| <a id="logger"></a> `logger?` | [`LoggerAdapter`](/docs/en/reference/api/ottervoice-core/#loggeradapter) | Optional logger; core uses it sparingly. | - | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`logger`](/docs/en/reference/api/ottervoice-core/#logger-1) | [packages/core/src/types.ts:1019](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1019) |
-| <a id="network"></a> `network?` | [`NetworkAdapter`](/docs/en/reference/api/ottervoice-core/#networkadapter) | Optional HTTP/WebSocket hooks for providers. | - | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`network`](/docs/en/reference/api/ottervoice-core/#network-1) | [packages/core/src/types.ts:1015](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1015) |
-| <a id="storage"></a> `storage?` | [`RuntimeStorageAdapter`](/docs/en/reference/api/ottervoice-core/#runtimestorageadapter) | Optional persistence for caches. | - | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`storage`](/docs/en/reference/api/ottervoice-core/#storage-1) | [packages/core/src/types.ts:1017](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1017) |
+| <a id="audioinput"></a> `audioInput` | [`MockAudioInput`](/docs/en/reference/api/ottervoice-core/#mockaudioinput) | Controllable mock microphone. | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`audioInput`](/docs/en/reference/api/ottervoice-core/#audioinput-1) | - | [packages/core/src/providers/mock-runtime.ts:209](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L209) |
+| <a id="audiooutput"></a> `audioOutput` | [`MockAudioOutput`](/docs/en/reference/api/ottervoice-core/#mockaudiooutput) | Controllable mock speaker. | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`audioOutput`](/docs/en/reference/api/ottervoice-core/#audiooutput-1) | - | [packages/core/src/providers/mock-runtime.ts:211](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L211) |
+| <a id="logger"></a> `logger?` | [`LoggerAdapter`](/docs/en/reference/api/ottervoice-core/#loggeradapter) | Optional logger; core uses it sparingly. | - | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`logger`](/docs/en/reference/api/ottervoice-core/#logger-1) | [packages/core/src/types.ts:1039](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1039) |
+| <a id="network"></a> `network?` | [`NetworkAdapter`](/docs/en/reference/api/ottervoice-core/#networkadapter) | Optional HTTP/WebSocket hooks for providers. | - | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`network`](/docs/en/reference/api/ottervoice-core/#network-1) | [packages/core/src/types.ts:1035](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1035) |
+| <a id="storage"></a> `storage?` | [`RuntimeStorageAdapter`](/docs/en/reference/api/ottervoice-core/#runtimestorageadapter) | Optional persistence for caches. | - | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter).[`storage`](/docs/en/reference/api/ottervoice-core/#storage-1) | [packages/core/src/types.ts:1037](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1037) |
 
 ***
 
 ### MockRuntimeOptions
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:196](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L196)
+Defined in: [packages/core/src/providers/mock-runtime.ts:196](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L196)
 
 Options for [createMockRuntime](/docs/en/reference/api/ottervoice-core/#createmockruntime).
 Forwards into [MockAudioInput](/docs/en/reference/api/ottervoice-core/#mockaudioinput) / [MockAudioOutput](/docs/en/reference/api/ottervoice-core/#mockaudiooutput) constructors.
@@ -3557,14 +3567,14 @@ Forwards into [MockAudioInput](/docs/en/reference/api/ottervoice-core/#mockaudio
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="input"></a> `input?` | [`MockAudioInputOptions`](/docs/en/reference/api/ottervoice-core/#mockaudioinputoptions) | Microphone mock options. See [MockAudioInputOptions](/docs/en/reference/api/ottervoice-core/#mockaudioinputoptions). | [packages/core/src/providers/mock-runtime.ts:198](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L198) |
-| <a id="output"></a> `output?` | [`MockAudioOutputOptions`](/docs/en/reference/api/ottervoice-core/#mockaudiooutputoptions) | Speaker mock options. See [MockAudioOutputOptions](/docs/en/reference/api/ottervoice-core/#mockaudiooutputoptions). | [packages/core/src/providers/mock-runtime.ts:200](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L200) |
+| <a id="input"></a> `input?` | [`MockAudioInputOptions`](/docs/en/reference/api/ottervoice-core/#mockaudioinputoptions) | Microphone mock options. See [MockAudioInputOptions](/docs/en/reference/api/ottervoice-core/#mockaudioinputoptions). | [packages/core/src/providers/mock-runtime.ts:198](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L198) |
+| <a id="output"></a> `output?` | [`MockAudioOutputOptions`](/docs/en/reference/api/ottervoice-core/#mockaudiooutputoptions) | Speaker mock options. See [MockAudioOutputOptions](/docs/en/reference/api/ottervoice-core/#mockaudiooutputoptions). | [packages/core/src/providers/mock-runtime.ts:200](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L200) |
 
 ***
 
 ### MockTTSOptions
 
-Defined in: [packages/core/src/providers/mock.ts:189](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L189)
+Defined in: [packages/core/src/providers/mock.ts:189](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L189)
 
 Options for [createMockTTS](/docs/en/reference/api/ottervoice-core/#createmocktts).
 Use when tests need a TTS adapter that returns synthetic audio bytes.
@@ -3573,14 +3583,14 @@ Use when tests need a TTS adapter that returns synthetic audio bytes.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="durationmsperchar"></a> `durationMsPerChar?` | `number` | Estimated playback duration in ms; defaults to 60ms per character. | [packages/core/src/providers/mock.ts:191](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L191) |
-| <a id="failwith-4"></a> `failWith?` | [`NormalizedVoiceError`](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) | When set, `synthesize` rejects with this error. | [packages/core/src/providers/mock.ts:193](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L193) |
+| <a id="durationmsperchar"></a> `durationMsPerChar?` | `number` | Estimated playback duration in ms; defaults to 60ms per character. | [packages/core/src/providers/mock.ts:191](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L191) |
+| <a id="failwith-4"></a> `failWith?` | [`NormalizedVoiceError`](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) | When set, `synthesize` rejects with this error. | [packages/core/src/providers/mock.ts:193](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L193) |
 
 ***
 
 ### NetworkAdapter
 
-Defined in: [packages/core/src/types.ts:957](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L957)
+Defined in: [packages/core/src/types.ts:977](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L977)
 
 Platform HTTP / WebSocket hooks used by providers that need them.
 
@@ -3592,7 +3602,7 @@ Platform HTTP / WebSocket hooks used by providers that need them.
 createWebSocket(url, protocols?): RuntimeWebSocket;
 ```
 
-Defined in: [packages/core/src/types.ts:971](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L971)
+Defined in: [packages/core/src/types.ts:991](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L991)
 
 Open a WebSocket for streaming providers.
 
@@ -3613,7 +3623,7 @@ Open a WebSocket for streaming providers.
 fetch(input, init?): Promise<Response>;
 ```
 
-Defined in: [packages/core/src/types.ts:964](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L964)
+Defined in: [packages/core/src/types.ts:984](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L984)
 
 Fetch implementation (browser `fetch`, undici, etc.).
 
@@ -3632,7 +3642,7 @@ Fetch implementation (browser `fetch`, undici, etc.).
 
 ### NormalizedVoiceError
 
-Defined in: [packages/core/src/types.ts:83](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L83)
+Defined in: [packages/core/src/types.ts:83](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L83)
 
 Vendor-neutral error shape used by session events, providers, and [VoiceError](/docs/en/reference/api/ottervoice-core/#voiceerror).
 Construct via [createVoiceError](/docs/en/reference/api/ottervoice-core/#createvoiceerror) when possible so `retryable` defaults apply.
@@ -3641,22 +3651,22 @@ Construct via [createVoiceError](/docs/en/reference/api/ottervoice-core/#createv
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="cause-2"></a> `cause?` | `unknown` | Original thrown value, when available. May contain user or provider data. | [packages/core/src/types.ts:101](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L101) |
-| <a id="code-1"></a> `code` | [`VoiceErrorCode`](/docs/en/reference/api/ottervoice-core/#voiceerrorcode-1) | Stable application error code. | [packages/core/src/types.ts:85](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L85) |
-| <a id="fatal-2"></a> `fatal?` | `boolean` | Whether the session entered its terminal `error` state. Session events populate this. | [packages/core/src/types.ts:97](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L97) |
-| <a id="httpstatus-2"></a> `httpStatus?` | `number` | Upstream HTTP status when an HTTP response was received. | [packages/core/src/types.ts:93](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L93) |
-| <a id="message-1"></a> `message` | `string` | Human-readable message suitable for logs (not always UI-safe). | [packages/core/src/types.ts:87](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L87) |
-| <a id="provider-2"></a> `provider?` | `string` | Provider name when the failure originated in an adapter. | [packages/core/src/types.ts:89](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L89) |
-| <a id="raw-5"></a> `raw?` | `unknown` | Original provider payload or HTTP body. Development-only; it may contain sensitive data. | [packages/core/src/types.ts:103](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L103) |
-| <a id="retryable-2"></a> `retryable?` | `boolean` | Hint for UI retry; not enforced by the session. | [packages/core/src/types.ts:95](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L95) |
-| <a id="safemessage-2"></a> `safeMessage?` | `string` | Sanitized summary safe for user-facing diagnostics and production logs. | [packages/core/src/types.ts:99](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L99) |
-| <a id="stage-2"></a> `stage?` | [`VoiceErrorStage`](/docs/en/reference/api/ottervoice-core/#voiceerrorstage-1) | Processing boundary where the failure occurred. | [packages/core/src/types.ts:91](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L91) |
+| <a id="cause-2"></a> `cause?` | `unknown` | Original thrown value, when available. May contain user or provider data. | [packages/core/src/types.ts:101](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L101) |
+| <a id="code-1"></a> `code` | [`VoiceErrorCode`](/docs/en/reference/api/ottervoice-core/#voiceerrorcode-1) | Stable application error code. | [packages/core/src/types.ts:85](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L85) |
+| <a id="fatal-2"></a> `fatal?` | `boolean` | Whether the session entered its terminal `error` state. Session events populate this. | [packages/core/src/types.ts:97](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L97) |
+| <a id="httpstatus-2"></a> `httpStatus?` | `number` | Upstream HTTP status when an HTTP response was received. | [packages/core/src/types.ts:93](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L93) |
+| <a id="message-1"></a> `message` | `string` | Human-readable message suitable for logs (not always UI-safe). | [packages/core/src/types.ts:87](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L87) |
+| <a id="provider-2"></a> `provider?` | `string` | Provider name when the failure originated in an adapter. | [packages/core/src/types.ts:89](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L89) |
+| <a id="raw-5"></a> `raw?` | `unknown` | Original provider payload or HTTP body. Development-only; it may contain sensitive data. | [packages/core/src/types.ts:103](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L103) |
+| <a id="retryable-2"></a> `retryable?` | `boolean` | Hint for UI retry; not enforced by the session. | [packages/core/src/types.ts:95](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L95) |
+| <a id="safemessage-2"></a> `safeMessage?` | `string` | Sanitized summary safe for user-facing diagnostics and production logs. | [packages/core/src/types.ts:99](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L99) |
+| <a id="stage-2"></a> `stage?` | [`VoiceErrorStage`](/docs/en/reference/api/ottervoice-core/#voiceerrorstage-1) | Processing boundary where the failure occurred. | [packages/core/src/types.ts:91](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L91) |
 
 ***
 
 ### PcmAudioStreamOptions
 
-Defined in: [packages/core/src/types.ts:817](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L817)
+Defined in: [packages/core/src/types.ts:837](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L837)
 
 Options for [AudioOutputAdapter.startPcmStream](/docs/en/reference/api/ottervoice-core/#startpcmstream).
 
@@ -3668,16 +3678,16 @@ Options for [AudioOutputAdapter.startPcmStream](/docs/en/reference/api/ottervoic
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="channels-4"></a> `channels` | `number` | Channel count of subsequent `write` payloads. | [packages/core/src/types.ts:823](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L823) |
-| <a id="encoding-4"></a> `encoding` | `"pcm_s16le"` | Always linear 16-bit PCM for incremental streams. | [packages/core/src/types.ts:819](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L819) |
-| <a id="samplerate-4"></a> `sampleRate` | `number` | Sample rate of subsequent `write` payloads in Hz. | [packages/core/src/types.ts:821](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L821) |
-| <a id="volume-1"></a> `volume?` | `number` | Playback gain in `[0, 1]`. | [packages/core/src/types.ts:825](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L825) |
+| <a id="channels-4"></a> `channels` | `number` | Channel count of subsequent `write` payloads. | [packages/core/src/types.ts:843](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L843) |
+| <a id="encoding-4"></a> `encoding` | `"pcm_s16le"` | Always linear 16-bit PCM for incremental streams. | [packages/core/src/types.ts:839](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L839) |
+| <a id="samplerate-4"></a> `sampleRate` | `number` | Sample rate of subsequent `write` payloads in Hz. | [packages/core/src/types.ts:841](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L841) |
+| <a id="volume-1"></a> `volume?` | `number` | Playback gain in `[0, 1]`. | [packages/core/src/types.ts:845](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L845) |
 
 ***
 
 ### PlaybackEchoFilterOptions
 
-Defined in: [packages/core/src/playback-echo-filter.ts:6](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L6)
+Defined in: [packages/core/src/playback-echo-filter.ts:6](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L6)
 
 Tuning knobs for [PlaybackEchoFilter](/docs/en/reference/api/ottervoice-core/#playbackechofilter).
 Use when default delay/warmup margins are too aggressive or too timid for a
@@ -3687,18 +3697,18 @@ given device or speaker layout.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="echomargin"></a> `echoMargin?` | `number` | Multiplier on estimated echo gain before subtracting from mic RMS. Default 1.12. | [packages/core/src/playback-echo-filter.ts:16](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L16) |
-| <a id="framems"></a> `frameMs?` | `number` | Step size (ms) when searching for playback↔mic delay alignment. Default 50. | [packages/core/src/playback-echo-filter.ts:8](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L8) |
-| <a id="historyms"></a> `historyMs?` | `number` | How long (ms) of mic/output samples to retain for correlation. Default 1200. | [packages/core/src/playback-echo-filter.ts:12](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L12) |
-| <a id="maxdelayms"></a> `maxDelayMs?` | `number` | Maximum acoustic delay (ms) to consider when correlating echo. Default 300. | [packages/core/src/playback-echo-filter.ts:10](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L10) |
-| <a id="noisefloor"></a> `noiseFloor?` | `number` | Absolute RMS floor subtracted after echo estimate (avoids digital noise trips). Default 0.003. | [packages/core/src/playback-echo-filter.ts:18](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L18) |
-| <a id="warmupms"></a> `warmupMs?` | `number` | Suppress barge-in for this many ms after playback reference begins. Default 350. | [packages/core/src/playback-echo-filter.ts:14](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/playback-echo-filter.ts#L14) |
+| <a id="echomargin"></a> `echoMargin?` | `number` | Multiplier on estimated echo gain before subtracting from mic RMS. Default 1.12. | [packages/core/src/playback-echo-filter.ts:16](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L16) |
+| <a id="framems"></a> `frameMs?` | `number` | Step size (ms) when searching for playback↔mic delay alignment. Default 50. | [packages/core/src/playback-echo-filter.ts:8](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L8) |
+| <a id="historyms"></a> `historyMs?` | `number` | How long (ms) of mic/output samples to retain for correlation. Default 1200. | [packages/core/src/playback-echo-filter.ts:12](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L12) |
+| <a id="maxdelayms"></a> `maxDelayMs?` | `number` | Maximum acoustic delay (ms) to consider when correlating echo. Default 300. | [packages/core/src/playback-echo-filter.ts:10](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L10) |
+| <a id="noisefloor"></a> `noiseFloor?` | `number` | Absolute RMS floor subtracted after echo estimate (avoids digital noise trips). Default 0.003. | [packages/core/src/playback-echo-filter.ts:18](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L18) |
+| <a id="warmupms"></a> `warmupMs?` | `number` | Suppress barge-in for this many ms after playback reference begins. Default 350. | [packages/core/src/playback-echo-filter.ts:14](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/playback-echo-filter.ts#L14) |
 
 ***
 
 ### PronunciationInput
 
-Defined in: [packages/core/src/types.ts:654](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L654)
+Defined in: [packages/core/src/types.ts:674](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L674)
 
 Input for optional pronunciation / speaking assessment providers.
 
@@ -3706,19 +3716,19 @@ Input for optional pronunciation / speaking assessment providers.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="audio-1"></a> `audio?` | `string` \| `ArrayBuffer` | Raw audio bytes or a remote URL the provider can fetch. | [packages/core/src/types.ts:656](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L656) |
-| <a id="durationms-2"></a> `durationMs?` | `number` | Spoken duration in milliseconds when known. | [packages/core/src/types.ts:664](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L664) |
-| <a id="language-1"></a> `language?` | `string` | BCP-47 language for scoring models. | [packages/core/src/types.ts:662](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L662) |
-| <a id="metadata-4"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque adapter metadata. | [packages/core/src/types.ts:668](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L668) |
-| <a id="referencetext"></a> `referenceText?` | `string` | Expected reference sentence when scoring against a prompt. | [packages/core/src/types.ts:660](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L660) |
-| <a id="transcript"></a> `transcript` | `string` | Recognized or user-submitted spoken text. | [packages/core/src/types.ts:658](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L658) |
-| <a id="words-1"></a> `words?` | [`ASRWord`](/docs/en/reference/api/ottervoice-core/#asrword)[] | Optional word timings from ASR to align scoring. | [packages/core/src/types.ts:666](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L666) |
+| <a id="audio-1"></a> `audio?` | `string` \| `ArrayBuffer` | Raw audio bytes or a remote URL the provider can fetch. | [packages/core/src/types.ts:676](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L676) |
+| <a id="durationms-2"></a> `durationMs?` | `number` | Spoken duration in milliseconds when known. | [packages/core/src/types.ts:684](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L684) |
+| <a id="language-1"></a> `language?` | `string` | BCP-47 language for scoring models. | [packages/core/src/types.ts:682](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L682) |
+| <a id="metadata-4"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque adapter metadata. | [packages/core/src/types.ts:688](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L688) |
+| <a id="referencetext"></a> `referenceText?` | `string` | Expected reference sentence when scoring against a prompt. | [packages/core/src/types.ts:680](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L680) |
+| <a id="transcript"></a> `transcript` | `string` | Recognized or user-submitted spoken text. | [packages/core/src/types.ts:678](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L678) |
+| <a id="words-1"></a> `words?` | [`ASRWord`](/docs/en/reference/api/ottervoice-core/#asrword)[] | Optional word timings from ASR to align scoring. | [packages/core/src/types.ts:686](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L686) |
 
 ***
 
 ### PronunciationProvider
 
-Defined in: [packages/core/src/types.ts:697](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L697)
+Defined in: [packages/core/src/types.ts:717](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L717)
 
 Optional adapter for scoring user pronunciation after a turn.
 
@@ -3726,7 +3736,7 @@ Optional adapter for scoring user pronunciation after a turn.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="name-4"></a> `name` | `string` | Stable provider id used in errors and usage. | [packages/core/src/types.ts:699](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L699) |
+| <a id="name-4"></a> `name` | `string` | Stable provider id used in errors and usage. | [packages/core/src/types.ts:719](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L719) |
 
 #### Methods
 
@@ -3736,7 +3746,7 @@ Optional adapter for scoring user pronunciation after a turn.
 assess(input): Promise<PronunciationResult>;
 ```
 
-Defined in: [packages/core/src/types.ts:706](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L706)
+Defined in: [packages/core/src/types.ts:726](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L726)
 
 Score a spoken utterance.
 
@@ -3756,7 +3766,7 @@ Normalized [PronunciationResult](/docs/en/reference/api/ottervoice-core/#pronunc
 
 ### PronunciationResult
 
-Defined in: [packages/core/src/types.ts:672](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L672)
+Defined in: [packages/core/src/types.ts:692](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L692)
 
 Normalized scores from a [PronunciationProvider](/docs/en/reference/api/ottervoice-core/#pronunciationprovider).
 
@@ -3764,19 +3774,19 @@ Normalized scores from a [PronunciationProvider](/docs/en/reference/api/ottervoi
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="accuracy"></a> `accuracy?` | `number` | Pronunciation accuracy component. | [packages/core/src/types.ts:676](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L676) |
-| <a id="completeness"></a> `completeness?` | `number` | Completeness vs reference text. | [packages/core/src/types.ts:680](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L680) |
-| <a id="fluency"></a> `fluency?` | `number` | Fluency / pacing component. | [packages/core/src/types.ts:678](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L678) |
-| <a id="overall"></a> `overall?` | `number` | Overall 0–100 (or provider scale) score when available. | [packages/core/src/types.ts:674](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L674) |
-| <a id="prosody"></a> `prosody?` | `number` | Prosody / intonation component. | [packages/core/src/types.ts:682](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L682) |
-| <a id="raw-6"></a> `raw?` | `unknown` | Original upstream payload for debugging. | [packages/core/src/types.ts:693](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L693) |
-| <a id="words-2"></a> `words?` | \{ `errorType?`: `string`; `score?`: `number`; `text`: `string`; \}[] | Per-word diagnostics when the provider returns them. | [packages/core/src/types.ts:684](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L684) |
+| <a id="accuracy"></a> `accuracy?` | `number` | Pronunciation accuracy component. | [packages/core/src/types.ts:696](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L696) |
+| <a id="completeness"></a> `completeness?` | `number` | Completeness vs reference text. | [packages/core/src/types.ts:700](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L700) |
+| <a id="fluency"></a> `fluency?` | `number` | Fluency / pacing component. | [packages/core/src/types.ts:698](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L698) |
+| <a id="overall"></a> `overall?` | `number` | Overall 0–100 (or provider scale) score when available. | [packages/core/src/types.ts:694](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L694) |
+| <a id="prosody"></a> `prosody?` | `number` | Prosody / intonation component. | [packages/core/src/types.ts:702](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L702) |
+| <a id="raw-6"></a> `raw?` | `unknown` | Original upstream payload for debugging. | [packages/core/src/types.ts:713](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L713) |
+| <a id="words-2"></a> `words?` | \{ `errorType?`: `string`; `score?`: `number`; `text`: `string`; \}[] | Per-word diagnostics when the provider returns them. | [packages/core/src/types.ts:704](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L704) |
 
 ***
 
 ### ProviderProfile
 
-Defined in: [packages/core/src/provider-router.ts:23](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L23)
+Defined in: [packages/core/src/provider-router.ts:23](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L23)
 
 Provider-id recipe for one product mode. String values are registry keys
 resolved by [ProviderRegistry](/docs/en/reference/api/ottervoice-core/#providerregistry) into concrete adapters — never vendor SDK imports.
@@ -3785,18 +3795,18 @@ resolved by [ProviderRegistry](/docs/en/reference/api/ottervoice-core/#providerr
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="asr"></a> `asr` | `string` | Registered ASR provider id. | [packages/core/src/provider-router.ts:27](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L27) |
-| <a id="llmconversation"></a> `llmConversation` | `string` | Registered LLM used for conversational turns. | [packages/core/src/provider-router.ts:29](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L29) |
-| <a id="llmscoring"></a> `llmScoring?` | `string` | Optional LLM used for scoring / reports; defaults to conversation LLM. | [packages/core/src/provider-router.ts:31](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L31) |
-| <a id="name-5"></a> `name` | `string` | Stable profile id (usually matches a [ProviderProfileName](/docs/en/reference/api/ottervoice-core/#providerprofilename-1)). | [packages/core/src/provider-router.ts:25](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L25) |
-| <a id="pronunciation"></a> `pronunciation?` | `string` | Optional pronunciation / assessment provider id. | [packages/core/src/provider-router.ts:35](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L35) |
-| <a id="tts"></a> `tts?` | `string` | Optional TTS provider id for the classic pipeline. | [packages/core/src/provider-router.ts:33](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L33) |
+| <a id="asr"></a> `asr` | `string` | Registered ASR provider id. | [packages/core/src/provider-router.ts:27](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L27) |
+| <a id="llmconversation"></a> `llmConversation` | `string` | Registered LLM used for conversational turns. | [packages/core/src/provider-router.ts:29](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L29) |
+| <a id="llmscoring"></a> `llmScoring?` | `string` | Optional LLM used for scoring / reports; defaults to conversation LLM. | [packages/core/src/provider-router.ts:31](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L31) |
+| <a id="name-5"></a> `name` | `string` | Stable profile id (usually matches a [ProviderProfileName](/docs/en/reference/api/ottervoice-core/#providerprofilename-1)). | [packages/core/src/provider-router.ts:25](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L25) |
+| <a id="pronunciation"></a> `pronunciation?` | `string` | Optional pronunciation / assessment provider id. | [packages/core/src/provider-router.ts:35](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L35) |
+| <a id="tts"></a> `tts?` | `string` | Optional TTS provider id for the classic pipeline. | [packages/core/src/provider-router.ts:33](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L33) |
 
 ***
 
 ### ProviderRoutingContext
 
-Defined in: [packages/core/src/provider-router.ts:99](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L99)
+Defined in: [packages/core/src/provider-router.ts:99](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L99)
 
 Inputs for [resolveProfile](/docs/en/reference/api/ottervoice-core/#resolveprofile).
 Prefer setting [ProviderRoutingContext.region](/docs/en/reference/api/ottervoice-core/#region) and
@@ -3806,17 +3816,17 @@ Prefer setting [ProviderRoutingContext.region](/docs/en/reference/api/ottervoice
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="costpreference"></a> `costPreference?` | `"low"` \| `"balanced"` \| `"quality"` | Prefer lower cost when a future policy uses it. | [packages/core/src/provider-router.ts:109](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L109) |
-| <a id="feature"></a> `feature?` | [`ProviderFeature`](/docs/en/reference/api/ottervoice-core/#providerfeature) | Feature being selected (optional; ignored by the default policy). | [packages/core/src/provider-router.ts:105](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L105) |
-| <a id="latencypreference"></a> `latencyPreference?` | `"low"` \| `"balanced"` \| `"quality"` | Prefer lower latency when a future policy uses it. | [packages/core/src/provider-router.ts:107](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L107) |
-| <a id="plan"></a> `plan?` | [`ProviderPlan`](/docs/en/reference/api/ottervoice-core/#providerplan) | Subscription tier. | [packages/core/src/provider-router.ts:103](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L103) |
-| <a id="region"></a> `region?` | [`ProviderRegion`](/docs/en/reference/api/ottervoice-core/#providerregion) | User / deployment region. | [packages/core/src/provider-router.ts:101](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L101) |
+| <a id="costpreference"></a> `costPreference?` | `"low"` \| `"balanced"` \| `"quality"` | Prefer lower cost when a future policy uses it. | [packages/core/src/provider-router.ts:109](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L109) |
+| <a id="feature"></a> `feature?` | [`ProviderFeature`](/docs/en/reference/api/ottervoice-core/#providerfeature) | Feature being selected (optional; ignored by the default policy). | [packages/core/src/provider-router.ts:105](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L105) |
+| <a id="latencypreference"></a> `latencyPreference?` | `"low"` \| `"balanced"` \| `"quality"` | Prefer lower latency when a future policy uses it. | [packages/core/src/provider-router.ts:107](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L107) |
+| <a id="plan"></a> `plan?` | [`ProviderPlan`](/docs/en/reference/api/ottervoice-core/#providerplan) | Subscription tier. | [packages/core/src/provider-router.ts:103](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L103) |
+| <a id="region"></a> `region?` | [`ProviderRegion`](/docs/en/reference/api/ottervoice-core/#providerregion) | User / deployment region. | [packages/core/src/provider-router.ts:101](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L101) |
 
 ***
 
 ### RegisteredProviders
 
-Defined in: [packages/core/src/provider-router.ts:131](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L131)
+Defined in: [packages/core/src/provider-router.ts:131](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L131)
 
 Initial map of provider ids → instances for the [ProviderRegistry](/docs/en/reference/api/ottervoice-core/#providerregistry)
 constructor. Keys must match those used in [ProviderProfile](/docs/en/reference/api/ottervoice-core/#providerprofile).
@@ -3825,16 +3835,16 @@ constructor. Keys must match those used in [ProviderProfile](/docs/en/reference/
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="asr-1"></a> `asr?` | `Record`\<`string`, [`ASRProvider`](/docs/en/reference/api/ottervoice-core/#asrprovider)\> | ASR adapters keyed by profile `asr` id. | [packages/core/src/provider-router.ts:133](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L133) |
-| <a id="llm"></a> `llm?` | `Record`\<`string`, [`LLMProvider`](/docs/en/reference/api/ottervoice-core/#llmprovider)\> | LLM adapters keyed by conversation / scoring ids. | [packages/core/src/provider-router.ts:135](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L135) |
-| <a id="pronunciation-1"></a> `pronunciation?` | `Record`\<`string`, [`PronunciationProvider`](/docs/en/reference/api/ottervoice-core/#pronunciationprovider)\> | Pronunciation adapters keyed by profile `pronunciation` id. | [packages/core/src/provider-router.ts:139](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L139) |
-| <a id="tts-1"></a> `tts?` | `Record`\<`string`, [`TTSProvider`](/docs/en/reference/api/ottervoice-core/#ttsprovider)\> | TTS adapters keyed by profile `tts` id. | [packages/core/src/provider-router.ts:137](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L137) |
+| <a id="asr-1"></a> `asr?` | `Record`\<`string`, [`ASRProvider`](/docs/en/reference/api/ottervoice-core/#asrprovider)\> | ASR adapters keyed by profile `asr` id. | [packages/core/src/provider-router.ts:133](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L133) |
+| <a id="llm"></a> `llm?` | `Record`\<`string`, [`LLMProvider`](/docs/en/reference/api/ottervoice-core/#llmprovider)\> | LLM adapters keyed by conversation / scoring ids. | [packages/core/src/provider-router.ts:135](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L135) |
+| <a id="pronunciation-1"></a> `pronunciation?` | `Record`\<`string`, [`PronunciationProvider`](/docs/en/reference/api/ottervoice-core/#pronunciationprovider)\> | Pronunciation adapters keyed by profile `pronunciation` id. | [packages/core/src/provider-router.ts:139](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L139) |
+| <a id="tts-1"></a> `tts?` | `Record`\<`string`, [`TTSProvider`](/docs/en/reference/api/ottervoice-core/#ttsprovider)\> | TTS adapters keyed by profile `tts` id. | [packages/core/src/provider-router.ts:137](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L137) |
 
 ***
 
 ### ResolvedProviders
 
-Defined in: [packages/core/src/provider-router.ts:146](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L146)
+Defined in: [packages/core/src/provider-router.ts:146](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L146)
 
 Concrete provider bundle produced by [ProviderRegistry.resolve](/docs/en/reference/api/ottervoice-core/#resolve).
 Ready to pass into a import('./session').VoiceSession config.
@@ -3843,17 +3853,39 @@ Ready to pass into a import('./session').VoiceSession config.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="asr-2"></a> `asr` | [`ASRProvider`](/docs/en/reference/api/ottervoice-core/#asrprovider) | Live ASR for the classic pipeline. | [packages/core/src/provider-router.ts:148](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L148) |
-| <a id="llm-1"></a> `llm` | [`LLMProvider`](/docs/en/reference/api/ottervoice-core/#llmprovider) | Conversational text LLM. | [packages/core/src/provider-router.ts:150](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L150) |
-| <a id="llmscoring-1"></a> `llmScoring` | [`LLMProvider`](/docs/en/reference/api/ottervoice-core/#llmprovider) | LLM used for scoring / reports (may alias [ResolvedProviders.llm](/docs/en/reference/api/ottervoice-core/#llm-1)). | [packages/core/src/provider-router.ts:152](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L152) |
-| <a id="pronunciation-2"></a> `pronunciation?` | [`PronunciationProvider`](/docs/en/reference/api/ottervoice-core/#pronunciationprovider) | Optional pronunciation assessor. | [packages/core/src/provider-router.ts:156](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L156) |
-| <a id="tts-2"></a> `tts?` | [`TTSProvider`](/docs/en/reference/api/ottervoice-core/#ttsprovider) | Optional TTS when synthesizing speech separately. | [packages/core/src/provider-router.ts:154](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L154) |
+| <a id="asr-2"></a> `asr` | [`ASRProvider`](/docs/en/reference/api/ottervoice-core/#asrprovider) | Live ASR for the classic pipeline. | [packages/core/src/provider-router.ts:148](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L148) |
+| <a id="llm-1"></a> `llm` | [`LLMProvider`](/docs/en/reference/api/ottervoice-core/#llmprovider) | Conversational text LLM. | [packages/core/src/provider-router.ts:150](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L150) |
+| <a id="llmscoring-1"></a> `llmScoring` | [`LLMProvider`](/docs/en/reference/api/ottervoice-core/#llmprovider) | LLM used for scoring / reports (may alias [ResolvedProviders.llm](/docs/en/reference/api/ottervoice-core/#llm-1)). | [packages/core/src/provider-router.ts:152](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L152) |
+| <a id="pronunciation-2"></a> `pronunciation?` | [`PronunciationProvider`](/docs/en/reference/api/ottervoice-core/#pronunciationprovider) | Optional pronunciation assessor. | [packages/core/src/provider-router.ts:156](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L156) |
+| <a id="tts-2"></a> `tts?` | [`TTSProvider`](/docs/en/reference/api/ottervoice-core/#ttsprovider) | Optional TTS when synthesizing speech separately. | [packages/core/src/provider-router.ts:154](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L154) |
+
+***
+
+### ResolvedTurnDetectionConfig
+
+Defined in: [packages/core/src/turn-detector.ts:4](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/turn-detector.ts#L4)
+
+Fully populated turn-detection settings used internally and in diagnostics.
+
+#### Extends
+
+- `Required`\<[`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig)\>
+
+#### Properties
+
+| Property | Type | Description | Inherited from | Defined in |
+| ------ | ------ | ------ | ------ | ------ |
+| <a id="maxturnms"></a> `maxTurnMs` | `number` | Hard local cap on a single user turn length. The server must enforce its own request/audio limit. | [`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig).[`maxTurnMs`](/docs/en/reference/api/ottervoice-core/#maxturnms-1) | [packages/core/src/types.ts:1120](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1120) |
+| <a id="minspeechms"></a> `minSpeechMs` | `number` | Minimum voiced time before speech is considered started. | [`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig).[`minSpeechMs`](/docs/en/reference/api/ottervoice-core/#minspeechms-1) | [packages/core/src/types.ts:1116](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1116) |
+| <a id="silencetimeoutms"></a> `silenceTimeoutMs` | `number` | Quiet time after speech before the turn is closed. | [`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig).[`silenceTimeoutMs`](/docs/en/reference/api/ottervoice-core/#silencetimeoutms-1) | [packages/core/src/types.ts:1118](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1118) |
+| <a id="strategy"></a> `strategy` | [`TurnDetectionStrategy`](/docs/en/reference/api/ottervoice-core/#turndetectionstrategy) | How speech start and the end of a user turn are detected. | [`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig).[`strategy`](/docs/en/reference/api/ottervoice-core/#strategy-1) | [packages/core/src/types.ts:1114](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1114) |
+| <a id="volumethreshold-1"></a> `volumeThreshold` | `number` | RMS threshold when using local volume detection (approximately 0–1). | [`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig).[`volumeThreshold`](/docs/en/reference/api/ottervoice-core/#volumethreshold-2) | [packages/core/src/types.ts:1122](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1122) |
 
 ***
 
 ### RuntimeAdapter
 
-Defined in: [packages/core/src/types.ts:1009](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1009)
+Defined in: [packages/core/src/types.ts:1029](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1029)
 
 Platform boundary: microphone + playback (+ optional network/storage/logger).
 Created by `@ottervoice/runtime-web`, `runtime-react-native`, `runtime-node`,
@@ -3870,17 +3902,17 @@ or [createMockRuntime](/docs/en/reference/api/ottervoice-core/#createmockruntime
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="audioinput-1"></a> `audioInput` | [`AudioInputAdapter`](/docs/en/reference/api/ottervoice-core/#audioinputadapter) | Microphone / capture side. | [packages/core/src/types.ts:1011](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1011) |
-| <a id="audiooutput-1"></a> `audioOutput` | [`AudioOutputAdapter`](/docs/en/reference/api/ottervoice-core/#audiooutputadapter) | Speaker / playback side. | [packages/core/src/types.ts:1013](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1013) |
-| <a id="logger-1"></a> `logger?` | [`LoggerAdapter`](/docs/en/reference/api/ottervoice-core/#loggeradapter) | Optional logger; core uses it sparingly. | [packages/core/src/types.ts:1019](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1019) |
-| <a id="network-1"></a> `network?` | [`NetworkAdapter`](/docs/en/reference/api/ottervoice-core/#networkadapter) | Optional HTTP/WebSocket hooks for providers. | [packages/core/src/types.ts:1015](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1015) |
-| <a id="storage-1"></a> `storage?` | [`RuntimeStorageAdapter`](/docs/en/reference/api/ottervoice-core/#runtimestorageadapter) | Optional persistence for caches. | [packages/core/src/types.ts:1017](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1017) |
+| <a id="audioinput-1"></a> `audioInput` | [`AudioInputAdapter`](/docs/en/reference/api/ottervoice-core/#audioinputadapter) | Microphone / capture side. | [packages/core/src/types.ts:1031](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1031) |
+| <a id="audiooutput-1"></a> `audioOutput` | [`AudioOutputAdapter`](/docs/en/reference/api/ottervoice-core/#audiooutputadapter) | Speaker / playback side. | [packages/core/src/types.ts:1033](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1033) |
+| <a id="logger-1"></a> `logger?` | [`LoggerAdapter`](/docs/en/reference/api/ottervoice-core/#loggeradapter) | Optional logger; core uses it sparingly. | [packages/core/src/types.ts:1039](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1039) |
+| <a id="network-1"></a> `network?` | [`NetworkAdapter`](/docs/en/reference/api/ottervoice-core/#networkadapter) | Optional HTTP/WebSocket hooks for providers. | [packages/core/src/types.ts:1035](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1035) |
+| <a id="storage-1"></a> `storage?` | [`RuntimeStorageAdapter`](/docs/en/reference/api/ottervoice-core/#runtimestorageadapter) | Optional persistence for caches. | [packages/core/src/types.ts:1037](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1037) |
 
 ***
 
 ### RuntimeStorageAdapter
 
-Defined in: [packages/core/src/types.ts:975](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L975)
+Defined in: [packages/core/src/types.ts:995](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L995)
 
 Optional key/value store for adapter caches (not required by core).
 
@@ -3892,7 +3924,7 @@ Optional key/value store for adapter caches (not required by core).
 get(key): Promise<string | null>;
 ```
 
-Defined in: [packages/core/src/types.ts:980](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L980)
+Defined in: [packages/core/src/types.ts:1000](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1000)
 
 ###### Parameters
 
@@ -3912,7 +3944,7 @@ Stored string or `null` when missing.
 remove(key): Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:989](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L989)
+Defined in: [packages/core/src/types.ts:1009](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1009)
 
 ###### Parameters
 
@@ -3930,7 +3962,7 @@ Defined in: [packages/core/src/types.ts:989](https://github.com/bugkiwi/OtterVoi
 set(key, value): Promise<void>;
 ```
 
-Defined in: [packages/core/src/types.ts:985](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L985)
+Defined in: [packages/core/src/types.ts:1005](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1005)
 
 ###### Parameters
 
@@ -3947,7 +3979,7 @@ Defined in: [packages/core/src/types.ts:985](https://github.com/bugkiwi/OtterVoi
 
 ### RuntimeWebSocket
 
-Defined in: [packages/core/src/types.ts:916](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L916)
+Defined in: [packages/core/src/types.ts:936](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L936)
 
 Minimal WebSocket surface returned by [NetworkAdapter.createWebSocket](/docs/en/reference/api/ottervoice-core/#createwebsocket).
 Keeps providers free of DOM/`ws` type coupling; subscribe via the `on*` helpers.
@@ -3960,7 +3992,7 @@ Keeps providers free of DOM/`ws` type coupling; subscribe via the `on*` helpers.
 close(code?, reason?): void;
 ```
 
-Defined in: [packages/core/src/types.ts:929](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L929)
+Defined in: [packages/core/src/types.ts:949](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L949)
 
 Close the socket.
 
@@ -3981,7 +4013,7 @@ Close the socket.
 onClose(cb): () => void;
 ```
 
-Defined in: [packages/core/src/types.ts:953](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L953)
+Defined in: [packages/core/src/types.ts:973](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L973)
 
 Subscribe to close.
 
@@ -4003,7 +4035,7 @@ Unsubscribe function.
 onError(cb): () => void;
 ```
 
-Defined in: [packages/core/src/types.ts:947](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L947)
+Defined in: [packages/core/src/types.ts:967](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L967)
 
 Subscribe to socket-level errors.
 
@@ -4025,7 +4057,7 @@ Unsubscribe function.
 onMessage(cb): () => void;
 ```
 
-Defined in: [packages/core/src/types.ts:941](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L941)
+Defined in: [packages/core/src/types.ts:961](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L961)
 
 Subscribe to inbound frames.
 
@@ -4047,7 +4079,7 @@ Unsubscribe function.
 onOpen(cb): () => void;
 ```
 
-Defined in: [packages/core/src/types.ts:935](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L935)
+Defined in: [packages/core/src/types.ts:955](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L955)
 
 Subscribe to the open event.
 
@@ -4069,7 +4101,7 @@ Unsubscribe function.
 send(data): void;
 ```
 
-Defined in: [packages/core/src/types.ts:922](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L922)
+Defined in: [packages/core/src/types.ts:942](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L942)
 
 Send a text or binary frame.
 
@@ -4085,9 +4117,26 @@ Send a text or binary frame.
 
 ***
 
+### TTSAudioChunk
+
+Defined in: [packages/core/src/types.ts:615](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L615)
+
+One raw-PCM fragment yielded by [TTSProvider.stream](/docs/en/reference/api/ottervoice-core/#stream-1).
+
+#### Properties
+
+| Property | Type | Description | Defined in |
+| ------ | ------ | ------ | ------ |
+| <a id="channels-5"></a> `channels` | `number` | Channel count of [TTSAudioChunk.data](/docs/en/reference/api/ottervoice-core/#data-2). | [packages/core/src/types.ts:623](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L623) |
+| <a id="data-2"></a> `data` | `ArrayBuffer` | Raw interleaved PCM bytes ready for incremental playback. | [packages/core/src/types.ts:617](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L617) |
+| <a id="encoding-5"></a> `encoding` | `"pcm_s16le"` | Linear signed 16-bit little-endian PCM. | [packages/core/src/types.ts:619](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L619) |
+| <a id="samplerate-5"></a> `sampleRate` | `number` | Sample rate of [TTSAudioChunk.data](/docs/en/reference/api/ottervoice-core/#data-2) in Hz. | [packages/core/src/types.ts:621](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L621) |
+
+***
+
 ### TTSCapabilities
 
-Defined in: [packages/core/src/types.ts:585](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L585)
+Defined in: [packages/core/src/types.ts:581](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L581)
 
 Declared voices / formats for a [TTSProvider](/docs/en/reference/api/ottervoice-core/#ttsprovider).
 
@@ -4095,16 +4144,16 @@ Declared voices / formats for a [TTSProvider](/docs/en/reference/api/ottervoice-
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="formats"></a> `formats` | [`TTSFormat`](/docs/en/reference/api/ottervoice-core/#ttsformat)[] | Output formats the adapter can produce. | [packages/core/src/types.ts:591](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L591) |
-| <a id="languages-1"></a> `languages` | `string`[] | BCP-47 language tags supported for synthesis. | [packages/core/src/types.ts:593](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L593) |
-| <a id="streaming-1"></a> `streaming` | `boolean` | Whether the provider can stream partial audio (future use). | [packages/core/src/types.ts:587](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L587) |
-| <a id="voices"></a> `voices` | [`TTSVoice`](/docs/en/reference/api/ottervoice-core/#ttsvoice)[] | Voices advertised by the adapter. | [packages/core/src/types.ts:589](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L589) |
+| <a id="formats"></a> `formats` | [`TTSFormat`](/docs/en/reference/api/ottervoice-core/#ttsformat)[] | Output formats the adapter can produce. | [packages/core/src/types.ts:587](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L587) |
+| <a id="languages-1"></a> `languages` | `string`[] | BCP-47 language tags supported for synthesis. | [packages/core/src/types.ts:589](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L589) |
+| <a id="streaming-1"></a> `streaming` | `boolean` | Whether the provider implements low-latency [TTSProvider.stream](/docs/en/reference/api/ottervoice-core/#stream-1). | [packages/core/src/types.ts:583](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L583) |
+| <a id="voices"></a> `voices` | [`TTSVoice`](/docs/en/reference/api/ottervoice-core/#ttsvoice)[] | Voices advertised by the adapter. | [packages/core/src/types.ts:585](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L585) |
 
 ***
 
 ### TTSInput
 
-Defined in: [packages/core/src/types.ts:597](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L597)
+Defined in: [packages/core/src/types.ts:593](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L593)
 
 Input for [TTSProvider.synthesize](/docs/en/reference/api/ottervoice-core/#synthesize).
 
@@ -4112,20 +4161,21 @@ Input for [TTSProvider.synthesize](/docs/en/reference/api/ottervoice-core/#synth
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="cachekey"></a> `cacheKey?` | `string` | Optional cache key for adapters that memoize synthesis. | [packages/core/src/types.ts:611](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L611) |
-| <a id="format-1"></a> `format?` | [`TTSFormat`](/docs/en/reference/api/ottervoice-core/#ttsformat) | Preferred output container / codec. | [packages/core/src/types.ts:609](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L609) |
-| <a id="language-2"></a> `language?` | `string` | Preferred language for multilingual voices. | [packages/core/src/types.ts:603](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L603) |
-| <a id="metadata-5"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque metadata forwarded to the adapter. | [packages/core/src/types.ts:613](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L613) |
-| <a id="pitch"></a> `pitch?` | `number` | Pitch adjustment (provider-specific scale). | [packages/core/src/types.ts:607](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L607) |
-| <a id="speed"></a> `speed?` | `number` | Speaking rate multiplier. Allowlist or override it at an untrusted-client gateway. | [packages/core/src/types.ts:605](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L605) |
-| <a id="text-6"></a> `text` | `string` | Text to speak. | [packages/core/src/types.ts:599](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L599) |
-| <a id="voice"></a> `voice?` | `string` | Provider voice id / name. Allowlist or override it at an untrusted-client gateway. | [packages/core/src/types.ts:601](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L601) |
+| <a id="cachekey"></a> `cacheKey?` | `string` | Optional cache key for adapters that memoize synthesis. | [packages/core/src/types.ts:607](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L607) |
+| <a id="format-1"></a> `format?` | [`TTSFormat`](/docs/en/reference/api/ottervoice-core/#ttsformat) | Preferred output container / codec. | [packages/core/src/types.ts:605](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L605) |
+| <a id="language-2"></a> `language?` | `string` | Preferred language for multilingual voices. | [packages/core/src/types.ts:599](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L599) |
+| <a id="metadata-5"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque metadata forwarded to the adapter. | [packages/core/src/types.ts:609](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L609) |
+| <a id="pitch"></a> `pitch?` | `number` | Pitch adjustment (provider-specific scale). | [packages/core/src/types.ts:603](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L603) |
+| <a id="signal-2"></a> `signal?` | `AbortSignal` | Cancels synthesis when the turn is interrupted or superseded. | [packages/core/src/types.ts:611](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L611) |
+| <a id="speed"></a> `speed?` | `number` | Speaking rate multiplier. Allowlist or override it at an untrusted-client gateway. | [packages/core/src/types.ts:601](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L601) |
+| <a id="text-6"></a> `text` | `string` | Text to speak. | [packages/core/src/types.ts:595](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L595) |
+| <a id="voice"></a> `voice?` | `string` | Provider voice id / name. Allowlist or override it at an untrusted-client gateway. | [packages/core/src/types.ts:597](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L597) |
 
 ***
 
 ### TTSOutput
 
-Defined in: [packages/core/src/types.ts:617](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L617)
+Defined in: [packages/core/src/types.ts:627](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L627)
 
 Audio returned by [TTSProvider.synthesize](/docs/en/reference/api/ottervoice-core/#synthesize).
 
@@ -4133,18 +4183,18 @@ Audio returned by [TTSProvider.synthesize](/docs/en/reference/api/ottervoice-cor
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="audiobuffer-2"></a> `audioBuffer?` | `ArrayBuffer` | In-memory audio bytes (preferred for local playback). | [packages/core/src/types.ts:621](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L621) |
-| <a id="audiourl-2"></a> `audioUrl?` | `string` | Remote or blob URL for playback when buffering is inconvenient. | [packages/core/src/types.ts:619](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L619) |
-| <a id="cached"></a> `cached?` | `boolean` | True when served from an adapter cache. | [packages/core/src/types.ts:627](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L627) |
-| <a id="durationms-3"></a> `durationMs?` | `number` | Estimated duration when known. | [packages/core/src/types.ts:625](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L625) |
-| <a id="mimetype-2"></a> `mimeType` | `string` | MIME type of `audioUrl` / `audioBuffer`. | [packages/core/src/types.ts:623](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L623) |
-| <a id="raw-7"></a> `raw?` | `unknown` | Raw provider payload for debugging. | [packages/core/src/types.ts:629](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L629) |
+| <a id="audiobuffer-2"></a> `audioBuffer?` | `ArrayBuffer` | In-memory audio bytes (preferred for local playback). | [packages/core/src/types.ts:631](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L631) |
+| <a id="audiourl-2"></a> `audioUrl?` | `string` | Remote or blob URL for playback when buffering is inconvenient. | [packages/core/src/types.ts:629](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L629) |
+| <a id="cached"></a> `cached?` | `boolean` | True when served from an adapter cache. | [packages/core/src/types.ts:637](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L637) |
+| <a id="durationms-3"></a> `durationMs?` | `number` | Estimated duration when known. | [packages/core/src/types.ts:635](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L635) |
+| <a id="mimetype-2"></a> `mimeType` | `string` | MIME type of `audioUrl` / `audioBuffer`. | [packages/core/src/types.ts:633](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L633) |
+| <a id="raw-7"></a> `raw?` | `unknown` | Raw provider payload for debugging. | [packages/core/src/types.ts:639](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L639) |
 
 ***
 
 ### TTSProvider
 
-Defined in: [packages/core/src/types.ts:636](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L636)
+Defined in: [packages/core/src/types.ts:646](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L646)
 
 Text-to-speech adapter for the classic `asr_llm_tts` pipeline.
 Required when [VoiceSessionConfig.pipeline](/docs/en/reference/api/ottervoice-core/#pipeline) is `asr_llm_tts`.
@@ -4153,10 +4203,34 @@ Required when [VoiceSessionConfig.pipeline](/docs/en/reference/api/ottervoice-co
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="capabilities-1"></a> `capabilities` | [`TTSCapabilities`](/docs/en/reference/api/ottervoice-core/#ttscapabilities) | Declared voices and formats. | [packages/core/src/types.ts:640](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L640) |
-| <a id="name-6"></a> `name` | `string` | Stable provider id used in errors and usage. | [packages/core/src/types.ts:638](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L638) |
+| <a id="capabilities-1"></a> `capabilities` | [`TTSCapabilities`](/docs/en/reference/api/ottervoice-core/#ttscapabilities) | Declared voices and formats. | [packages/core/src/types.ts:650](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L650) |
+| <a id="name-6"></a> `name` | `string` | Stable provider id used in errors and usage. | [packages/core/src/types.ts:648](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L648) |
 
 #### Methods
+
+##### stream()?
+
+```ts
+optional stream(input): AsyncIterable<TTSAudioChunk>;
+```
+
+Defined in: [packages/core/src/types.ts:666](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L666)
+
+Optionally stream raw PCM while speech is still being synthesized.
+Implement this together with `capabilities.streaming: true`; core falls
+back to sentence-sized [TTSProvider.synthesize](/docs/en/reference/api/ottervoice-core/#synthesize) calls when absent.
+
+###### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `input` | [`TTSInput`](/docs/en/reference/api/ottervoice-core/#ttsinput) | Text, voice hints, and cancellation signal. Providers may force `pcm` because streamed chunks must match [TTSAudioChunk](/docs/en/reference/api/ottervoice-core/#ttsaudiochunk). |
+
+###### Returns
+
+`AsyncIterable`\<[`TTSAudioChunk`](/docs/en/reference/api/ottervoice-core/#ttsaudiochunk)\>
+
+An async sequence of contiguous PCM chunks.
 
 ##### synthesize()
 
@@ -4164,7 +4238,7 @@ Required when [VoiceSessionConfig.pipeline](/docs/en/reference/api/ottervoice-co
 synthesize(input): Promise<TTSOutput>;
 ```
 
-Defined in: [packages/core/src/types.ts:646](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L646)
+Defined in: [packages/core/src/types.ts:656](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L656)
 
 Synthesize speech for the given text.
 
@@ -4182,7 +4256,7 @@ Synthesize speech for the given text.
 
 ### TTSVoice
 
-Defined in: [packages/core/src/types.ts:571](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L571)
+Defined in: [packages/core/src/types.ts:567](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L567)
 
 A synthesizable voice advertised by a [TTSProvider](/docs/en/reference/api/ottervoice-core/#ttsprovider).
 
@@ -4190,19 +4264,19 @@ A synthesizable voice advertised by a [TTSProvider](/docs/en/reference/api/otter
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="gender"></a> `gender?` | `"male"` \| `"female"` \| `"neutral"` | Optional gender metadata for filtering. | [packages/core/src/types.ts:579](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L579) |
-| <a id="id-1"></a> `id` | `string` | Stable voice id passed to [TTSInput.voice](/docs/en/reference/api/ottervoice-core/#voice). | [packages/core/src/types.ts:573](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L573) |
-| <a id="language-3"></a> `language` | `string` | Primary BCP-47 language for this voice. | [packages/core/src/types.ts:577](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L577) |
-| <a id="name-7"></a> `name` | `string` | Human-readable display name for UI pickers. | [packages/core/src/types.ts:575](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L575) |
-| <a id="style"></a> `style?` | `string`[] | Optional style tags (e.g. `cheerful`, `news`). | [packages/core/src/types.ts:581](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L581) |
+| <a id="gender"></a> `gender?` | `"male"` \| `"female"` \| `"neutral"` | Optional gender metadata for filtering. | [packages/core/src/types.ts:575](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L575) |
+| <a id="id-1"></a> `id` | `string` | Stable voice id passed to [TTSInput.voice](/docs/en/reference/api/ottervoice-core/#voice). | [packages/core/src/types.ts:569](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L569) |
+| <a id="language-3"></a> `language` | `string` | Primary BCP-47 language for this voice. | [packages/core/src/types.ts:573](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L573) |
+| <a id="name-7"></a> `name` | `string` | Human-readable display name for UI pickers. | [packages/core/src/types.ts:571](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L571) |
+| <a id="style"></a> `style?` | `string`[] | Optional style tags (e.g. `cheerful`, `news`). | [packages/core/src/types.ts:577](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L577) |
 
 ***
 
 ### TurnDetectionConfig
 
-Defined in: [packages/core/src/types.ts:1097](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1097)
+Defined in: [packages/core/src/types.ts:1112](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1112)
 
-Voice-activity and endpointing knobs while listening for the user.
+Voice-activity knobs while listening for the user.
 Passed via [VoiceSessionConfig.turnDetection](/docs/en/reference/api/ottervoice-core/#turndetection); pair with
 [VoiceSessionConfig.interruptionDetection](/docs/en/reference/api/ottervoice-core/#interruptiondetection) for barge-in thresholds.
 
@@ -4210,17 +4284,17 @@ Passed via [VoiceSessionConfig.turnDetection](/docs/en/reference/api/ottervoice-
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="maxturnms"></a> `maxTurnMs?` | `number` | Hard local cap on a single user turn length. The server must enforce its own request/audio limit. | [packages/core/src/types.ts:1105](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1105) |
-| <a id="minspeechms"></a> `minSpeechMs?` | `number` | Minimum voiced time before speech is considered started. | [packages/core/src/types.ts:1101](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1101) |
-| <a id="silencetimeoutms"></a> `silenceTimeoutMs?` | `number` | Quiet time after speech before the turn is closed. | [packages/core/src/types.ts:1103](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1103) |
-| <a id="strategy"></a> `strategy` | [`TurnDetectionStrategy`](/docs/en/reference/api/ottervoice-core/#turndetectionstrategy) | How end-of-utterance is decided. | [packages/core/src/types.ts:1099](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1099) |
-| <a id="volumethreshold-1"></a> `volumeThreshold?` | `number` | RMS threshold when using volume-based strategies (≈0–1). | [packages/core/src/types.ts:1107](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1107) |
+| <a id="maxturnms-1"></a> `maxTurnMs?` | `number` | Hard local cap on a single user turn length. The server must enforce its own request/audio limit. | [packages/core/src/types.ts:1120](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1120) |
+| <a id="minspeechms-1"></a> `minSpeechMs?` | `number` | Minimum voiced time before speech is considered started. | [packages/core/src/types.ts:1116](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1116) |
+| <a id="silencetimeoutms-1"></a> `silenceTimeoutMs?` | `number` | Quiet time after speech before the turn is closed. | [packages/core/src/types.ts:1118](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1118) |
+| <a id="strategy-1"></a> `strategy` | [`TurnDetectionStrategy`](/docs/en/reference/api/ottervoice-core/#turndetectionstrategy) | How speech start and the end of a user turn are detected. | [packages/core/src/types.ts:1114](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1114) |
+| <a id="volumethreshold-2"></a> `volumeThreshold?` | `number` | RMS threshold when using local volume detection (approximately 0–1). | [packages/core/src/types.ts:1122](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1122) |
 
 ***
 
 ### VoiceAgentPlugin
 
-Defined in: [packages/core/src/types.ts:1052](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1052)
+Defined in: [packages/core/src/types.ts:1072](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1072)
 
 Optional higher-level dialog controller (opening line, next line, finish rule).
 When set, the session may call these instead of / in addition to a raw LLM.
@@ -4235,7 +4309,7 @@ session itself runs in a browser or app.
 generateNextAssistantMessage(input): Promise<string>;
 ```
 
-Defined in: [packages/core/src/types.ts:1060](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1060)
+Defined in: [packages/core/src/types.ts:1080](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1080)
 
 Produce the next assistant line after a completed user turn.
 
@@ -4255,7 +4329,7 @@ Produce the next assistant line after a completed user turn.
 optional generateReport(input): Promise<unknown>;
 ```
 
-Defined in: [packages/core/src/types.ts:1072](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1072)
+Defined in: [packages/core/src/types.ts:1092](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1092)
 
 Optional end-of-session artifact (scores, summary, etc.).
 
@@ -4275,7 +4349,7 @@ Optional end-of-session artifact (scores, summary, etc.).
 getInitialAssistantMessage(): Promise<string>;
 ```
 
-Defined in: [packages/core/src/types.ts:1054](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1054)
+Defined in: [packages/core/src/types.ts:1074](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1074)
 
 Spoken (or displayed) opening line after [VoiceSession.start](/docs/en/reference/api/ottervoice-core/#start-2).
 
@@ -4289,7 +4363,7 @@ Spoken (or displayed) opening line after [VoiceSession.start](/docs/en/reference
 shouldFinishSession(input): boolean;
 ```
 
-Defined in: [packages/core/src/types.ts:1066](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1066)
+Defined in: [packages/core/src/types.ts:1086](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1086)
 
 Return `true` to end the session after the latest turn.
 
@@ -4307,7 +4381,7 @@ Return `true` to end the session after the latest turn.
 
 ### VoiceSessionConfig
 
-Defined in: [packages/core/src/types.ts:1174](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1174)
+Defined in: [packages/core/src/types.ts:1189](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1189)
 
 Top-level configuration for [createVoiceSession](/docs/en/reference/api/ottervoice-core/#createvoicesession),
 [createOtterVoiceSession](/docs/en/reference/api/ottervoice-core/#createottervoicesession), or [VoiceSession](/docs/en/reference/api/ottervoice-core/#voicesession).
@@ -4317,34 +4391,34 @@ Create at the application composition root; keep provider credentials out of UI 
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="agent"></a> `agent?` | [`VoiceAgentPlugin`](/docs/en/reference/api/ottervoice-core/#voiceagentplugin) | Optional higher-level dialog plugin (opening line, next line, finish rule). | [packages/core/src/types.ts:1225](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1225) |
-| <a id="asrpartial"></a> `asrPartial?` | `boolean` | Emit provisional `asr_partial` results. Defaults to true. Disabling this does not affect the authoritative `asr_final` transcript. Batch-backed rolling ASR can increase requests, so server quotas must not trust it. | [packages/core/src/types.ts:1186](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1186) |
-| <a id="audiollmmaxtokens"></a> `audioLlmMaxTokens?` | `number` | Cap native audio LLM output tokens (audio + transcript share this budget). Omit to use the model's default maximum — required for long-form speech. An untrusted-client gateway must still enforce a server-side hard ceiling. | [packages/core/src/types.ts:1197](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1197) |
-| <a id="audiollmretry"></a> `audioLlmRetry?` | [`AudioLLMRetryPolicy`](/docs/en/reference/api/ottervoice-core/#audiollmretrypolicy) | Retry/recovery behavior for each native Audio LLM turn. See [AudioLLMRetryPolicy](/docs/en/reference/api/ottervoice-core/#audiollmretrypolicy); server idempotency and budgets remain authoritative. | [packages/core/src/types.ts:1207](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1207) |
-| <a id="audiollmstarttiming"></a> `audioLlmStartTiming?` | `"after_audio"` \| `"after_asr_final"` | Choose when an Audio LLM request begins. `after_audio` starts as soon as VAD finalizes the user audio and runs caption ASR in parallel for the lowest response latency. `after_asr_final` waits for the authoritative caption first, avoiding provider spend when a natural pause is superseded. Defaults to `after_asr_final`. | [packages/core/src/types.ts:1205](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1205) |
-| <a id="audiollmsystemprompt"></a> `audioLlmSystemPrompt?` | `string` | Optional trusted-runtime system instruction forwarded to a native audio LLM. Browser/app integrations should omit this and let their policy gateway inject it. | [packages/core/src/types.ts:1191](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1191) |
-| <a id="generateid"></a> `generateId?` | () => `string` | Override id generation (useful for deterministic tests). | [packages/core/src/types.ts:1237](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1237) |
-| <a id="interruptiondetection"></a> `interruptionDetection?` | `Partial`\<`Omit`\<[`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig), `"strategy"`\>\> | Stricter VAD used only while assistant audio is playing. Keeping this separate prevents taps and playback echo from triggering barge-in without making normal listening less sensitive. | [packages/core/src/types.ts:1233](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1233) |
-| <a id="language-4"></a> `language?` | `string` | Preferred ASR language; omit to auto-detect. A gateway may override/ignore this with server policy. | [packages/core/src/types.ts:1209](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1209) |
-| <a id="metadata-6"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque app metadata (not interpreted by core). | [packages/core/src/types.ts:1241](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1241) |
-| <a id="mode"></a> `mode` | [`VoiceSessionMode`](/docs/en/reference/api/ottervoice-core/#voicesessionmode) | Duplex / PTT mode. See [VoiceSessionMode](/docs/en/reference/api/ottervoice-core/#voicesessionmode). | [packages/core/src/types.ts:1178](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1178) |
-| <a id="now"></a> `now?` | () => `number` | Override the clock (useful for deterministic tests). | [packages/core/src/types.ts:1239](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1239) |
-| <a id="pipeline"></a> `pipeline?` | `"asr_llm_tts"` \| `"audio_llm"` | Defaults to the classic ASR -\> LLM -\> TTS cascade. A gateway must authorize every selected profile independently. | [packages/core/src/types.ts:1180](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1180) |
-| <a id="policy"></a> `policy?` | [`VoiceSessionPolicy`](/docs/en/reference/api/ottervoice-core/#voicesessionpolicy) | Session-level timers and barge-in recovery knobs. | [packages/core/src/types.ts:1235](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1235) |
-| <a id="providers"></a> `providers` | \{ `asr`: [`ASRProvider`](/docs/en/reference/api/ottervoice-core/#asrprovider); `audioLlm?`: [`AudioLLMProvider`](/docs/en/reference/api/ottervoice-core/#audiollmprovider); `llm`: [`LLMProvider`](/docs/en/reference/api/ottervoice-core/#llmprovider); `pronunciation?`: [`PronunciationProvider`](/docs/en/reference/api/ottervoice-core/#pronunciationprovider); `tts?`: [`TTSProvider`](/docs/en/reference/api/ottervoice-core/#ttsprovider); \} | - | [packages/core/src/types.ts:1212](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1212) |
-| `providers.asr` | [`ASRProvider`](/docs/en/reference/api/ottervoice-core/#asrprovider) | Speech-to-text provider (required for live captions / classic pipeline). | [packages/core/src/types.ts:1214](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1214) |
-| `providers.audioLlm?` | [`AudioLLMProvider`](/docs/en/reference/api/ottervoice-core/#audiollmprovider) | Required when `pipeline` is `audio_llm`; ASR supplies captions while request timing follows [VoiceSessionConfig.audioLlmStartTiming](/docs/en/reference/api/ottervoice-core/#audiollmstarttiming). | [packages/core/src/types.ts:1220](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1220) |
-| `providers.llm` | [`LLMProvider`](/docs/en/reference/api/ottervoice-core/#llmprovider) | Text LLM used by `asr_llm_tts` (and optional agents). | [packages/core/src/types.ts:1216](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1216) |
-| `providers.pronunciation?` | [`PronunciationProvider`](/docs/en/reference/api/ottervoice-core/#pronunciationprovider) | Optional pronunciation scoring after a user turn. | [packages/core/src/types.ts:1222](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1222) |
-| `providers.tts?` | [`TTSProvider`](/docs/en/reference/api/ottervoice-core/#ttsprovider) | Text-to-speech; required when `pipeline` is `asr_llm_tts`. | [packages/core/src/types.ts:1218](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1218) |
-| <a id="runtime"></a> `runtime` | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter) | Platform audio (and optional network/storage/logger) adapter. | [packages/core/src/types.ts:1211](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1211) |
-| <a id="turndetection"></a> `turnDetection?` | [`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig) | VAD / endpointing while listening for the user. | [packages/core/src/types.ts:1227](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1227) |
+| <a id="agent"></a> `agent?` | [`VoiceAgentPlugin`](/docs/en/reference/api/ottervoice-core/#voiceagentplugin) | Optional higher-level dialog plugin (opening line, next line, finish rule). | [packages/core/src/types.ts:1240](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1240) |
+| <a id="asrpartial"></a> `asrPartial?` | `boolean` | Emit provisional `asr_partial` results. Defaults to true. Disabling this does not affect the authoritative `asr_final` transcript. Batch-backed rolling ASR can increase requests, so server quotas must not trust it. | [packages/core/src/types.ts:1201](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1201) |
+| <a id="audiollmmaxtokens"></a> `audioLlmMaxTokens?` | `number` | Cap native audio LLM output tokens (audio + transcript share this budget). Omit to use the model's default maximum — required for long-form speech. An untrusted-client gateway must still enforce a server-side hard ceiling. | [packages/core/src/types.ts:1212](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1212) |
+| <a id="audiollmretry"></a> `audioLlmRetry?` | [`AudioLLMRetryPolicy`](/docs/en/reference/api/ottervoice-core/#audiollmretrypolicy) | Retry/recovery behavior for each native Audio LLM turn. See [AudioLLMRetryPolicy](/docs/en/reference/api/ottervoice-core/#audiollmretrypolicy); server idempotency and budgets remain authoritative. | [packages/core/src/types.ts:1222](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1222) |
+| <a id="audiollmstarttiming"></a> `audioLlmStartTiming?` | `"after_audio"` \| `"after_asr_final"` | Choose when an Audio LLM request begins. `after_audio` starts as soon as VAD finalizes the user audio and runs caption ASR in parallel for the lowest response latency. `after_asr_final` waits for the authoritative caption first, avoiding provider spend when a natural pause is superseded. Defaults to `after_asr_final`. | [packages/core/src/types.ts:1220](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1220) |
+| <a id="audiollmsystemprompt"></a> `audioLlmSystemPrompt?` | `string` | Optional trusted-runtime system instruction forwarded to a native audio LLM. Browser/app integrations should omit this and let their policy gateway inject it. | [packages/core/src/types.ts:1206](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1206) |
+| <a id="generateid"></a> `generateId?` | () => `string` | Override id generation (useful for deterministic tests). | [packages/core/src/types.ts:1252](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1252) |
+| <a id="interruptiondetection"></a> `interruptionDetection?` | `Partial`\<`Omit`\<[`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig), `"strategy"`\>\> | Stricter VAD used only while assistant audio is playing. Keeping this separate prevents taps and playback echo from triggering barge-in without making normal listening less sensitive. | [packages/core/src/types.ts:1248](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1248) |
+| <a id="language-4"></a> `language?` | `string` | Preferred ASR language; omit to auto-detect. A gateway may override/ignore this with server policy. | [packages/core/src/types.ts:1224](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1224) |
+| <a id="metadata-6"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque app metadata (not interpreted by core). | [packages/core/src/types.ts:1256](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1256) |
+| <a id="mode"></a> `mode` | [`VoiceSessionMode`](/docs/en/reference/api/ottervoice-core/#voicesessionmode) | Duplex / PTT mode. See [VoiceSessionMode](/docs/en/reference/api/ottervoice-core/#voicesessionmode). | [packages/core/src/types.ts:1193](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1193) |
+| <a id="now"></a> `now?` | () => `number` | Override the clock (useful for deterministic tests). | [packages/core/src/types.ts:1254](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1254) |
+| <a id="pipeline"></a> `pipeline?` | `"asr_llm_tts"` \| `"audio_llm"` | Defaults to the classic ASR -\> LLM -\> TTS cascade. A gateway must authorize every selected profile independently. | [packages/core/src/types.ts:1195](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1195) |
+| <a id="policy"></a> `policy?` | [`VoiceSessionPolicy`](/docs/en/reference/api/ottervoice-core/#voicesessionpolicy) | Session-level timers and barge-in recovery knobs. | [packages/core/src/types.ts:1250](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1250) |
+| <a id="providers"></a> `providers` | \{ `asr`: [`ASRProvider`](/docs/en/reference/api/ottervoice-core/#asrprovider); `audioLlm?`: [`AudioLLMProvider`](/docs/en/reference/api/ottervoice-core/#audiollmprovider); `llm`: [`LLMProvider`](/docs/en/reference/api/ottervoice-core/#llmprovider); `pronunciation?`: [`PronunciationProvider`](/docs/en/reference/api/ottervoice-core/#pronunciationprovider); `tts?`: [`TTSProvider`](/docs/en/reference/api/ottervoice-core/#ttsprovider); \} | - | [packages/core/src/types.ts:1227](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1227) |
+| `providers.asr` | [`ASRProvider`](/docs/en/reference/api/ottervoice-core/#asrprovider) | Speech-to-text provider (required for live captions / classic pipeline). | [packages/core/src/types.ts:1229](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1229) |
+| `providers.audioLlm?` | [`AudioLLMProvider`](/docs/en/reference/api/ottervoice-core/#audiollmprovider) | Required when `pipeline` is `audio_llm`; ASR supplies captions while request timing follows [VoiceSessionConfig.audioLlmStartTiming](/docs/en/reference/api/ottervoice-core/#audiollmstarttiming). | [packages/core/src/types.ts:1235](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1235) |
+| `providers.llm` | [`LLMProvider`](/docs/en/reference/api/ottervoice-core/#llmprovider) | Text LLM used by `asr_llm_tts` (and optional agents). | [packages/core/src/types.ts:1231](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1231) |
+| `providers.pronunciation?` | [`PronunciationProvider`](/docs/en/reference/api/ottervoice-core/#pronunciationprovider) | Optional pronunciation scoring after a user turn. | [packages/core/src/types.ts:1237](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1237) |
+| `providers.tts?` | [`TTSProvider`](/docs/en/reference/api/ottervoice-core/#ttsprovider) | Text-to-speech; required when `pipeline` is `asr_llm_tts`. | [packages/core/src/types.ts:1233](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1233) |
+| <a id="runtime"></a> `runtime` | [`RuntimeAdapter`](/docs/en/reference/api/ottervoice-core/#runtimeadapter) | Platform audio (and optional network/storage/logger) adapter. | [packages/core/src/types.ts:1226](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1226) |
+| <a id="turndetection"></a> `turnDetection?` | [`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig) | Local voice-activity detection while listening for the user. | [packages/core/src/types.ts:1242](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1242) |
 
 ***
 
 ### VoiceSessionPolicy
 
-Defined in: [packages/core/src/types.ts:1128](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1128)
+Defined in: [packages/core/src/types.ts:1143](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1143)
 
 Session-level timers and barge-in recovery knobs.
 
@@ -4352,22 +4426,22 @@ Session-level timers and barge-in recovery knobs.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="allowinterruption"></a> `allowInterruption?` | `boolean` | Allow barge-in while the assistant is speaking. | [packages/core/src/types.ts:1138](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1138) |
-| <a id="autostartlistening"></a> `autoStartListening?` | `boolean` | After `start()`, automatically enter listening. Defaults to true. | [packages/core/src/types.ts:1136](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1136) |
-| <a id="falseinterruptionsilencems"></a> `falseInterruptionSilenceMs?` | `number` | Silence after a tentative pause before playback is resumed as a false interruption. | [packages/core/src/types.ts:1140](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1140) |
-| <a id="falseinterruptiontimeoutms"></a> `falseInterruptionTimeoutMs?` | `number` | Maximum time to keep playback tentatively paused without confirming speech. | [packages/core/src/types.ts:1142](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1142) |
-| <a id="interruptioncooldownms"></a> `interruptionCooldownMs?` | `number` | Ignore new barge-in candidates shortly after resuming a false interruption. | [packages/core/src/types.ts:1146](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1146) |
-| <a id="interruptiontailignorems"></a> `interruptionTailIgnoreMs?` | `number` | Ignore microphone energy right after a tentative pause while speaker echo decays. Defaults to 200 ms. | [packages/core/src/types.ts:1144](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1144) |
-| <a id="maxsessiondurationms"></a> `maxSessionDurationMs?` | `number` | Force-finish the session after this wall-clock duration. | [packages/core/src/types.ts:1134](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1134) |
-| <a id="maxturndurationms"></a> `maxTurnDurationMs?` | `number` | Hard local cap on one user turn. The server must enforce its own request/audio limit. | [packages/core/src/types.ts:1132](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1132) |
-| <a id="postplaybackvadrearmms"></a> `postPlaybackVadRearmMs?` | `number` | Maximum time to wait for a quiet microphone baseline after assistant playback. Defaults to 300 ms. | [packages/core/src/types.ts:1148](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1148) |
-| <a id="silencetimeoutms-1"></a> `silenceTimeoutMs?` | `number` | Quiet time that ends a listening turn when no other detector wins. | [packages/core/src/types.ts:1130](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1130) |
+| <a id="allowinterruption"></a> `allowInterruption?` | `boolean` | Allow barge-in while the assistant is speaking. | [packages/core/src/types.ts:1153](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1153) |
+| <a id="autostartlistening"></a> `autoStartListening?` | `boolean` | After `start()`, automatically enter listening. Defaults to true. | [packages/core/src/types.ts:1151](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1151) |
+| <a id="falseinterruptionsilencems"></a> `falseInterruptionSilenceMs?` | `number` | Silence after a tentative pause before playback is resumed as a false interruption. | [packages/core/src/types.ts:1155](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1155) |
+| <a id="falseinterruptiontimeoutms"></a> `falseInterruptionTimeoutMs?` | `number` | Maximum time to keep playback tentatively paused without confirming speech. | [packages/core/src/types.ts:1157](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1157) |
+| <a id="interruptioncooldownms"></a> `interruptionCooldownMs?` | `number` | Ignore new barge-in candidates shortly after resuming a false interruption. | [packages/core/src/types.ts:1161](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1161) |
+| <a id="interruptiontailignorems"></a> `interruptionTailIgnoreMs?` | `number` | Ignore microphone energy right after a tentative pause while speaker echo decays. Defaults to 200 ms. | [packages/core/src/types.ts:1159](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1159) |
+| <a id="maxsessiondurationms"></a> `maxSessionDurationMs?` | `number` | Force-finish the session after this wall-clock duration. | [packages/core/src/types.ts:1149](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1149) |
+| <a id="maxturndurationms"></a> `maxTurnDurationMs?` | `number` | Hard local cap on one user turn. The server must enforce its own request/audio limit. | [packages/core/src/types.ts:1147](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1147) |
+| <a id="postplaybackvadrearmms"></a> `postPlaybackVadRearmMs?` | `number` | Maximum time to wait for a quiet microphone baseline after assistant playback. Defaults to 300 ms. | [packages/core/src/types.ts:1163](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1163) |
+| <a id="silencetimeoutms-2"></a> `silenceTimeoutMs?` | `number` | Quiet time that ends a listening turn when no other detector wins. | [packages/core/src/types.ts:1145](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1145) |
 
 ***
 
 ### VoiceTurn
 
-Defined in: [packages/core/src/types.ts:117](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L117)
+Defined in: [packages/core/src/types.ts:117](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L117)
 
 One conversation turn recorded by the session / [TranscriptBuffer](/docs/en/reference/api/ottervoice-core/#transcriptbuffer).
 Emitted on `turn` / `turn_end` events and available via transcript APIs.
@@ -4376,20 +4450,20 @@ Emitted on `turn` / `turn_end` events and available via transcript APIs.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="audiourl-3"></a> `audioUrl?` | `string` | Optional local or remote playback URL when recorded. | [packages/core/src/types.ts:125](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L125) |
-| <a id="durationms-4"></a> `durationMs?` | `number` | Convenience duration (`endedAt - startedAt`) when known. | [packages/core/src/types.ts:131](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L131) |
-| <a id="endedat-1"></a> `endedAt?` | `number` | Epoch millis when the turn ended. | [packages/core/src/types.ts:129](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L129) |
-| <a id="id-2"></a> `id` | `string` | Stable turn id shared with streaming events. | [packages/core/src/types.ts:119](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L119) |
-| <a id="metadata-7"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque app metadata attached to the turn. | [packages/core/src/types.ts:133](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L133) |
-| <a id="role-2"></a> `role` | [`TurnRole`](/docs/en/reference/api/ottervoice-core/#turnrole) | Who spoke this turn. | [packages/core/src/types.ts:121](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L121) |
-| <a id="startedat-1"></a> `startedAt` | `number` | Epoch millis when the turn started. | [packages/core/src/types.ts:127](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L127) |
-| <a id="text-7"></a> `text` | `string` | Final transcript or assistant text for the turn. | [packages/core/src/types.ts:123](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L123) |
+| <a id="audiourl-3"></a> `audioUrl?` | `string` | Optional local or remote playback URL when recorded. | [packages/core/src/types.ts:125](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L125) |
+| <a id="durationms-4"></a> `durationMs?` | `number` | Convenience duration (`endedAt - startedAt`) when known. | [packages/core/src/types.ts:131](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L131) |
+| <a id="endedat-1"></a> `endedAt?` | `number` | Epoch millis when the turn ended. | [packages/core/src/types.ts:129](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L129) |
+| <a id="id-2"></a> `id` | `string` | Stable turn id shared with streaming events. | [packages/core/src/types.ts:119](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L119) |
+| <a id="metadata-7"></a> `metadata?` | `Record`\<`string`, `unknown`\> | Opaque app metadata attached to the turn. | [packages/core/src/types.ts:133](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L133) |
+| <a id="role-2"></a> `role` | [`TurnRole`](/docs/en/reference/api/ottervoice-core/#turnrole) | Who spoke this turn. | [packages/core/src/types.ts:121](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L121) |
+| <a id="startedat-1"></a> `startedAt` | `number` | Epoch millis when the turn started. | [packages/core/src/types.ts:127](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L127) |
+| <a id="text-7"></a> `text` | `string` | Final transcript or assistant text for the turn. | [packages/core/src/types.ts:123](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L123) |
 
 ***
 
 ### VoiceUsageSnapshot
 
-Defined in: [packages/core/src/types.ts:140](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L140)
+Defined in: [packages/core/src/types.ts:140](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L140)
 
 Cumulative usage counters for a live [VoiceSession](/docs/en/reference/api/ottervoice-core/#voicesession).
 Emitted periodically / on finish for cost and latency dashboards.
@@ -4398,14 +4472,14 @@ Emitted periodically / on finish for cost and latency dashboards.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="asraudioms"></a> `asrAudioMs` | `number` | Audio milliseconds forwarded to ASR. | [packages/core/src/types.ts:148](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L148) |
-| <a id="assistantspeechchars"></a> `assistantSpeechChars` | `number` | Assistant spoken character count (approx). | [packages/core/src/types.ts:146](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L146) |
-| <a id="llminputtokens"></a> `llmInputTokens?` | `number` | Accumulated LLM prompt tokens when providers report usage. | [packages/core/src/types.ts:152](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L152) |
-| <a id="llmoutputtokens"></a> `llmOutputTokens?` | `number` | Accumulated LLM completion tokens when providers report usage. | [packages/core/src/types.ts:154](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L154) |
-| <a id="providercosts"></a> `providerCosts?` | `Record`\<`string`, `number`\> | Optional per-provider cost estimates in billable units. | [packages/core/src/types.ts:156](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L156) |
-| <a id="sessiondurationms"></a> `sessionDurationMs` | `number` | Wall time since [VoiceSession.start](/docs/en/reference/api/ottervoice-core/#start-2). | [packages/core/src/types.ts:142](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L142) |
-| <a id="ttschars"></a> `ttsChars` | `number` | Characters sent to TTS. | [packages/core/src/types.ts:150](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L150) |
-| <a id="userspeechms"></a> `userSpeechMs` | `number` | Accumulated user speech duration when runtimes report chunk durations. | [packages/core/src/types.ts:144](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L144) |
+| <a id="asraudioms"></a> `asrAudioMs` | `number` | Audio milliseconds forwarded to ASR. | [packages/core/src/types.ts:148](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L148) |
+| <a id="assistantspeechchars"></a> `assistantSpeechChars` | `number` | Assistant spoken character count (approx). | [packages/core/src/types.ts:146](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L146) |
+| <a id="llminputtokens"></a> `llmInputTokens?` | `number` | Accumulated LLM prompt tokens when providers report usage. | [packages/core/src/types.ts:152](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L152) |
+| <a id="llmoutputtokens"></a> `llmOutputTokens?` | `number` | Accumulated LLM completion tokens when providers report usage. | [packages/core/src/types.ts:154](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L154) |
+| <a id="providercosts"></a> `providerCosts?` | `Record`\<`string`, `number`\> | Optional per-provider cost estimates in billable units. | [packages/core/src/types.ts:156](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L156) |
+| <a id="sessiondurationms"></a> `sessionDurationMs` | `number` | Wall time since [VoiceSession.start](/docs/en/reference/api/ottervoice-core/#start-2). | [packages/core/src/types.ts:142](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L142) |
+| <a id="ttschars"></a> `ttsChars` | `number` | Characters sent to TTS. | [packages/core/src/types.ts:150](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L150) |
+| <a id="userspeechms"></a> `userSpeechMs` | `number` | Accumulated user speech duration when runtimes report chunk durations. | [packages/core/src/types.ts:144](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L144) |
 
 ## Type Aliases
 
@@ -4415,7 +4489,7 @@ Emitted periodically / on finish for cost and latency dashboards.
 type AudioEncoding = "pcm_s16le" | "opus" | "webm" | "wav" | "mp3";
 ```
 
-Defined in: [packages/core/src/types.ts:260](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L260)
+Defined in: [packages/core/src/types.ts:260](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L260)
 
 Wire encoding of audio bytes sent to ASR / Audio LLM adapters.
 Runtimes stamp this on [AudioChunk](/docs/en/reference/api/ottervoice-core/#audiochunk); providers may narrow further.
@@ -4428,7 +4502,7 @@ Runtimes stamp this on [AudioChunk](/docs/en/reference/api/ottervoice-core/#audi
 type AudioLLMInputFormat = "webm" | "wav" | "mp3" | "opus";
 ```
 
-Defined in: [packages/core/src/types.ts:490](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L490)
+Defined in: [packages/core/src/types.ts:486](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L486)
 
 Container / codec accepted by [AudioLLMGenerateInput.format](/docs/en/reference/api/ottervoice-core/#format).
 WebM/Opus often need a runtime `prepareAudio` step before OpenAI-style APIs.
@@ -4447,7 +4521,7 @@ type AudioLLMOnlyVoiceSessionConfig = Omit<VoiceSessionConfig, "pipeline" | "pro
 };
 ```
 
-Defined in: [packages/core/src/types.ts:1249](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1249)
+Defined in: [packages/core/src/types.ts:1264](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1264)
 
 Audio LLM-only configuration accepted by [createOtterVoiceSession](/docs/en/reference/api/ottervoice-core/#createottervoicesession).
 Use this additive config shape when no text-only [LLMProvider](/docs/en/reference/api/ottervoice-core/#llmprovider) is needed;
@@ -4457,8 +4531,8 @@ Use this additive config shape when no text-only [LLMProvider](/docs/en/referenc
 
 | Name | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| `pipeline` | `"audio_llm"` | Select the native speech-to-speech pipeline. | [packages/core/src/types.ts:1254](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1254) |
-| `providers` | `Omit`\<[`VoiceSessionConfig`](/docs/en/reference/api/ottervoice-core/#voicesessionconfig)\[`"providers"`\], `"llm"` \| `"audioLlm"`\> & \{ `audioLlm`: [`AudioLLMProvider`](/docs/en/reference/api/ottervoice-core/#audiollmprovider); `llm?`: `never`; \} | Providers required by an Audio LLM-only session. | [packages/core/src/types.ts:1256](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1256) |
+| `pipeline` | `"audio_llm"` | Select the native speech-to-speech pipeline. | [packages/core/src/types.ts:1269](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1269) |
+| `providers` | `Omit`\<[`VoiceSessionConfig`](/docs/en/reference/api/ottervoice-core/#voicesessionconfig)\[`"providers"`\], `"llm"` \| `"audioLlm"`\> & \{ `audioLlm`: [`AudioLLMProvider`](/docs/en/reference/api/ottervoice-core/#audiollmprovider); `llm?`: `never`; \} | Providers required by an Audio LLM-only session. | [packages/core/src/types.ts:1271](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1271) |
 
 ***
 
@@ -4468,7 +4542,7 @@ Use this additive config shape when no text-only [LLMProvider](/docs/en/referenc
 type ProviderFeature = "conversation" | "transcription" | "scoring" | "pronunciation";
 ```
 
-Defined in: [packages/core/src/provider-router.ts:88](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L88)
+Defined in: [packages/core/src/provider-router.ts:88](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L88)
 
 Feature being routed (reserved for finer policy; [resolveProfile](/docs/en/reference/api/ottervoice-core/#resolveprofile)
 currently keys primarily on region / plan).
@@ -4481,7 +4555,7 @@ currently keys primarily on region / plan).
 type ProviderPlan = "free" | "basic" | "pro";
 ```
 
-Defined in: [packages/core/src/provider-router.ts:83](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L83)
+Defined in: [packages/core/src/provider-router.ts:83](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L83)
 
 Commercial plan hint for [resolveProfile](/docs/en/reference/api/ottervoice-core/#resolveprofile).
 
@@ -4493,7 +4567,7 @@ Commercial plan hint for [resolveProfile](/docs/en/reference/api/ottervoice-core
 type ProviderProfileName = "global_budget" | "global_pro" | "china_fallback" | "developer_test";
 ```
 
-Defined in: [packages/core/src/provider-router.ts:13](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L13)
+Defined in: [packages/core/src/provider-router.ts:13](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L13)
 
 Built-in named stacks in [providerProfiles](/docs/en/reference/api/ottervoice-core/#providerprofiles).
 Pass to [ProviderRegistry.resolve](/docs/en/reference/api/ottervoice-core/#resolve) or [resolveProfile](/docs/en/reference/api/ottervoice-core/#resolveprofile).
@@ -4506,7 +4580,7 @@ Pass to [ProviderRegistry.resolve](/docs/en/reference/api/ottervoice-core/#resol
 type ProviderRegion = "global" | "china" | "unknown";
 ```
 
-Defined in: [packages/core/src/provider-router.ts:81](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L81)
+Defined in: [packages/core/src/provider-router.ts:81](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L81)
 
 Deployment region hint for [resolveProfile](/docs/en/reference/api/ottervoice-core/#resolveprofile).
 
@@ -4518,7 +4592,7 @@ Deployment region hint for [resolveProfile](/docs/en/reference/api/ottervoice-co
 type TTSFormat = "mp3" | "wav" | "ogg" | "opus" | "pcm";
 ```
 
-Defined in: [packages/core/src/types.ts:568](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L568)
+Defined in: [packages/core/src/types.ts:564](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L564)
 
 Output audio container requested from a [TTSProvider](/docs/en/reference/api/ottervoice-core/#ttsprovider).
 Passed via [TTSInput.format](/docs/en/reference/api/ottervoice-core/#format-1) and listed in [TTSCapabilities.formats](/docs/en/reference/api/ottervoice-core/#formats).
@@ -4528,16 +4602,15 @@ Passed via [TTSInput.format](/docs/en/reference/api/ottervoice-core/#format-1) a
 ### TurnDetectionStrategy
 
 ```ts
-type TurnDetectionStrategy = "volume" | "asr_endpointing" | "manual" | "hybrid";
+type TurnDetectionStrategy = "volume" | "manual" | "hybrid";
 ```
 
-Defined in: [packages/core/src/types.ts:1086](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1086)
+Defined in: [packages/core/src/types.ts:1105](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1105)
 
-How end-of-utterance is decided while listening:
-- `volume` — local RMS VAD ([TurnDetectionConfig.volumeThreshold](/docs/en/reference/api/ottervoice-core/#volumethreshold-1))
-- `asr_endpointing` — trust provider utterance-end signals
+How user turns are detected while listening:
+- `volume` — local RMS VAD ([TurnDetectionConfig.volumeThreshold](/docs/en/reference/api/ottervoice-core/#volumethreshold-2))
 - `manual` — caller drives [VoiceSession.endUserTurn](/docs/en/reference/api/ottervoice-core/#enduserturn)
-- `hybrid` — combine ASR speech confirmation / endpointing with local silence
+- `hybrid` — combine ASR speech confirmation with local silence detection
 
 ***
 
@@ -4547,7 +4620,7 @@ How end-of-utterance is decided while listening:
 type TurnDetectorEvent = "speech_start" | "speech_end" | "max_turn";
 ```
 
-Defined in: [packages/core/src/turn-detector.ts:39](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/turn-detector.ts#L39)
+Defined in: [packages/core/src/turn-detector.ts:43](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/turn-detector.ts#L43)
 
 Boundary event returned by [TurnDetector.pushVolume](/docs/en/reference/api/ottervoice-core/#pushvolume) when a threshold
 is crossed (`undefined` when the sample does not change state).
@@ -4560,7 +4633,7 @@ is crossed (`undefined` when the sample does not change state).
 type TurnRole = "user" | "assistant" | "system";
 ```
 
-Defined in: [packages/core/src/types.ts:111](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L111)
+Defined in: [packages/core/src/types.ts:111](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L111)
 
 Speaker role for a [VoiceTurn](/docs/en/reference/api/ottervoice-core/#voiceturn) in the transcript.
 
@@ -4586,7 +4659,7 @@ type VoiceErrorCode =
   | "unknown";
 ```
 
-Defined in: [packages/core/src/types.ts:49](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L49)
+Defined in: [packages/core/src/types.ts:49](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L49)
 
 Stable application error codes for voice sessions and providers.
 Prefer these over free-form strings when building [NormalizedVoiceError](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror)
@@ -4607,7 +4680,7 @@ type VoiceErrorStage =
   | "session";
 ```
 
-Defined in: [packages/core/src/types.ts:70](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L70)
+Defined in: [packages/core/src/types.ts:70](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L70)
 
 Processing stage where a [NormalizedVoiceError](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) originated.
 Use this with [NormalizedVoiceError.code](/docs/en/reference/api/ottervoice-core/#code-1) to route diagnostics without
@@ -4678,7 +4751,7 @@ type VoiceSessionEventMap = {
 };
 ```
 
-Defined in: [packages/core/src/types.ts:167](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L167)
+Defined in: [packages/core/src/types.ts:167](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L167)
 
 Strongly typed event payloads for [VoiceSession](/docs/en/reference/api/ottervoice-core/#voicesession).
 Subscribe with `session.on('eventName', handler)`.
@@ -4687,50 +4760,50 @@ Subscribe with `session.on('eventName', handler)`.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="asr_final"></a> `asr_final` | \{ `confidence?`: `number`; `durationMs?`: `number`; `text`: `string`; `turnId`: `string`; \} | Authoritative user transcript for the turn. | [packages/core/src/types.ts:182](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L182) |
-| `asr_final.confidence?` | `number` | - | [packages/core/src/types.ts:185](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L185) |
-| `asr_final.durationMs?` | `number` | - | [packages/core/src/types.ts:186](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L186) |
-| `asr_final.text` | `string` | - | [packages/core/src/types.ts:183](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L183) |
-| `asr_final.turnId` | `string` | - | [packages/core/src/types.ts:184](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L184) |
-| <a id="asr_partial"></a> `asr_partial` | \{ `confidence?`: `number`; `text`: `string`; `turnId`: `string`; \} | Provisional ASR caption; upsert by `turnId`. | [packages/core/src/types.ts:175](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L175) |
-| `asr_partial.confidence?` | `number` | - | [packages/core/src/types.ts:179](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L179) |
-| `asr_partial.text` | `string` | Accumulated provisional transcript. | [packages/core/src/types.ts:177](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L177) |
-| `asr_partial.turnId` | `string` | - | [packages/core/src/types.ts:178](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L178) |
-| <a id="assistant_audio"></a> `assistant_audio` | \{ `audio?`: `ArrayBuffer`; `audioUrl?`: `string`; `durationMs?`: `number`; `mimeType`: `string`; `turnId`: `string`; \} | Complete assistant audio snapshot for persistence, emitted before playback completes. | [packages/core/src/types.ts:226](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L226) |
-| `assistant_audio.audio?` | `ArrayBuffer` | In-memory audio bytes when the provider returned a buffer. | [packages/core/src/types.ts:230](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L230) |
-| `assistant_audio.audioUrl?` | `string` | Remote audio URL when the provider returned a URL instead of bytes. | [packages/core/src/types.ts:232](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L232) |
-| `assistant_audio.durationMs?` | `number` | Provider-estimated duration when available. | [packages/core/src/types.ts:236](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L236) |
-| `assistant_audio.mimeType` | `string` | MIME type of `audio` or `audioUrl`. | [packages/core/src/types.ts:234](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L234) |
-| `assistant_audio.turnId` | `string` | Assistant turn shared with text and playback events. | [packages/core/src/types.ts:228](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L228) |
-| <a id="assistant_audio_end"></a> `assistant_audio_end` | \{ `turnId`: `string`; \} | Assistant audio playback ended (completed or interrupted). | [packages/core/src/types.ts:222](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L222) |
-| `assistant_audio_end.turnId` | `string` | - | [packages/core/src/types.ts:223](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L223) |
-| <a id="assistant_audio_start"></a> `assistant_audio_start` | \{ `turnId`: `string`; \} | Assistant audio playback began for this turn. | [packages/core/src/types.ts:218](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L218) |
-| `assistant_audio_start.turnId` | `string` | - | [packages/core/src/types.ts:219](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L219) |
-| <a id="assistant_text"></a> `assistant_text` | \{ `text`: `string`; `turnId`: `string`; \} | Final assistant text for the turn (may normalize streaming text). | [packages/core/src/types.ts:205](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L205) |
-| `assistant_text.text` | `string` | - | [packages/core/src/types.ts:206](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L206) |
-| `assistant_text.turnId` | `string` | - | [packages/core/src/types.ts:207](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L207) |
-| <a id="assistant_text_delta"></a> `assistant_text_delta` | \{ `delta`: `string`; `text`: `string`; `turnId`: `string`; \} | Incremental assistant transcript emitted before `assistant_text`. | [packages/core/src/types.ts:210](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L210) |
-| `assistant_text_delta.delta` | `string` | Newly received text fragment. | [packages/core/src/types.ts:212](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L212) |
-| `assistant_text_delta.text` | `string` | Complete assistant text accumulated for this turn so far. | [packages/core/src/types.ts:214](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L214) |
-| `assistant_text_delta.turnId` | `string` | - | [packages/core/src/types.ts:215](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L215) |
-| <a id="error-2"></a> `error` | [`NormalizedVoiceError`](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) | Normalized failure; see [NormalizedVoiceError](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror). | [packages/core/src/types.ts:249](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L249) |
-| <a id="finished"></a> `finished` | \{ `turns`: [`VoiceTurn`](/docs/en/reference/api/ottervoice-core/#voiceturn)[]; \} | Session completed gracefully; turns are the full history. | [packages/core/src/types.ts:245](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L245) |
-| `finished.turns` | [`VoiceTurn`](/docs/en/reference/api/ottervoice-core/#voiceturn)[] | - | [packages/core/src/types.ts:246](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L246) |
-| <a id="statechange"></a> `statechange` | \{ `from`: [`VoiceSessionState`](/docs/en/reference/api/ottervoice-core/#voicesessionstate-1); `reason?`: `string`; `to`: [`VoiceSessionState`](/docs/en/reference/api/ottervoice-core/#voicesessionstate-1); \} | FSM transition with optional reason string. | [packages/core/src/types.ts:169](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L169) |
-| `statechange.from` | [`VoiceSessionState`](/docs/en/reference/api/ottervoice-core/#voicesessionstate-1) | - | [packages/core/src/types.ts:170](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L170) |
-| `statechange.reason?` | `string` | - | [packages/core/src/types.ts:172](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L172) |
-| `statechange.to` | [`VoiceSessionState`](/docs/en/reference/api/ottervoice-core/#voicesessionstate-1) | - | [packages/core/src/types.ts:171](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L171) |
-| <a id="turn"></a> `turn` | \{ `turn`: [`VoiceTurn`](/docs/en/reference/api/ottervoice-core/#voiceturn); \} | A committed [VoiceTurn](/docs/en/reference/api/ottervoice-core/#voiceturn) was added to history. | [packages/core/src/types.ts:239](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L239) |
-| `turn.turn` | [`VoiceTurn`](/docs/en/reference/api/ottervoice-core/#voiceturn) | - | [packages/core/src/types.ts:240](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L240) |
-| <a id="usage-4"></a> `usage` | [`VoiceUsageSnapshot`](/docs/en/reference/api/ottervoice-core/#voiceusagesnapshot) | Latest usage meters. | [packages/core/src/types.ts:243](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L243) |
-| <a id="user_audio_end"></a> `user_audio_end` | \{ `at`: `number`; `turnId`: `string`; \} | VAD/manual boundary used as the response-latency start point. | [packages/core/src/types.ts:189](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L189) |
-| `user_audio_end.at` | `number` | - | [packages/core/src/types.ts:191](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L191) |
-| `user_audio_end.turnId` | `string` | - | [packages/core/src/types.ts:190](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L190) |
-| <a id="user_audio_final"></a> `user_audio_final` | \{ `audio`: `ArrayBuffer`; `durationMs?`: `number`; `format`: `string`; `turnId`: `string`; \} | Complete VAD-delimited user recording, emitted after capture is stopped and flushed. | [packages/core/src/types.ts:194](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L194) |
-| `user_audio_final.audio` | `ArrayBuffer` | Complete encoded recording assembled in capture order. | [packages/core/src/types.ts:198](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L198) |
-| `user_audio_final.durationMs?` | `number` | Approximate captured duration when the runtime reports chunk durations. | [packages/core/src/types.ts:202](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L202) |
-| `user_audio_final.format` | `string` | Runtime-reported container, codec, or MIME type of the recording. | [packages/core/src/types.ts:200](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L200) |
-| `user_audio_final.turnId` | `string` | User turn shared with `asr_final`. | [packages/core/src/types.ts:196](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L196) |
+| <a id="asr_final"></a> `asr_final` | \{ `confidence?`: `number`; `durationMs?`: `number`; `text`: `string`; `turnId`: `string`; \} | Authoritative user transcript for the turn. | [packages/core/src/types.ts:182](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L182) |
+| `asr_final.confidence?` | `number` | - | [packages/core/src/types.ts:185](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L185) |
+| `asr_final.durationMs?` | `number` | - | [packages/core/src/types.ts:186](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L186) |
+| `asr_final.text` | `string` | - | [packages/core/src/types.ts:183](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L183) |
+| `asr_final.turnId` | `string` | - | [packages/core/src/types.ts:184](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L184) |
+| <a id="asr_partial"></a> `asr_partial` | \{ `confidence?`: `number`; `text`: `string`; `turnId`: `string`; \} | Provisional ASR caption; upsert by `turnId`. | [packages/core/src/types.ts:175](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L175) |
+| `asr_partial.confidence?` | `number` | - | [packages/core/src/types.ts:179](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L179) |
+| `asr_partial.text` | `string` | Accumulated provisional transcript. | [packages/core/src/types.ts:177](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L177) |
+| `asr_partial.turnId` | `string` | - | [packages/core/src/types.ts:178](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L178) |
+| <a id="assistant_audio"></a> `assistant_audio` | \{ `audio?`: `ArrayBuffer`; `audioUrl?`: `string`; `durationMs?`: `number`; `mimeType`: `string`; `turnId`: `string`; \} | Complete assistant audio snapshot for persistence, emitted before playback completes. | [packages/core/src/types.ts:226](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L226) |
+| `assistant_audio.audio?` | `ArrayBuffer` | In-memory audio bytes when the provider returned a buffer. | [packages/core/src/types.ts:230](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L230) |
+| `assistant_audio.audioUrl?` | `string` | Remote audio URL when the provider returned a URL instead of bytes. | [packages/core/src/types.ts:232](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L232) |
+| `assistant_audio.durationMs?` | `number` | Provider-estimated duration when available. | [packages/core/src/types.ts:236](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L236) |
+| `assistant_audio.mimeType` | `string` | MIME type of `audio` or `audioUrl`. | [packages/core/src/types.ts:234](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L234) |
+| `assistant_audio.turnId` | `string` | Assistant turn shared with text and playback events. | [packages/core/src/types.ts:228](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L228) |
+| <a id="assistant_audio_end"></a> `assistant_audio_end` | \{ `turnId`: `string`; \} | Assistant audio playback ended (completed or interrupted). | [packages/core/src/types.ts:222](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L222) |
+| `assistant_audio_end.turnId` | `string` | - | [packages/core/src/types.ts:223](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L223) |
+| <a id="assistant_audio_start"></a> `assistant_audio_start` | \{ `turnId`: `string`; \} | Assistant audio playback began for this turn. | [packages/core/src/types.ts:218](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L218) |
+| `assistant_audio_start.turnId` | `string` | - | [packages/core/src/types.ts:219](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L219) |
+| <a id="assistant_text"></a> `assistant_text` | \{ `text`: `string`; `turnId`: `string`; \} | Final assistant text for the turn (may normalize streaming text). | [packages/core/src/types.ts:205](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L205) |
+| `assistant_text.text` | `string` | - | [packages/core/src/types.ts:206](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L206) |
+| `assistant_text.turnId` | `string` | - | [packages/core/src/types.ts:207](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L207) |
+| <a id="assistant_text_delta"></a> `assistant_text_delta` | \{ `delta`: `string`; `text`: `string`; `turnId`: `string`; \} | Incremental assistant transcript emitted before `assistant_text`. | [packages/core/src/types.ts:210](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L210) |
+| `assistant_text_delta.delta` | `string` | Newly received text fragment. | [packages/core/src/types.ts:212](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L212) |
+| `assistant_text_delta.text` | `string` | Complete assistant text accumulated for this turn so far. | [packages/core/src/types.ts:214](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L214) |
+| `assistant_text_delta.turnId` | `string` | - | [packages/core/src/types.ts:215](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L215) |
+| <a id="error-2"></a> `error` | [`NormalizedVoiceError`](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) | Normalized failure; see [NormalizedVoiceError](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror). | [packages/core/src/types.ts:249](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L249) |
+| <a id="finished"></a> `finished` | \{ `turns`: [`VoiceTurn`](/docs/en/reference/api/ottervoice-core/#voiceturn)[]; \} | Session completed gracefully; turns are the full history. | [packages/core/src/types.ts:245](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L245) |
+| `finished.turns` | [`VoiceTurn`](/docs/en/reference/api/ottervoice-core/#voiceturn)[] | - | [packages/core/src/types.ts:246](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L246) |
+| <a id="statechange"></a> `statechange` | \{ `from`: [`VoiceSessionState`](/docs/en/reference/api/ottervoice-core/#voicesessionstate-1); `reason?`: `string`; `to`: [`VoiceSessionState`](/docs/en/reference/api/ottervoice-core/#voicesessionstate-1); \} | FSM transition with optional reason string. | [packages/core/src/types.ts:169](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L169) |
+| `statechange.from` | [`VoiceSessionState`](/docs/en/reference/api/ottervoice-core/#voicesessionstate-1) | - | [packages/core/src/types.ts:170](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L170) |
+| `statechange.reason?` | `string` | - | [packages/core/src/types.ts:172](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L172) |
+| `statechange.to` | [`VoiceSessionState`](/docs/en/reference/api/ottervoice-core/#voicesessionstate-1) | - | [packages/core/src/types.ts:171](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L171) |
+| <a id="turn"></a> `turn` | \{ `turn`: [`VoiceTurn`](/docs/en/reference/api/ottervoice-core/#voiceturn); \} | A committed [VoiceTurn](/docs/en/reference/api/ottervoice-core/#voiceturn) was added to history. | [packages/core/src/types.ts:239](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L239) |
+| `turn.turn` | [`VoiceTurn`](/docs/en/reference/api/ottervoice-core/#voiceturn) | - | [packages/core/src/types.ts:240](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L240) |
+| <a id="usage-4"></a> `usage` | [`VoiceUsageSnapshot`](/docs/en/reference/api/ottervoice-core/#voiceusagesnapshot) | Latest usage meters. | [packages/core/src/types.ts:243](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L243) |
+| <a id="user_audio_end"></a> `user_audio_end` | \{ `at`: `number`; `turnId`: `string`; \} | VAD/manual boundary used as the response-latency start point. | [packages/core/src/types.ts:189](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L189) |
+| `user_audio_end.at` | `number` | - | [packages/core/src/types.ts:191](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L191) |
+| `user_audio_end.turnId` | `string` | - | [packages/core/src/types.ts:190](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L190) |
+| <a id="user_audio_final"></a> `user_audio_final` | \{ `audio`: `ArrayBuffer`; `durationMs?`: `number`; `format`: `string`; `turnId`: `string`; \} | Complete VAD-delimited user recording, emitted after capture is stopped and flushed. | [packages/core/src/types.ts:194](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L194) |
+| `user_audio_final.audio` | `ArrayBuffer` | Complete encoded recording assembled in capture order. | [packages/core/src/types.ts:198](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L198) |
+| `user_audio_final.durationMs?` | `number` | Approximate captured duration when the runtime reports chunk durations. | [packages/core/src/types.ts:202](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L202) |
+| `user_audio_final.format` | `string` | Runtime-reported container, codec, or MIME type of the recording. | [packages/core/src/types.ts:200](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L200) |
+| `user_audio_final.turnId` | `string` | User turn shared with `asr_final`. | [packages/core/src/types.ts:196](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L196) |
 
 ***
 
@@ -4740,7 +4813,7 @@ Subscribe with `session.on('eventName', handler)`.
 type VoiceSessionMode = "half_duplex" | "full_duplex" | "push_to_talk" | "streaming_transcript";
 ```
 
-Defined in: [packages/core/src/types.ts:1121](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L1121)
+Defined in: [packages/core/src/types.ts:1136](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L1136)
 
 Conversation duplex mode:
 - `half_duplex` — listen only after assistant playback finishes
@@ -4766,7 +4839,7 @@ type VoiceSessionState =
   | "error";
 ```
 
-Defined in: [packages/core/src/types.ts:18](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/types.ts#L18)
+Defined in: [packages/core/src/types.ts:18](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/types.ts#L18)
 
 Finite-state machine states for [VoiceSession](/docs/en/reference/api/ottervoice-core/#voicesession).
 Subscribe via the `statechange` event on [VoiceSessionEventMap](/docs/en/reference/api/ottervoice-core/#voicesessioneventmap).
@@ -4776,10 +4849,10 @@ Subscribe via the `statechange` event on [VoiceSessionEventMap](/docs/en/referen
 ### DEFAULT\_TURN\_DETECTION
 
 ```ts
-const DEFAULT_TURN_DETECTION: Required<TurnDetectionConfig>;
+const DEFAULT_TURN_DETECTION: ResolvedTurnDetectionConfig;
 ```
 
-Defined in: [packages/core/src/turn-detector.ts:7](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/turn-detector.ts#L7)
+Defined in: [packages/core/src/turn-detector.ts:11](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/turn-detector.ts#L11)
 
 Default [TurnDetectionConfig](/docs/en/reference/api/ottervoice-core/#turndetectionconfig) values used by [resolveTurnDetection](/docs/en/reference/api/ottervoice-core/#resolveturndetection)
 and [TurnDetector](/docs/en/reference/api/ottervoice-core/#turndetector) when the session omits knobs.
@@ -4825,7 +4898,7 @@ const providerProfiles: {
 };
 ```
 
-Defined in: [packages/core/src/provider-router.ts:45](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L45)
+Defined in: [packages/core/src/provider-router.ts:45](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L45)
 
 Built-in composition profiles for trusted application code. They are not an
 authorization or subscription boundary: a server must decide which profile
@@ -4837,34 +4910,34 @@ router never imports a vendor SDK itself.
 
 | Name | Type | Default value | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="property-china_fallback"></a> `china_fallback` | \{ `asr`: `string`; `llmConversation`: `string`; `llmScoring`: `string`; `name`: `string`; `pronunciation`: `string`; `tts`: `string`; \} | - | [packages/core/src/provider-router.ts:62](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L62) |
-| `china_fallback.asr` | `string` | `'xfyun_streaming'` | [packages/core/src/provider-router.ts:64](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L64) |
-| `china_fallback.llmConversation` | `string` | `'deepseek_or_qwen'` | [packages/core/src/provider-router.ts:65](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L65) |
-| `china_fallback.llmScoring` | `string` | `'deepseek_or_qwen'` | [packages/core/src/provider-router.ts:66](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L66) |
-| `china_fallback.name` | `string` | `'china_fallback'` | [packages/core/src/provider-router.ts:63](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L63) |
-| `china_fallback.pronunciation` | `string` | `'xfyun_or_approximation'` | [packages/core/src/provider-router.ts:68](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L68) |
-| `china_fallback.tts` | `string` | `'xfyun_tts'` | [packages/core/src/provider-router.ts:67](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L67) |
-| <a id="property-developer_test"></a> `developer_test` | \{ `asr`: `string`; `llmConversation`: `string`; `llmScoring`: `string`; `name`: `string`; `pronunciation`: `string`; `tts`: `string`; \} | - | [packages/core/src/provider-router.ts:70](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L70) |
-| `developer_test.asr` | `string` | `'mock_asr'` | [packages/core/src/provider-router.ts:72](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L72) |
-| `developer_test.llmConversation` | `string` | `'mock_llm'` | [packages/core/src/provider-router.ts:73](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L73) |
-| `developer_test.llmScoring` | `string` | `'mock_llm'` | [packages/core/src/provider-router.ts:74](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L74) |
-| `developer_test.name` | `string` | `'developer_test'` | [packages/core/src/provider-router.ts:71](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L71) |
-| `developer_test.pronunciation` | `string` | `'mock_pronunciation'` | [packages/core/src/provider-router.ts:76](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L76) |
-| `developer_test.tts` | `string` | `'mock_tts'` | [packages/core/src/provider-router.ts:75](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L75) |
-| <a id="property-global_budget"></a> `global_budget` | \{ `asr`: `string`; `llmConversation`: `string`; `llmScoring`: `string`; `name`: `string`; `pronunciation`: `string`; `tts`: `string`; \} | - | [packages/core/src/provider-router.ts:46](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L46) |
-| `global_budget.asr` | `string` | `'elevenlabs_scribe_realtime'` | [packages/core/src/provider-router.ts:48](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L48) |
-| `global_budget.llmConversation` | `string` | `'openrouter_gemini_flash_lite'` | [packages/core/src/provider-router.ts:49](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L49) |
-| `global_budget.llmScoring` | `string` | `'openrouter_gemini_flash'` | [packages/core/src/provider-router.ts:50](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L50) |
-| `global_budget.name` | `string` | `'global_budget'` | [packages/core/src/provider-router.ts:47](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L47) |
-| `global_budget.pronunciation` | `string` | `'approximation'` | [packages/core/src/provider-router.ts:52](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L52) |
-| `global_budget.tts` | `string` | `'azure_neural_tts'` | [packages/core/src/provider-router.ts:51](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L51) |
-| <a id="property-global_pro"></a> `global_pro` | \{ `asr`: `string`; `llmConversation`: `string`; `llmScoring`: `string`; `name`: `string`; `pronunciation`: `string`; `tts`: `string`; \} | - | [packages/core/src/provider-router.ts:54](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L54) |
-| `global_pro.asr` | `string` | `'deepgram_nova_streaming'` | [packages/core/src/provider-router.ts:56](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L56) |
-| `global_pro.llmConversation` | `string` | `'openrouter_gemini_flash'` | [packages/core/src/provider-router.ts:57](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L57) |
-| `global_pro.llmScoring` | `string` | `'openai_or_claude'` | [packages/core/src/provider-router.ts:58](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L58) |
-| `global_pro.name` | `string` | `'global_pro'` | [packages/core/src/provider-router.ts:55](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L55) |
-| `global_pro.pronunciation` | `string` | `'azure_pronunciation'` | [packages/core/src/provider-router.ts:60](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L60) |
-| `global_pro.tts` | `string` | `'elevenlabs_flash'` | [packages/core/src/provider-router.ts:59](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L59) |
+| <a id="property-china_fallback"></a> `china_fallback` | \{ `asr`: `string`; `llmConversation`: `string`; `llmScoring`: `string`; `name`: `string`; `pronunciation`: `string`; `tts`: `string`; \} | - | [packages/core/src/provider-router.ts:62](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L62) |
+| `china_fallback.asr` | `string` | `'xfyun_streaming'` | [packages/core/src/provider-router.ts:64](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L64) |
+| `china_fallback.llmConversation` | `string` | `'deepseek_or_qwen'` | [packages/core/src/provider-router.ts:65](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L65) |
+| `china_fallback.llmScoring` | `string` | `'deepseek_or_qwen'` | [packages/core/src/provider-router.ts:66](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L66) |
+| `china_fallback.name` | `string` | `'china_fallback'` | [packages/core/src/provider-router.ts:63](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L63) |
+| `china_fallback.pronunciation` | `string` | `'xfyun_or_approximation'` | [packages/core/src/provider-router.ts:68](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L68) |
+| `china_fallback.tts` | `string` | `'xfyun_tts'` | [packages/core/src/provider-router.ts:67](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L67) |
+| <a id="property-developer_test"></a> `developer_test` | \{ `asr`: `string`; `llmConversation`: `string`; `llmScoring`: `string`; `name`: `string`; `pronunciation`: `string`; `tts`: `string`; \} | - | [packages/core/src/provider-router.ts:70](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L70) |
+| `developer_test.asr` | `string` | `'mock_asr'` | [packages/core/src/provider-router.ts:72](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L72) |
+| `developer_test.llmConversation` | `string` | `'mock_llm'` | [packages/core/src/provider-router.ts:73](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L73) |
+| `developer_test.llmScoring` | `string` | `'mock_llm'` | [packages/core/src/provider-router.ts:74](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L74) |
+| `developer_test.name` | `string` | `'developer_test'` | [packages/core/src/provider-router.ts:71](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L71) |
+| `developer_test.pronunciation` | `string` | `'mock_pronunciation'` | [packages/core/src/provider-router.ts:76](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L76) |
+| `developer_test.tts` | `string` | `'mock_tts'` | [packages/core/src/provider-router.ts:75](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L75) |
+| <a id="property-global_budget"></a> `global_budget` | \{ `asr`: `string`; `llmConversation`: `string`; `llmScoring`: `string`; `name`: `string`; `pronunciation`: `string`; `tts`: `string`; \} | - | [packages/core/src/provider-router.ts:46](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L46) |
+| `global_budget.asr` | `string` | `'elevenlabs_scribe_realtime'` | [packages/core/src/provider-router.ts:48](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L48) |
+| `global_budget.llmConversation` | `string` | `'openrouter_gemini_flash_lite'` | [packages/core/src/provider-router.ts:49](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L49) |
+| `global_budget.llmScoring` | `string` | `'openrouter_gemini_flash'` | [packages/core/src/provider-router.ts:50](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L50) |
+| `global_budget.name` | `string` | `'global_budget'` | [packages/core/src/provider-router.ts:47](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L47) |
+| `global_budget.pronunciation` | `string` | `'approximation'` | [packages/core/src/provider-router.ts:52](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L52) |
+| `global_budget.tts` | `string` | `'azure_neural_tts'` | [packages/core/src/provider-router.ts:51](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L51) |
+| <a id="property-global_pro"></a> `global_pro` | \{ `asr`: `string`; `llmConversation`: `string`; `llmScoring`: `string`; `name`: `string`; `pronunciation`: `string`; `tts`: `string`; \} | - | [packages/core/src/provider-router.ts:54](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L54) |
+| `global_pro.asr` | `string` | `'deepgram_nova_streaming'` | [packages/core/src/provider-router.ts:56](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L56) |
+| `global_pro.llmConversation` | `string` | `'openrouter_gemini_flash'` | [packages/core/src/provider-router.ts:57](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L57) |
+| `global_pro.llmScoring` | `string` | `'openai_or_claude'` | [packages/core/src/provider-router.ts:58](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L58) |
+| `global_pro.name` | `string` | `'global_pro'` | [packages/core/src/provider-router.ts:55](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L55) |
+| `global_pro.pronunciation` | `string` | `'azure_pronunciation'` | [packages/core/src/provider-router.ts:60](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L60) |
+| `global_pro.tts` | `string` | `'elevenlabs_flash'` | [packages/core/src/provider-router.ts:59](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L59) |
 
 ## Functions
 
@@ -4874,7 +4947,7 @@ router never imports a vendor SDK itself.
 function canTransition(from, to): boolean;
 ```
 
-Defined in: [packages/core/src/state-machine.ts:65](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/state-machine.ts#L65)
+Defined in: [packages/core/src/state-machine.ts:65](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/state-machine.ts#L65)
 
 Whether a direct transition from `from` → `to` is allowed by the session FSM.
 Same-state transitions always return `false`.
@@ -4898,7 +4971,7 @@ Same-state transitions always return `false`.
 function createIdGenerator(prefix?): () => string;
 ```
 
-Defined in: [packages/core/src/internal/ids.ts:5](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/internal/ids.ts#L5)
+Defined in: [packages/core/src/internal/ids.ts:5](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/internal/ids.ts#L5)
 
 Default monotonic-ish id generator. Avoids a crypto dependency so the core
 stays runtime-agnostic; sessions may inject their own via config.
@@ -4921,7 +4994,7 @@ stays runtime-agnostic; sessions may inject their own via config.
 function createMockASR(options): ASRProvider;
 ```
 
-Defined in: [packages/core/src/providers/mock.ts:42](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L42)
+Defined in: [packages/core/src/providers/mock.ts:42](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L42)
 
 Deterministic ASR for tests and the developer profile. Each `sendAudio`
 advances through `transcripts`; partial + final callbacks fire synchronously.
@@ -4946,7 +5019,7 @@ An [ASRProvider](/docs/en/reference/api/ottervoice-core/#asrprovider) with name 
 function createMockLLM(options?): LLMProvider;
 ```
 
-Defined in: [packages/core/src/providers/mock.ts:141](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L141)
+Defined in: [packages/core/src/providers/mock.ts:141](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L141)
 
 Deterministic [LLMProvider](/docs/en/reference/api/ottervoice-core/#llmprovider) for tests and the developer profile.
 `generate` returns a full string; `stream` yields word-sized text deltas.
@@ -4971,7 +5044,7 @@ An [LLMProvider](/docs/en/reference/api/ottervoice-core/#llmprovider) with name 
 function createMockPronunciation(options?): PronunciationProvider;
 ```
 
-Defined in: [packages/core/src/providers/mock.ts:254](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L254)
+Defined in: [packages/core/src/providers/mock.ts:254](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L254)
 
 Deterministic [PronunciationProvider](/docs/en/reference/api/ottervoice-core/#pronunciationprovider) for tests and demos.
 Splits the transcript into words and assigns [MockPronunciationOptions.score](/docs/en/reference/api/ottervoice-core/#score)
@@ -4997,7 +5070,7 @@ A [PronunciationProvider](/docs/en/reference/api/ottervoice-core/#pronunciationp
 function createMockRuntime(options?): MockRuntime;
 ```
 
-Defined in: [packages/core/src/providers/mock-runtime.ts:220](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock-runtime.ts#L220)
+Defined in: [packages/core/src/providers/mock-runtime.ts:220](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock-runtime.ts#L220)
 
 Assemble a fully in-memory [RuntimeAdapter](/docs/en/reference/api/ottervoice-core/#runtimeadapter) for tests and Node demos.
 
@@ -5021,7 +5094,7 @@ A [MockRuntime](/docs/en/reference/api/ottervoice-core/#mockruntime) with [MockA
 function createMockTTS(options?): TTSProvider;
 ```
 
-Defined in: [packages/core/src/providers/mock.ts:204](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/providers/mock.ts#L204)
+Defined in: [packages/core/src/providers/mock.ts:204](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/providers/mock.ts#L204)
 
 Deterministic [TTSProvider](/docs/en/reference/api/ottervoice-core/#ttsprovider) for tests and demos.
 Encodes the input text as UTF-8 bytes and reports a duration from
@@ -5047,7 +5120,7 @@ A [TTSProvider](/docs/en/reference/api/ottervoice-core/#ttsprovider) with name `
 function createOtterVoiceSession(config): VoiceSession;
 ```
 
-Defined in: [packages/core/src/session.ts:1946](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L1946)
+Defined in: [packages/core/src/session.ts:2281](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L2281)
 
 Create an OtterVoice session using an explicit, collision-resistant factory name.
 This is an alias of [createVoiceSession](/docs/en/reference/api/ottervoice-core/#createvoicesession); use it when an application also
@@ -5076,7 +5149,7 @@ function createVoiceError(
    options?): NormalizedVoiceError;
 ```
 
-Defined in: [packages/core/src/errors.ts:125](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L125)
+Defined in: [packages/core/src/errors.ts:125](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L125)
 
 Build a [NormalizedVoiceError](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror) with sensible `retryable` defaults.
 
@@ -5102,7 +5175,7 @@ A plain [NormalizedVoiceError](/docs/en/reference/api/ottervoice-core/#normalize
 function createVoiceSession(config): VoiceSession;
 ```
 
-Defined in: [packages/core/src/session.ts:1934](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/session.ts#L1934)
+Defined in: [packages/core/src/session.ts:2269](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/session.ts#L2269)
 
 Create a [VoiceSession](/docs/en/reference/api/ottervoice-core/#voicesession) from a fully wired [VoiceSessionConfig](/docs/en/reference/api/ottervoice-core/#voicesessionconfig).
 
@@ -5126,7 +5199,7 @@ A session that must be [dispose()](/docs/en/reference/api/ottervoice-core/#dispo
 function defaultNow(): number;
 ```
 
-Defined in: [packages/core/src/internal/ids.ts:15](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/internal/ids.ts#L15)
+Defined in: [packages/core/src/internal/ids.ts:15](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/internal/ids.ts#L15)
 
 Default wall-clock used by sessions when no `now` override is injected.
 
@@ -5142,7 +5215,7 @@ Default wall-clock used by sessions when no `now` override is injected.
 function isTerminal(state): boolean;
 ```
 
-Defined in: [packages/core/src/state-machine.ts:54](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/state-machine.ts#L54)
+Defined in: [packages/core/src/state-machine.ts:54](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/state-machine.ts#L54)
 
 Whether `state` ends the session lifecycle (currently only `finished`).
 
@@ -5168,7 +5241,7 @@ function normalizeError(
    stage?): NormalizedVoiceError;
 ```
 
-Defined in: [packages/core/src/errors.ts:186](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/errors.ts#L186)
+Defined in: [packages/core/src/errors.ts:186](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/errors.ts#L186)
 
 Coerce an arbitrary thrown value into a [NormalizedVoiceError](/docs/en/reference/api/ottervoice-core/#normalizedvoiceerror).
 
@@ -5198,7 +5271,7 @@ A [NormalizedVoiceError](/docs/en/reference/api/ottervoice-core/#normalizedvoice
 function resolveProfile(ctx?): ProviderProfileName;
 ```
 
-Defined in: [packages/core/src/provider-router.ts:119](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/provider-router.ts#L119)
+Defined in: [packages/core/src/provider-router.ts:119](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/provider-router.ts#L119)
 
 Resolve the built-in composition default. This is not an entitlement check;
 trusted server code must validate a user's real plan before exposing a profile.
@@ -5220,10 +5293,10 @@ The matching built-in provider profile name.
 ### resolveTurnDetection()
 
 ```ts
-function resolveTurnDetection(config?): Required<TurnDetectionConfig>;
+function resolveTurnDetection(config?): ResolvedTurnDetectionConfig;
 ```
 
-Defined in: [packages/core/src/turn-detector.ts:21](https://github.com/bugkiwi/OtterVoice/blob/41d5b5074fb5a1c9544dc1e71c1ed72b362bdfeb/packages/core/src/turn-detector.ts#L21)
+Defined in: [packages/core/src/turn-detector.ts:25](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/core/src/turn-detector.ts#L25)
 
 Merge a partial [TurnDetectionConfig](/docs/en/reference/api/ottervoice-core/#turndetectionconfig) with [DEFAULT\_TURN\_DETECTION](/docs/en/reference/api/ottervoice-core/#default_turn_detection).
 
@@ -5231,10 +5304,10 @@ Merge a partial [TurnDetectionConfig](/docs/en/reference/api/ottervoice-core/#tu
 
 | Parameter | Type | Description |
 | ------ | ------ | ------ |
-| `config?` | [`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig) | Optional overrides from import('./types').VoiceSessionConfig.turnDetection. |
+| `config?` | [`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig) | Optional [TurnDetectionConfig](/docs/en/reference/api/ottervoice-core/#turndetectionconfig) overrides from the session. |
 
 #### Returns
 
-`Required`\<[`TurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#turndetectionconfig)\>
+[`ResolvedTurnDetectionConfig`](/docs/en/reference/api/ottervoice-core/#resolvedturndetectionconfig)
 
 A fully populated config object (no missing fields).

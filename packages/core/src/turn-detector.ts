@@ -1,10 +1,14 @@
 import type { TurnDetectionConfig } from './types.js';
 
+/** Fully populated turn-detection settings used internally and in diagnostics. */
+export interface ResolvedTurnDetectionConfig
+  extends Required<TurnDetectionConfig> {}
+
 /**
  * Default {@link TurnDetectionConfig} values used by {@link resolveTurnDetection}
  * and {@link TurnDetector} when the session omits knobs.
  */
-export const DEFAULT_TURN_DETECTION: Required<TurnDetectionConfig> = {
+export const DEFAULT_TURN_DETECTION: ResolvedTurnDetectionConfig = {
   strategy: 'hybrid',
   minSpeechMs: 500,
   silenceTimeoutMs: 1200,
@@ -15,12 +19,12 @@ export const DEFAULT_TURN_DETECTION: Required<TurnDetectionConfig> = {
 /**
  * Merge a partial {@link TurnDetectionConfig} with {@link DEFAULT_TURN_DETECTION}.
  *
- * @param config - Optional overrides from {@link import('./types').VoiceSessionConfig.turnDetection}.
+ * @param config - Optional {@link TurnDetectionConfig} overrides from the session.
  * @returns A fully populated config object (no missing fields).
  */
 export function resolveTurnDetection(
   config?: TurnDetectionConfig,
-): Required<TurnDetectionConfig> {
+): ResolvedTurnDetectionConfig {
   return {
     strategy: config?.strategy ?? DEFAULT_TURN_DETECTION.strategy,
     minSpeechMs: config?.minSpeechMs ?? DEFAULT_TURN_DETECTION.minSpeechMs,
@@ -39,7 +43,7 @@ export function resolveTurnDetection(
 export type TurnDetectorEvent = 'speech_start' | 'speech_end' | 'max_turn';
 
 /**
- * Rule-based voice-activity / endpointing detector.
+ * Rule-based local voice-activity detector.
  *
  * It is driven purely by `(volume, timestampMs)` samples fed via
  * {@link TurnDetector.pushVolume}. It tracks whether the user has begun
@@ -49,7 +53,7 @@ export type TurnDetectorEvent = 'speech_start' | 'speech_end' | 'max_turn';
  * session supplies the clock.
  */
 export class TurnDetector {
-  private readonly config: Required<TurnDetectionConfig>;
+  private readonly config: ResolvedTurnDetectionConfig;
   private speaking = false;
   private speechStartedAt: number | undefined;
   private aboveSince: number | undefined;
@@ -59,15 +63,21 @@ export class TurnDetector {
     this.config = resolveTurnDetection(config);
   }
 
+  /** Whether sustained user speech is currently active. */
   get isSpeaking(): boolean {
     return this.speaking;
   }
 
-  get options(): Required<TurnDetectionConfig> {
+  /** Fully resolved detection settings for this detector. */
+  get options(): ResolvedTurnDetectionConfig {
     return this.config;
   }
 
-  /** Continue endpointing after another detector has already confirmed speech. */
+  /**
+   * Continue local silence detection after ASR has already confirmed speech.
+   *
+   * @param timestampMs - Timestamp to use as the beginning of the active speech turn.
+   */
   forceSpeechStart(timestampMs: number): void {
     this.speaking = true;
     this.speechStartedAt = timestampMs;
@@ -82,6 +92,10 @@ export class TurnDetector {
    * - `speech_start` — sustained volume over threshold for `minSpeechMs`.
    * - `speech_end` — sustained silence for `silenceTimeoutMs` after speech.
    * - `max_turn` — speech has run longer than `maxTurnMs` (forced end).
+   *
+   * @param volume - Normalized input volume, typically in `0..1`.
+   * @param timestampMs - Sample timestamp in a monotonic clock domain.
+   * @returns The boundary crossed by this sample, or `undefined`.
    */
   pushVolume(volume: number, timestampMs: number): TurnDetectorEvent | undefined {
     const isLoud = volume >= this.config.volumeThreshold;
@@ -102,7 +116,6 @@ export class TurnDetector {
       return undefined;
     }
 
-    // Currently speaking.
     if (
       this.speechStartedAt !== undefined &&
       timestampMs - this.speechStartedAt >= this.config.maxTurnMs
@@ -124,6 +137,7 @@ export class TurnDetector {
     return undefined;
   }
 
+  /** Reset all speech and silence timing state. */
   reset(): void {
     this.speaking = false;
     this.speechStartedAt = undefined;

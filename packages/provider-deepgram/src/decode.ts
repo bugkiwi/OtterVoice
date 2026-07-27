@@ -59,7 +59,12 @@ interface DeepgramMessage {
   channel?: { alternatives?: Array<{ transcript?: string; confidence?: number }> };
 }
 
-/** Decode a Deepgram `Results` message into a transcript result. */
+/**
+ * Decode Deepgram `Results` messages into transcript segments.
+ *
+ * @param data - One Deepgram WebSocket text frame.
+ * @returns A decoded transcript result, or `undefined` for unrelated frames.
+ */
 export function decodeDeepgram(data: string): ASRDecodeResult | undefined {
   let msg: DeepgramMessage;
   try {

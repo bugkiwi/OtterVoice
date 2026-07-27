@@ -34,7 +34,6 @@ const CAPABILITIES: ASRCapabilities = {
   batch: false,
   partialResults: true,
   confidence: true,
-  endpointing: true,
   languages: [],
 };
 
@@ -65,6 +64,7 @@ export function createDeepgramASR(options: DeepgramOptions): ASRProvider {
         encodeAudio: (chunk) => chunk,
         decode: decodeDeepgram,
         finishMessage: JSON.stringify({ type: 'CloseStream' }),
+        stopTimeoutMs: 1_500,
       });
     },
   };

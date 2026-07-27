@@ -100,11 +100,12 @@ describe('TurnDetector', () => {
     expect(d.pushVolume(0.5, 200)).toBeUndefined();
   });
 
-  it('can continue endpointing after externally confirmed speech', () => {
+  it('can continue silence detection after ASR confirms speech', () => {
     const d = new TurnDetector(cfg);
     d.forceSpeechStart(100);
     expect(d.isSpeaking).toBe(true);
     expect(d.pushVolume(0.0, 150)).toBeUndefined();
     expect(d.pushVolume(0.0, 350)).toBe('speech_end');
   });
+
 });

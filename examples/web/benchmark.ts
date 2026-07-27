@@ -18,7 +18,7 @@ const input = await Bun.file(inputPath).arrayBuffer();
 const runs = Number(process.env.BENCHMARK_RUNS ?? 3);
 const system =
   '你是一个反应快、语气自然的语音对话助手。默认用中文回复。' +
-  '每次只回复 1–2 个简短句子，不使用 Markdown，不列表，适合直接语音播放。';
+  '第一句立即给出结论；每次只回复 1–2 个简短句子，不使用 Markdown，不列表，适合直接语音播放。';
 const options = { apiKey, title: 'OtterVoice Latency Benchmark' };
 const llm = createOpenRouterLLM({
   ...options,
@@ -28,7 +28,7 @@ const llm = createOpenRouterLLM({
 });
 const tts = createOpenRouterTTS({
   ...options,
-  model: 'hexgrad/kokoro-82m',
+  model: 'minimax/speech-2.8-turbo',
   voice: 'zf_xiaoxiao',
   speed: 1.05,
 });
@@ -65,7 +65,7 @@ async function benchmarkCascade() {
   const reply = await llm.generate({
     system,
     messages: [{ role: 'user', content: transcript.text }],
-    maxTokens: 80,
+    maxTokens: 64,
     temperature: 0.45,
   });
   const llmAt = performance.now();
@@ -79,7 +79,7 @@ async function benchmarkCascade() {
     costUsd:
       transcript.cost +
       Number((reply.raw as { usage?: { cost?: number } } | undefined)?.usage?.cost ?? 0) +
-      reply.text.length * 0.62 / 1_000_000,
+      reply.text.length * 60 / 1_000_000,
   };
 }
 

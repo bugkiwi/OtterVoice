@@ -4,6 +4,7 @@ import {
   type LLMGenerateOutput,
   type LLMProvider,
   type LLMStreamChunk,
+  type TTSProvider,
 } from '@ottervoice/core';
 import {
   createCredentialResolver,
@@ -31,7 +32,6 @@ import {
   createOpenRouterAudioLLM,
   type OpenRouterAudioLLMOptions,
 } from './audio-llm.js';
-
 export * from './chat.js';
 export * from './audio.js';
 export * from './audio-llm.js';
@@ -189,6 +189,16 @@ export interface OpenRouterGatewayAudioLLMOptions extends OpenRouterGatewayClien
   requireDoneSentinel?: boolean;
 }
 
+/** Client-safe TTS gateway options. Model, voice, speed, and format policy stay on the server. */
+export interface OpenRouterGatewayTTSOptions extends OpenRouterGatewayClientOptions {
+  /**
+   * Whether the server-selected model supports incremental raw-PCM output.
+   * Defaults to `true`. Set this to `false` for MP3-only streaming models so
+   * core uses sentence-sized buffered synthesis instead of {@link TTSProvider.stream}.
+   */
+  pcmStreaming?: boolean;
+}
+
 const GATEWAY_PLACEHOLDER = 'ottervoice-server-managed-gateway';
 
 /**
@@ -234,16 +244,23 @@ export function createOpenRouterGatewayLLM(
  * @returns A TTS provider that sends only text; model, voice, speed, and format stay server-side.
  */
 export function createOpenRouterGatewayTTS(
-  options: OpenRouterGatewayClientOptions,
+  options: OpenRouterGatewayTTSOptions,
 ): ReturnType<typeof createOpenRouterTTS> {
-  return createOpenRouterTTS({
-    ...options,
+  const { pcmStreaming = true, ...clientOptions } = options;
+  const provider = createOpenRouterTTS({
+    ...clientOptions,
     apiKey: GATEWAY_PLACEHOLDER,
     model: GATEWAY_PLACEHOLDER,
     voice: GATEWAY_PLACEHOLDER,
     requestStage: 'gateway',
     serverManaged: true,
   });
+  if (pcmStreaming) return provider;
+  return {
+    ...provider,
+    capabilities: { ...provider.capabilities, streaming: false },
+    stream: undefined,
+  };
 }
 
 /**

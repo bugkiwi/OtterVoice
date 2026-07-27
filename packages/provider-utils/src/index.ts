@@ -2,6 +2,7 @@ export {
   resolveFetch,
   normalizeHttpError,
   readBody,
+  streamPcm16Response,
   type FetchLike,
   type HttpErrorOptions,
 } from './http.js';

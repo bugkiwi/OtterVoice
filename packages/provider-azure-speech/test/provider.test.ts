@@ -89,6 +89,35 @@ describe('createAzureTTS', () => {
   it('advertises capabilities', () => {
     const tts = createAzureTTS({ region: 'r', subscriptionKey: 'k', voice: 'v' });
     expect(tts.capabilities.formats).toContain('mp3');
-    expect(tts.capabilities.streaming).toBe(false);
+    expect(tts.capabilities.streaming).toBe(true);
+  });
+
+  it('streams raw 24 kHz PCM chunks and forwards cancellation', async () => {
+    let outputFormat = '';
+    let requestSignal: AbortSignal | null | undefined;
+    const tts = createAzureTTS({
+      region: 'r',
+      subscriptionKey: 'k',
+      voice: 'v',
+      fetch: async (_url, init) => {
+        outputFormat = (init?.headers as Record<string, string>)['x-microsoft-outputformat'];
+        requestSignal = init?.signal;
+        return audioResponse();
+      },
+    });
+    const controller = new AbortController();
+    const chunks = [];
+    for await (const chunk of tts.stream!({ text: 'hello', signal: controller.signal })) {
+      chunks.push(chunk);
+    }
+    expect(outputFormat).toBe('raw-24khz-16bit-mono-pcm');
+    expect(requestSignal).toBe(controller.signal);
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toMatchObject({
+      encoding: 'pcm_s16le',
+      sampleRate: 24_000,
+      channels: 1,
+    });
+    expect([...new Uint8Array(chunks[0]!.data)]).toEqual([1, 2, 3, 4]);
   });
 });

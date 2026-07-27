@@ -25,7 +25,7 @@ bun add @ottervoice/core
 | `StateMachine`, `canTransition`, `isTerminal` | Session state transitions. |
 | `TypedEmitter` | Strongly-typed, unsubscribe-returning event emitter. |
 | `TranscriptBuffer` | Ordered turns → LLM message projection. |
-| `TurnDetector` | Rule-based VAD / endpointing from volume samples. |
+| `TurnDetector` | Deterministic local VAD from volume samples. |
 | `UsageMeter` | Per-session usage snapshot (you bill; it measures). |
 | `ProviderRegistry`, `providerProfiles`, `resolveProfile` | Provider routing. |
 | `createVoiceError`, `normalizeError`, `VoiceError` | Unified error model. |
@@ -54,12 +54,16 @@ needed. Core passes that preference to the ASR session while preserving
 `ASRSession.setInterimResultsEnabled()`; volume-based sessions use it to defer
 paid partial work until VAD confirms speech.
 
+Use `turnDetection.strategy: 'volume'` for local RMS-based turn boundaries, or
+`'hybrid'` when ASR partial text should also confirm quiet speech before the
+same local silence timer closes the turn. Use `'manual'` for push-to-talk.
+
 ## Session events
 
-`statechange`, `asr_partial`, `asr_final`, `user_audio_end`, `assistant_text`,
-`assistant_audio_start`, `assistant_audio_end`, `turn`, `usage`, `finished`,
-`error`. Subscribe with `session.on(event, cb)`; the returned function
-unsubscribes.
+`statechange`, `asr_partial`, `asr_final`, `user_audio_end`,
+`user_audio_final`, `assistant_text`, `assistant_audio_start`,
+`assistant_audio_end`, `turn`, `usage`, `finished`, `error`. Subscribe with
+`session.on(event, cb)`; the returned function unsubscribes.
 
 ## Example
 

@@ -327,6 +327,32 @@ describe('createOpenRouterASR', () => {
     });
   });
 
+  it('uses a complete WAV turn instead of earlier live PCM fragments', async () => {
+    let body: any;
+    const wav = new Uint8Array([
+      0x52, 0x49, 0x46, 0x46, 0x04, 0x00, 0x00, 0x00,
+      0x57, 0x41, 0x56, 0x45, 0x01, 0x02, 0x03, 0x04,
+    ]);
+    const session = await createOpenRouterASR({
+      apiKey: 'secret',
+      model: 'qwen/asr',
+      format: 'wav',
+      fetch: async (_url, init) => {
+        body = JSON.parse(String(init?.body));
+        return Response.json({ text: 'complete turn' });
+      },
+    }).createSession({ encoding: 'pcm_s16le' });
+
+    session.sendAudio(new Uint8Array([0x01, 0x02]).buffer);
+    session.sendAudio(wav.buffer.slice(0));
+    await session.stop();
+
+    expect(body.input_audio).toEqual({
+      data: bytesToBase64(wav),
+      format: 'wav',
+    });
+  });
+
   it('drops buffered assistant audio while preserving the WebM header', async () => {
     let body: any;
     const session = await createOpenRouterASR({
@@ -465,5 +491,37 @@ describe('createOpenRouterTTS', () => {
     await expect(provider.synthesize({ text: 'x', format: 'wav' })).rejects.toMatchObject({
       code: 'network_error',
     });
+  });
+
+  it('streams raw PCM response chunks and marks gateway requests as streaming', async () => {
+    let body: any;
+    const controller = new AbortController();
+    const provider = createOpenRouterTTS({
+      apiKey: 'gateway',
+      model: 'locked',
+      voice: 'locked',
+      baseUrl: 'https://app.example/tts',
+      serverManaged: true,
+      fetch: async (_url, init) => {
+        body = JSON.parse(String(init?.body));
+        expect(init?.signal).toBe(controller.signal);
+        return new Response(new Uint8Array([5, 6, 7, 8]));
+      },
+    });
+    const chunks = [];
+    for await (const chunk of provider.stream!({
+      text: '你好',
+      signal: controller.signal,
+    })) {
+      chunks.push(chunk);
+    }
+    expect(body).toEqual({ input: '你好', stream: true });
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toMatchObject({
+      encoding: 'pcm_s16le',
+      sampleRate: 24_000,
+      channels: 1,
+    });
+    expect([...new Uint8Array(chunks[0]!.data)]).toEqual([5, 6, 7, 8]);
   });
 });

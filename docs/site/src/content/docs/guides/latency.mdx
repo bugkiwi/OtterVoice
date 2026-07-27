@@ -9,17 +9,19 @@ description: 可感知延迟的组成，以及可调参数与测量方式。
 
 典型一轮：
 
-1. 用户说话 → Session 用 volume / hybrid VAD 听轮次  
-2. 实时分片进 ASR，持续出 `asr_partial`  
-3. `silenceTimeoutMs` 判定结束 → `user_audio_end`  
-4. LLM stream / Audio LLM 回文本或 PCM  
-5. 首包入播放器 → `assistant_audio_start`
+1. 用户说话 → Session 跟踪本地麦克风音量
+2. 实时分片进 ASR，持续出 `asr_partial`
+3. 持续本地静音结束轮次 → `user_audio_end`
+4. LLM 首个完整句子/分句立即进入 TTS，后续 token 继续生成
+5. 首个 PCM 分片入播放器 → `assistant_audio_start`
 
 ## 实操建议
 
-1. 用支持 partial 的**流式 ASR**，说话时就出字幕。
-2. 噪声环境实测后把 `silenceTimeoutMs` 调到约 **350–600 ms**（默认偏保守，完整表见 [core](/docs/packages/core/)）。
-3. 实现 `LLMProvider.stream()`，或 Audio LLM 的 `onTranscriptDelta` / `onAudioChunk`，避免等整段再播。
+1. 用支持 partial 的**流式 ASR**提升字幕响应速度。稳定 ASR 片段只作为转写数据，
+   不决定轮次边界。
+2. 在目标设备上调 `silenceTimeoutMs`。Web 示例从 **500 ms** 开始；嘈杂环境或
+   说话较慢的用户可能需要更长时间。
+3. 同时实现 `LLMProvider.stream()` 与 `TTSProvider.stream()`。Core 会把首个完整句子/分句立即送入 TTS；没有流式 TTS 时仍会按句调用 `synthesize()`。
 4. 复用连接与播放器；限制回复长度与 `maxTokens`。
 5. 助手播放时启用更严的 `interruptionDetection`，避免回声误触发却又拖长真实插话。
 
@@ -27,14 +29,16 @@ description: 可感知延迟的组成，以及可调参数与测量方式。
 
 | 区间 | 事件 | 含义 |
 | --- | --- | --- |
-| 端点 → 首音 | `user_audio_end` → `assistant_audio_start` | **可感知首音频延迟**（首选 KPI） |
-| 端点 → 首字 | `user_audio_end` → 首次 `assistant_text_delta` | 文本 TTFT |
+| 轮次结束 → 首音 | `user_audio_end` → `assistant_audio_start` | **可感知首音频延迟**（首选 KPI） |
+| 轮次结束 → 首字 | `user_audio_end` → 首次 `assistant_text_delta` | 文本 TTFT |
 | 说话中字幕 | 首个 `asr_partial` | 输入侧体感 |
 
 在目标设备、扬声器音量与真实噪声下采样，不要只看实验室静音环境。
 
 ## 兼容路径
 
-**滚动 partial（batch ASR）** 会重复上传累计音频，适合 Demo。高并发生产优先原生 WebSocket 流式 ASR（Deepgram / ElevenLabs 等）。
+**滚动 partial（batch ASR）** 会重复上传累计音频，适合 Demo。高并发生产优先
+原生 WebSocket 流式 ASR（Deepgram / ElevenLabs 等）。ASR 适配器只提供临时与
+最终转写片段；轮次结束独立于供应商分段和网络推理。
 
 相关配置：[`TurnDetectionConfig`](/docs/packages/core/)、[`policy`](/docs/packages/core/)、[事件指南](/docs/guides/events/)。

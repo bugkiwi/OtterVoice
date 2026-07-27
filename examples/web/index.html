@@ -105,9 +105,10 @@
       .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 24px; padding: 5px; border: 1px solid var(--line); border-radius: 99px; }
       .mode-switch button { min-height: 36px; padding: 0 12px; border: 0; color: var(--muted); background: transparent; font-size: .76rem; }
       .mode-switch button.selected { color: var(--paper); background: var(--ink); }
-      .demo-settings { display: grid; grid-template-columns: 1fr 1fr; margin: -6px 0 24px; border-block: 1px solid var(--line); }
+      .demo-settings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: -6px 0 24px; border-block: 1px solid var(--line); }
       .demo-setting { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; min-height: 68px; padding: 11px 0; cursor: pointer; }
       .demo-setting + .demo-setting { margin-left: 18px; padding-left: 18px; border-left: 1px solid var(--line); }
+      .demo-setting.unavailable { opacity: .52; cursor: default; }
       .setting-copy { min-width: 0; }
       .setting-copy strong { display: block; margin-bottom: 3px; font-size: .73rem; letter-spacing: .02em; }
       .setting-copy small { display: block; color: var(--muted); font-size: .62rem; line-height: 1.35; }
@@ -143,8 +144,10 @@
       .speaker { color: oklch(48% .08 37); font-size: .7rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
       .assistant { font-family: Georgia, serif; font-size: 1.08rem; }
       .assistant .speaker { font-family: "Avenir Next", sans-serif; }
-      .turn-body { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-      .sse-audio-play { min-height: 28px; padding: 0 10px; border: 1px solid oklch(48% .08 37); color: oklch(48% .08 37); background: transparent; font-size: .68rem; }
+      .turn-body { min-width: 0; }
+      .turn-message { display: block; }
+      .turn-latency { margin-top: 7px; color: var(--muted); font-family: "Avenir Next", sans-serif; font-size: .66rem; font-variant-numeric: tabular-nums; letter-spacing: .015em; }
+      .sse-audio-play { min-height: 28px; margin-top: 8px; padding: 0 10px; border: 1px solid oklch(48% .08 37); color: oklch(48% .08 37); background: transparent; font-size: .68rem; }
       .sse-audio-meta { color: var(--muted); font-family: "Avenir Next", sans-serif; font-size: .68rem; }
       .native-layout { display: grid; grid-template-columns: minmax(280px, .82fr) minmax(0, 1.18fr); gap: clamp(38px, 8vw, 100px); align-items: center; }
       .phone {
@@ -277,7 +280,7 @@
         .security-note { align-items: flex-start; flex-direction: column; }
         footer { flex-direction: column; }
       }
-      @media (max-width: 440px) {
+      @media (max-width: 620px) {
         .demo-settings { grid-template-columns: 1fr; }
         .demo-setting + .demo-setting { margin-left: 0; padding-left: 0; border-top: 1px solid var(--line); border-left: 0; }
       }
@@ -316,7 +319,7 @@
               <button id="mode-audio" type="button" aria-pressed="true" data-i18n="modeAudio">新 · Audio LLM</button>
               <button id="mode-cascade" type="button" aria-pressed="false" data-i18n="modeCascade">旧 · ASR→LLM→TTS</button>
             </div>
-            <div class="demo-settings" data-i18n-aria="settingsAria" aria-label="会话显示设置">
+            <div class="demo-settings" data-i18n-aria="settingsAria" aria-label="会话设置">
               <label class="demo-setting">
                 <span class="setting-copy"><strong data-i18n="asrPartialLabel">实时 ASR 回显</strong><small data-i18n="asrPartialHint">说话 1 秒后开始，关闭则只做终句识别</small></span>
                 <input class="toggle-input" id="asr-partial-toggle" type="checkbox" role="switch" />
@@ -325,6 +328,11 @@
               <label class="demo-setting">
                 <span class="setting-copy"><strong data-i18n="transcriptLabel">输入 / 输出文本</strong><small data-i18n="transcriptHint">显示实时字幕与完整对话记录</small></span>
                 <input class="toggle-input" id="transcript-toggle" type="checkbox" role="switch" checked />
+                <span class="toggle-track" aria-hidden="true"></span>
+              </label>
+              <label class="demo-setting unavailable">
+                <span class="setting-copy"><strong data-i18n="webSearchLabel">联网搜索</strong><small data-i18n="webSearchHint">仅用于 ASR→LLM→TTS，由服务端按需搜索网页</small></span>
+                <input class="toggle-input" id="web-search-toggle" type="checkbox" role="switch" disabled />
                 <span class="toggle-track" aria-hidden="true"></span>
               </label>
             </div>

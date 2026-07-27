@@ -22,7 +22,7 @@ packages; none need API keys to start (cognition falls back to mocks).
   the in-memory runtime. The smallest possible "hello world".
 - **node-openrouter** — a real LLM (`@ottervoice/provider-openrouter`) on the
   in-memory runtime; set `OPENROUTER_API_KEY` to go live, otherwise it uses a mock.
-- **web** — full-duplex browser conversation with automatic volume endpointing,
+- **web** — full-duplex browser conversation with local volume turn detection,
   a live input meter, and barge-in via `@ottervoice/runtime-web`; bundled and
   served by Bun (no Vite). A policy gateway owns prompts, models, voices, and
   spend controls; the browser sends only user content and transport data.

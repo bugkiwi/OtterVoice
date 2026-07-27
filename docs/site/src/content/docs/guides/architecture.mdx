@@ -37,7 +37,18 @@ ASR、提前发起 Audio LLM 与自动重试会影响成本；若产品允许客
 
 ## 两条流水线
 
-- **`asr_llm_tts`（默认）**：ASR 出文本 → LLM 流式文本 → TTS 播放。
+- **`asr_llm_tts`（默认）**：本地确认整轮音频 → ASR → 流式 LLM → 句子/分句队列 → 流式 PCM TTS；不支持流式 TTS 的 Provider 会按句顺序合成。
 - **`audio_llm`**：ASR 负责字幕，整轮音频进入 Audio LLM；通过 `audioLlmStartTiming` 选择两者并行或等待 `asr_final`，文本与 PCM 流式返回。
 
 组合根创建 Session 一次，UI 只订阅事件。换 Runtime / Provider 不必改 UI。
+
+## 本地轮次检测
+
+`TurnDetector` 只使用麦克风音量和确定性的时间规则。`volume` 在本地检测开始
+说话与尾部静音；`hybrid` 还允许 ASR partial 确认较轻的语音，但仍由同一套本地
+静音计时结束轮次；`manual` 则把轮次边界交给按键说话 UI。
+
+Runtime 可以同时发送低延迟的 `AudioChunk.delivery: 'stream'` 分片，并在录音器
+完全 flush 后发送一份不可变的 `delivery: 'turn'` 整轮快照。Core 用后者做 batch
+ASR、Audio LLM 输入和 `user_audio_final`，避免流式 reset 或异步 Blob 读取造成
+显示文本对应的音频头部、中间或尾部丢失。

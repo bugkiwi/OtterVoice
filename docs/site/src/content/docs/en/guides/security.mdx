@@ -17,9 +17,10 @@ capabilities that can receive genuinely least-privilege credentials.
 | User text/audio, ordinary history, stream transport | System/developer prompt, model, voice, speed |
 | Optional product profile id | Temperature, max tokens, reasoning, tool permissions, budget |
 
-OpenRouter clients use `createOpenRouterGatewayASR/LLM/TTS/AudioLLM`; the
-server uses `createOpenRouterGateway()`. Four separate profile routes rebuild
-upstream bodies from allowlisted user content instead of editing and forwarding
+OpenRouter clients use
+`createOpenRouterGatewayASR/LLM/TTS/AudioLLM`; the server uses
+`createOpenRouterGateway()`. Four separate profile routes rebuild upstream
+bodies from allowlisted user content instead of editing and forwarding
 arbitrary client JSON.
 
 ## Token broker

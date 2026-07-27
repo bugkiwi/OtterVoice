@@ -53,7 +53,10 @@ describe('server-managed OpenRouter gateway clients', () => {
     const tts = createOpenRouterGatewayTTS({
       baseUrl: 'https://app.test/api/voice/tts',
       fetch,
+      pcmStreaming: false,
     });
+    expect(tts.capabilities.streaming).toBe(false);
+    expect(tts.stream).toBeUndefined();
     await tts.synthesize({
       text: 'speak this',
       voice: 'client-voice',

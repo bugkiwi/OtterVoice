@@ -16,9 +16,10 @@ description: 客户端不持长期密钥；经 Token Broker 取短期凭证。
 | 用户文本/音频、普通历史、流式/非流式传输 | system/developer prompt、model、voice、speed |
 | 可选的产品内 profile id | temperature、max tokens、reasoning、工具权限、预算 |
 
-OpenRouter 客户端使用 `createOpenRouterGatewayASR/LLM/TTS/AudioLLM`；服务端
-使用 `createOpenRouterGateway()`。四条 profile 路由相互隔离，服务端从
-allowlist 过的用户内容重建上游 Body，而不是修改后继续透传客户端 JSON。
+OpenRouter 客户端使用
+`createOpenRouterGatewayASR/LLM/TTS/AudioLLM`；服务端使用
+`createOpenRouterGateway()`。四条 profile 路由相互隔离，服务端从 allowlist
+过的用户内容重建上游 Body，而不是修改后继续透传客户端 JSON。
 
 ## Token Broker
 

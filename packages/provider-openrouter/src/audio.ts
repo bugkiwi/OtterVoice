@@ -12,6 +12,7 @@ import {
   normalizeHttpError,
   readBody,
   resolveFetch,
+  streamPcm16Response,
   type CredentialOptions,
 } from '@ottervoice/provider-utils';
 import { buildHeaders, DEFAULT_BASE_URL, type HeaderOptions } from './chat.js';
@@ -207,7 +208,6 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
       streaming: incremental,
       batch: true,
       partialResults: incremental,
-      endpointing: false,
       languages: ['auto'],
     },
     async createSession(sessionOptions) {
@@ -328,13 +328,13 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
       return {
         sendAudio(chunk) {
           if (closed || stopped || chunk.byteLength === 0) return;
-          // A Web runtime can rotate MediaRecorder after assistant playback.
-          // The fresh EBML header starts a replacement WebM container; keeping
-          // the older header would create two concatenated containers and make
-          // final ASR decoding unreliable on Android Chrome.
+          // A runtime can rotate its recorder after assistant playback or send
+          // one authoritative complete-turn container after live fragments.
+          // Either container header replaces prior bytes; concatenating raw
+          // PCM/WebM fragments with a complete WebM/WAV would corrupt final ASR.
           if (
             chunks.length > 0 &&
-            detectContainerFormat(new Uint8Array(chunk)) === 'webm'
+            detectContainerFormat(new Uint8Array(chunk)) !== undefined
           ) {
             chunks.length = 0;
             generation += 1;
@@ -455,39 +455,49 @@ export function createOpenRouterTTS(options: OpenRouterTTSOptions): TTSProvider 
   const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, '');
   const requestStage = options.requestStage ?? (options.baseUrl ? 'gateway' : 'provider');
 
+  const requestSpeech = async (
+    input: Parameters<TTSProvider['synthesize']>[0],
+    streaming: boolean,
+  ): Promise<Response> => {
+    const { token } = await resolveCredential();
+    const responseFormat = resolveSpeechFormat(input.format);
+    const res = await fetchImpl(`${baseUrl}/audio/speech`, {
+      method: 'POST',
+      headers: buildHeaders(token, options),
+      body: JSON.stringify(options.serverManaged
+        ? { input: input.text, ...(streaming ? { stream: true } : {}) }
+        : {
+            model: options.model,
+            input: input.text,
+            voice: input.voice ?? options.voice,
+            response_format: responseFormat,
+            speed: input.speed ?? options.speed ?? 1,
+          }),
+      signal: input.signal,
+    });
+    if (!res.ok) {
+      throw new VoiceError(
+        normalizeHttpError(res.status, await readBody(res), {
+          provider: PROVIDER,
+          failureCode: 'tts_failed',
+          stage: requestStage,
+        }),
+      );
+    }
+    return res;
+  };
+
   return {
     name: PROVIDER,
     capabilities: {
-      streaming: false,
+      streaming: true,
       voices: [{ id: options.voice, name: options.voice, language: 'multilingual' }],
       formats: ['mp3', 'pcm'],
       languages: ['multilingual'],
     },
     async synthesize(input) {
-      const { token } = await resolveCredential();
       const responseFormat = resolveSpeechFormat(input.format);
-      const res = await fetchImpl(`${baseUrl}/audio/speech`, {
-        method: 'POST',
-        headers: buildHeaders(token, options),
-        body: JSON.stringify(options.serverManaged
-          ? { input: input.text }
-          : {
-              model: options.model,
-              input: input.text,
-              voice: input.voice ?? options.voice,
-              response_format: responseFormat,
-              speed: input.speed ?? options.speed ?? 1,
-            }),
-      });
-      if (!res.ok) {
-        throw new VoiceError(
-          normalizeHttpError(res.status, await readBody(res), {
-            provider: PROVIDER,
-            failureCode: 'tts_failed',
-            stage: requestStage,
-          }),
-        );
-      }
+      const res = await requestSpeech(input, false);
       return {
         audioBuffer: await res.arrayBuffer(),
         mimeType:
@@ -495,6 +505,17 @@ export function createOpenRouterTTS(options: OpenRouterTTSOptions): TTSProvider 
           (responseFormat === 'mp3' ? 'audio/mpeg' : 'audio/pcm'),
         raw: { generationId: res.headers.get('x-generation-id') },
       };
+    },
+    async *stream(input) {
+      const res = await requestSpeech({ ...input, format: 'pcm' }, true);
+      for await (const data of streamPcm16Response(res)) {
+        yield {
+          data,
+          encoding: 'pcm_s16le',
+          sampleRate: 24_000,
+          channels: 1,
+        };
+      }
     },
   };
 }

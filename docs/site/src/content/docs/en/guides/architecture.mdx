@@ -39,7 +39,20 @@ limits independently at the gateway.
 
 ## Pipelines
 
-- **`asr_llm_tts` (default)**: ASR text → streaming LLM → TTS.
+- **`asr_llm_tts` (default)**: completed local turn → ASR → streaming LLM → sentence/clause queue → streaming PCM TTS. Providers without streaming TTS use ordered sentence-sized synthesis as a compatibility path.
 - **`audio_llm`**: ASR supplies captions while turn audio enters an Audio LLM; use `audioLlmStartTiming` to run both in parallel or wait for `asr_final`. Text and PCM stream back.
 
 Create the session once at the composition root. Swap runtime or providers without rewriting UI.
+
+## Local turn detection
+
+`TurnDetector` uses microphone volume and deterministic timing only. `volume`
+detects both speech start and trailing silence locally; `hybrid` additionally
+lets ASR partial text confirm quiet speech, while the same local silence timer
+closes the turn. `manual` leaves the boundary to push-to-talk UI.
+
+The runtime may send low-latency `AudioChunk.delivery: 'stream'` fragments and
+one immutable `delivery: 'turn'` snapshot after recorder flush. Core uses the
+snapshot for batch ASR, Audio LLM input, and `user_audio_final`, preventing
+stream resets or asynchronous blob reads from dropping the head, middle, or
+tail of a displayed turn.

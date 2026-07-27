@@ -124,6 +124,8 @@ export class WebAudioInput implements AudioInputAdapter {
   private hasDeliveredChunk = false;
   private suspendedContainerHeader: AudioChunk | undefined;
   private suspendedPreRoll: AudioChunk[] = [];
+  private turnGeneration = 0;
+  private turnChunks: AudioChunk[] = [];
 
   constructor(private readonly options: WebAudioInputOptions) {
     this.now = options.now ?? Date.now;
@@ -150,6 +152,8 @@ export class WebAudioInput implements AudioInputAdapter {
     this.hasDeliveredChunk = false;
     this.suspendedContainerHeader = undefined;
     this.suspendedPreRoll = [];
+    this.turnGeneration += 1;
+    this.turnChunks = [];
     this.pendingData = Promise.resolve();
     let stream: MediaStreamLike;
     try {
@@ -187,8 +191,13 @@ export class WebAudioInput implements AudioInputAdapter {
       // browsers. Serialize conversion in event order and remember whether the
       // chunk arrived while capture delivery was suspended.
       const capturedWhileSuspended = this.captureSuspended;
+      const capturedTurnGeneration = this.turnGeneration;
       this.pendingData = this.pendingData
-        .then(() => this.handleData(event.data, capturedWhileSuspended))
+        .then(() => this.handleData(
+          event.data,
+          capturedWhileSuspended,
+          capturedTurnGeneration,
+        ))
         .catch((err) => {
           this.emitError(
             createVoiceError('microphone_unavailable', 'failed to read recorded audio', {
@@ -246,6 +255,7 @@ export class WebAudioInput implements AudioInputAdapter {
   private async handleData(
     blob: BlobLike | undefined,
     capturedWhileSuspended: boolean,
+    capturedTurnGeneration: number,
   ): Promise<void> {
     if (!blob || blob.size === 0) return;
     const data = await blob.arrayBuffer();
@@ -266,7 +276,10 @@ export class WebAudioInput implements AudioInputAdapter {
       }
       return;
     }
-    this.emitChunk(chunk);
+    this.emitStreamChunk(
+      chunk,
+      capturedTurnGeneration === this.turnGeneration,
+    );
   }
 
   async stop(): Promise<void> {
@@ -285,12 +298,14 @@ export class WebAudioInput implements AudioInputAdapter {
     // source tracks. Closing tracks first can truncate the final WebM cluster
     // on mobile Chrome.
     await this.stopRecorder();
+    this.emitTurnSnapshot();
     if (stream) {
       for (const track of stream.getTracks()) track.stop();
     }
     this.captureSuspended = false;
     this.suspendedContainerHeader = undefined;
     this.suspendedPreRoll = [];
+    this.turnChunks = [];
   }
 
   async pause(): Promise<void> {
@@ -306,6 +321,8 @@ export class WebAudioInput implements AudioInputAdapter {
     // and a short encoded pre-roll stay alive so confirmed barge-in speech
     // includes its opening syllables.
     this.captureSuspended = true;
+    this.turnGeneration += 1;
+    this.turnChunks = [];
     this.suspendedContainerHeader = undefined;
     this.suspendedPreRoll = [];
   }
@@ -322,6 +339,8 @@ export class WebAudioInput implements AudioInputAdapter {
       this.suspendedContainerHeader = undefined;
       this.suspendedPreRoll = [];
       this.hasDeliveredChunk = false;
+      this.turnGeneration += 1;
+      this.turnChunks = [];
       this.captureSuspended = false;
       if (this.stream) this.startRecorder(this.stream);
       return;
@@ -332,10 +351,44 @@ export class WebAudioInput implements AudioInputAdapter {
       ...(this.suspendedContainerHeader ? [this.suspendedContainerHeader] : []),
       ...this.suspendedPreRoll,
     ];
+    this.turnGeneration += 1;
+    this.turnChunks = [];
     this.captureSuspended = false;
     this.suspendedContainerHeader = undefined;
     this.suspendedPreRoll = [];
-    for (const chunk of buffered) this.emitChunk(chunk);
+    for (const chunk of buffered) this.emitStreamChunk(chunk, true);
+  }
+
+  private emitStreamChunk(chunk: AudioChunk, includeInTurn: boolean): void {
+    const streamChunk: AudioChunk = { ...chunk, delivery: 'stream' };
+    if (includeInTurn) {
+      this.turnChunks.push({
+        ...streamChunk,
+        data: streamChunk.data.slice(0),
+      });
+    }
+    this.emitChunk(streamChunk);
+  }
+
+  private emitTurnSnapshot(): void {
+    if (this.turnChunks.length === 0) return;
+    const totalBytes = this.turnChunks.reduce(
+      (sum, chunk) => sum + chunk.data.byteLength,
+      0,
+    );
+    const joined = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of this.turnChunks) {
+      joined.set(new Uint8Array(chunk.data), offset);
+      offset += chunk.data.byteLength;
+    }
+    const last = this.turnChunks.at(-1)!;
+    this.emitChunk({
+      data: joined.buffer,
+      timestamp: last.timestamp,
+      ...(last.encoding ? { encoding: last.encoding } : {}),
+      delivery: 'turn',
+    });
   }
 
   private emitChunk(chunk: AudioChunk): void {

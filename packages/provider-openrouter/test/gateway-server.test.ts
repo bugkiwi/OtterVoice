@@ -137,6 +137,10 @@ describe('createOpenRouterGateway trust boundary', () => {
       speed: 4,
       response_format: 'pcm',
     }))).status).toBe(200);
+    expect((await handle(request('/tts/audio/speech', {
+      input: 'stream this',
+      stream: true,
+    }))).status).toBe(200);
 
     expect(bodies).toEqual([
       {
@@ -150,6 +154,13 @@ describe('createOpenRouterGateway trust boundary', () => {
         input: 'hello',
         voice: 'server-voice',
         response_format: 'mp3',
+        speed: 1.1,
+      },
+      {
+        model: 'server/tts',
+        input: 'stream this',
+        voice: 'server-voice',
+        response_format: 'pcm',
         speed: 1.1,
       },
     ]);
@@ -222,6 +233,19 @@ describe('createOpenRouterGateway trust boundary', () => {
     expect(second.headers.get('x-ottervoice-cache')).toBe('HIT');
     expect(second.headers.get('x-generation-id')).toBe('gen-1');
     expect(calls).toBe(1);
+
+    const streamedFirst = await cached(request('/tts/audio/speech', {
+      input: 'cached',
+      stream: true,
+    }));
+    const streamedSecond = await cached(request('/tts/audio/speech', {
+      input: 'cached',
+      stream: true,
+    }));
+    await streamedFirst.arrayBuffer();
+    await streamedSecond.arrayBuffer();
+    expect(streamedFirst.headers.get('x-ottervoice-cache')).toBeNull();
+    expect(calls).toBe(3);
 
     const failed = await gateway({
       fetch: async () => new Response('provider secret details', { status: 429 }),
