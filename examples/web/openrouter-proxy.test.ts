@@ -10,7 +10,13 @@ function request(path: string): Request {
     },
     body: JSON.stringify({
       model: 'client/model',
-      messages: [{ role: 'user', content: 'Who won the latest match?' }],
+      messages: [{
+        role: 'user',
+        content: [{
+          type: 'input_audio',
+          input_audio: { data: 'AQIDBA==', format: 'wav' },
+        }],
+      }],
       tools: [{ type: 'client_tool' }],
       max_tool_calls: 99,
       stream: true,
@@ -22,19 +28,26 @@ describe('web example OpenRouter policy gateway', () => {
   it('adds a bounded server-owned web search tool only on the online route', async () => {
     const upstreamBodies: Record<string, unknown>[] = [];
     const gateway = createDemoVoiceGateway('server-secret', {
-      fetch: async (_input, init) => {
-        upstreamBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      fetch: async (input, init) => {
+        const path = new URL(String(input)).pathname;
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        if (path.endsWith('/audio/transcriptions')) {
+          return Response.json({ text: 'Who won the latest match?' });
+        }
+        upstreamBodies.push(body);
         return new Response('data: [DONE]\n\n', {
           headers: { 'content-type': 'text/event-stream' },
         });
       },
     });
 
-    const offline = await gateway(request('/api/voice/llm/chat/completions'));
-    const online = await gateway(request('/api/voice/llm-online/llm/chat/completions'));
+    const offline = await gateway(request('/api/voice/asr-llm-tts/chat/completions'));
+    const online = await gateway(request('/api/voice/online/asr-llm-tts/chat/completions'));
 
     expect(offline.status).toBe(200);
     expect(online.status).toBe(200);
+    await offline.text();
+    await online.text();
     expect(upstreamBodies[0]).toEqual({
       model: demoVoiceGatewayPolicy.llm?.model,
       messages: [
@@ -42,9 +55,14 @@ describe('web example OpenRouter policy gateway', () => {
         { role: 'user', content: 'Who won the latest match?' },
       ],
       stream: true,
+      stream_options: { include_usage: true },
       temperature: demoVoiceGatewayPolicy.llm?.temperature,
       max_tokens: demoVoiceGatewayPolicy.llm?.maxTokens,
       reasoning: { enabled: false },
+      provider: {
+        sort: 'latency',
+        preferred_max_latency: { p90: 2 },
+      },
     });
     expect(upstreamBodies[1]).toEqual({
       ...upstreamBodies[0],
@@ -52,13 +70,13 @@ describe('web example OpenRouter policy gateway', () => {
         type: 'openrouter:web_search',
         parameters: {
           engine: 'auto',
-          max_results: 3,
-          max_uses: 1,
+          max_results: 10,
+          max_uses: 3,
           max_total_results: 3,
           search_context_size: 'low',
         },
       }],
-      max_tool_calls: 1,
+      max_tool_calls: 3,
     });
   });
 });

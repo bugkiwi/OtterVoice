@@ -20,6 +20,10 @@ const llmPolicy = {
   temperature: 0.45,
   maxTokens: 80,
   reasoningEnabled: false,
+  provider: {
+    sort: 'latency',
+    preferredMaxLatency: { p90: 2 },
+  },
 } satisfies NonNullable<OpenRouterGatewayPolicy['llm']>;
 
 const policy: OpenRouterGatewayPolicy = {
@@ -50,6 +54,10 @@ const authorize: OpenRouterGatewayOptions['authorize'] = ({ request, url }) => {
 type GatewayFetch = NonNullable<OpenRouterGatewayOptions['fetch']>;
 const upstreamFetch: GatewayFetch = (input, init) => globalThis.fetch(input, init);
 const webSearchFetch: GatewayFetch = async (input, init) => {
+  const upstreamUrl = input instanceof Request ? input.url : String(input);
+  if (!new URL(upstreamUrl).pathname.endsWith('/chat/completions')) {
+    return upstreamFetch(input, init);
+  }
   const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
   return upstreamFetch(input, {
     ...init,
@@ -84,9 +92,13 @@ const standardGateway = createOpenRouterGateway({
 
 const webSearchGateway = createOpenRouterGateway({
   apiKey: process.env.OPENROUTER_API_KEY,
-  policy: { llm: llmPolicy },
+  policy: {
+    asr: policy.asr,
+    llm: llmPolicy,
+    tts: policy.tts,
+  },
   authorize,
-  gatewayPrefix: '/api/voice/llm-online',
+  gatewayPrefix: '/api/voice/online',
   maxRequestBodyBytes: 6 * 1024 * 1024,
   maxMessages: 24,
   maxTextCharacters: 20_000,
@@ -96,7 +108,7 @@ const webSearchGateway = createOpenRouterGateway({
 });
 
 export const proxyOpenRouter = (request: Request): Promise<Response> => {
-  return new URL(request.url).pathname.startsWith('/api/voice/llm-online/')
+  return new URL(request.url).pathname.startsWith('/api/voice/online/')
     ? webSearchGateway(request)
     : standardGateway(request);
 };

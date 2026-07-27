@@ -476,7 +476,7 @@ export interface LLMProvider {
 }
 
 // ---------------------------------------------------------------------------
-// Native audio LLM provider
+// Audio-turn provider
 // ---------------------------------------------------------------------------
 
 /**
@@ -495,6 +495,16 @@ export interface AudioLLMAudioChunk {
   sampleRate: number;
   /** Channel count of `data`. */
   channels: number;
+}
+
+/** A complete encoded assistant-audio segment from an {@link AudioLLMProvider}. */
+export interface AudioLLMEncodedAudioSegment {
+  /** Encoded audio bytes ready for one-shot playback. */
+  data: ArrayBuffer;
+  /** MIME type of {@link AudioLLMEncodedAudioSegment.data}, such as `audio/mpeg`. */
+  mimeType: string;
+  /** Zero-based sequence number used to preserve playback order. */
+  sequence: number;
 }
 
 /** Input for {@link AudioLLMProvider.generate}. */
@@ -520,12 +530,20 @@ export interface AudioLLMGenerateInput {
   signal?: AbortSignal;
   /** Receives decoded output audio while the model response is still streaming. */
   onAudioChunk?: (chunk: AudioLLMAudioChunk) => void | Promise<void>;
+  /** Receives complete encoded audio segments while the response is still streaming. */
+  onAudioSegment?: (
+    segment: AudioLLMEncodedAudioSegment,
+  ) => void | Promise<void>;
+  /** Receives the authoritative transcript of the current input audio. */
+  onInputTranscript?: (text: string) => void | Promise<void>;
   /** Receives the model's spoken transcript while output audio is streaming. */
   onTranscriptDelta?: (text: string) => void | Promise<void>;
 }
 
 /** Completed reply from {@link AudioLLMProvider.generate}. */
 export interface AudioLLMGenerateOutput {
+  /** Authoritative transcript of the input audio when supplied by the provider. */
+  inputText?: string;
   /** Transcript of the generated assistant audio. */
   text: string;
   /** Full assistant audio buffer (may be empty if only streamed via callbacks). */
@@ -539,12 +557,15 @@ export interface AudioLLMGenerateOutput {
 }
 
 /**
- * A single model that consumes user audio and directly generates speech
- * (used when {@link VoiceSessionConfig.pipeline} is `audio_llm`).
+ * A provider that consumes one user-audio turn and returns assistant text and
+ * speech. It may wrap one native audio model or a server-composed voice stack.
+ * Use it when {@link VoiceSessionConfig.pipeline} is `audio_llm`.
  */
 export interface AudioLLMProvider {
   /** Stable provider id used in errors and usage. */
   name: string;
+  /** Whether this provider returns the authoritative input-audio transcript. */
+  transcribesInput?: boolean;
   /**
    * Run one audio-in / audio-out turn.
    *
@@ -1200,12 +1221,12 @@ export interface VoiceSessionConfig {
    */
   asrPartial?: boolean;
   /**
-   * Optional trusted-runtime system instruction forwarded to a native audio LLM.
+   * Optional trusted-runtime system instruction forwarded to an audio-turn provider.
    * Browser/app integrations should omit this and let their policy gateway inject it.
    */
   audioLlmSystemPrompt?: string;
   /**
-   * Cap native audio LLM output tokens (audio + transcript share this budget).
+   * Cap audio-turn output tokens (native audio and transcript may share this budget).
    * Omit to use the model's default maximum — required for long-form speech.
    * An untrusted-client gateway must still enforce a server-side hard ceiling.
    */
@@ -1265,16 +1286,18 @@ export type AudioLLMOnlyVoiceSessionConfig = Omit<
   VoiceSessionConfig,
   'pipeline' | 'providers'
 > & {
-  /** Select the native speech-to-speech pipeline. */
+  /** Select the unified audio-turn pipeline. */
   pipeline: 'audio_llm';
   /** Providers required by an Audio LLM-only session. */
   providers: Omit<
     VoiceSessionConfig['providers'],
-    'llm' | 'audioLlm'
+    'asr' | 'llm' | 'audioLlm'
   > & {
+    /** Optional caption ASR; omit it when {@link AudioLLMProvider.transcribesInput} is true. */
+    asr?: ASRProvider;
     /** Text-only LLMs are intentionally omitted from this minimal configuration. */
     llm?: never;
-    /** Native audio model used to understand and answer the captured turn. */
+    /** Audio-turn provider used to understand and answer the captured turn. */
     audioLlm: AudioLLMProvider;
   };
 };

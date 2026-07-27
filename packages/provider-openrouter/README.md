@@ -12,10 +12,11 @@ npm install @ottervoice/core @ottervoice/provider-openrouter
 ## Browser / app (recommended)
 
 ```ts
-import { createOpenRouterGatewayLLM } from '@ottervoice/provider-openrouter';
+import { createOpenRouterGatewayVoiceTurn } from '@ottervoice/provider-openrouter';
 
-const llm = createOpenRouterGatewayLLM({
-  baseUrl: '/api/voice/llm',
+const voice = createOpenRouterGatewayVoiceTurn({
+  baseUrl: '/api/voice/asr-llm-tts',
+  prepareAudio,
 });
 ```
 
@@ -30,10 +31,16 @@ import { createOpenRouterGateway } from '@ottervoice/provider-openrouter';
 const handleVoice = createOpenRouterGateway({
   apiKey: process.env.OPENROUTER_API_KEY,
   policy: {
+    asr: { model: 'qwen/qwen3-asr-flash-2026-02-10' },
     llm: {
       model: 'openai/gpt-4o-mini',
       systemPrompt: process.env.OTTERVOICE_SYSTEM_PROMPT ?? 'Be concise.',
       maxTokens: 256,
+    },
+    tts: {
+      model: 'minimax/speech-2.8-turbo',
+      voice: 'alloy',
+      responseFormat: 'mp3',
     },
   },
   authorize: async ({ request, profile }) =>
@@ -41,8 +48,11 @@ const handleVoice = createOpenRouterGateway({
 });
 ```
 
-Mount `handleVoice` at `/api/voice/*`. The four built-in profiles are `asr`,
-`llm`, `tts`, and `audio-llm`; an omitted profile is disabled.
+Mount `handleVoice` at `/api/voice/*`. The composite
+`asr-llm-tts/chat/completions` route accepts one audio turn, runs all three
+stages on the server, and returns text plus sentence-sized MP3 segments over
+one SSE response. Independent `asr`, `llm`, and `tts` profiles remain available
+for server/trusted integrations; an omitted policy is disabled.
 
 Direct factories such as `createOpenRouterLLM()` remain available for trusted
 Node/server/CLI runtimes. Do not return a broad OpenRouter bearer token to a

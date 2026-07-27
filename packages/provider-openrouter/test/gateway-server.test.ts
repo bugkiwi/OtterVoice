@@ -13,6 +13,10 @@ const policy: OpenRouterGatewayOptions['policy'] = {
     maxTokens: 64,
     reasoningEnabled: false,
     responseFormat: 'json',
+    provider: {
+      sort: 'latency',
+      preferredMaxLatency: { p90: 2 },
+    },
   },
   tts: {
     model: 'server/tts',
@@ -91,6 +95,10 @@ describe('createOpenRouterGateway trust boundary', () => {
       max_tokens: 999_999,
       reasoning: { enabled: true },
       response_format: { type: 'text' },
+      provider: {
+        order: ['attacker-provider'],
+        allow_fallbacks: false,
+      },
       stream: true,
     }));
 
@@ -106,6 +114,10 @@ describe('createOpenRouterGateway trust boundary', () => {
       max_tokens: 64,
       reasoning: { enabled: false },
       response_format: { type: 'json_object' },
+      provider: {
+        sort: 'latency',
+        preferred_max_latency: { p90: 2 },
+      },
     });
 
     const injected = await handle(request('/llm/chat/completions', {
@@ -214,6 +226,176 @@ describe('createOpenRouterGateway trust boundary', () => {
       temperature: 0.3,
       max_tokens: 512,
     });
+  });
+
+  it('orchestrates ASR, streamed LLM segmentation, and ordered MP3 TTS on one route', async () => {
+    const upstream: Array<{ path: string; body: Record<string, unknown> }> = [];
+    const handle = gateway({
+      fetch: async (input, init) => {
+        const path = new URL(String(input)).pathname;
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        upstream.push({ path, body });
+        if (path.endsWith('/audio/transcriptions')) {
+          return Response.json({ text: '你好' });
+        }
+        if (path.endsWith('/chat/completions')) {
+          return new Response([
+            'data: {"choices":[{"delta":{"content":"第一句。"}}]}',
+            '',
+            'data: {"choices":[{"delta":{"content":"第二句。"}}],"usage":{"prompt_tokens":3,"completion_tokens":4,"total_tokens":7}}',
+            '',
+            'data: [DONE]',
+            '',
+          ].join('\n'), { headers: { 'content-type': 'text/event-stream' } });
+        }
+        const text = String(body.input);
+        return new Response(
+          new Uint8Array(text.startsWith('第一') ? [1, 2] : [3, 4]),
+          { headers: { 'content-type': 'audio/mpeg' } },
+        );
+      },
+    });
+
+    const response = await handle(request('/asr-llm-tts/chat/completions', {
+      model: 'attacker/model',
+      messages: [
+        { role: 'assistant', content: '先前回复' },
+        {
+          role: 'user',
+          content: [{
+            type: 'input_audio',
+            input_audio: { data: 'AQIDBA==', format: 'wav' },
+          }],
+        },
+      ],
+      voice: 'attacker-voice',
+    }));
+
+    expect(response.status).toBe(200);
+    const events = (await response.text())
+      .split('\n')
+      .filter((line) => line.startsWith('data: ') && line !== 'data: [DONE]')
+      .map((line) => JSON.parse(line.slice(6)) as Record<string, unknown>);
+    expect(events.map((event) => event.type)).toEqual([
+      'input_text',
+      'output_text_delta',
+      'output_text_delta',
+      'usage',
+      'output_audio_segment',
+      'output_audio_segment',
+      'done',
+    ]);
+    expect(events.filter((event) => event.type === 'output_audio_segment')).toEqual([
+      {
+        type: 'output_audio_segment',
+        sequence: 0,
+        mimeType: 'audio/mpeg',
+        data: 'AQI=',
+      },
+      {
+        type: 'output_audio_segment',
+        sequence: 1,
+        mimeType: 'audio/mpeg',
+        data: 'AwQ=',
+      },
+    ]);
+    expect(upstream.map((call) => call.path)).toEqual([
+      '/api/v1/audio/transcriptions',
+      '/api/v1/chat/completions',
+      '/api/v1/audio/speech',
+      '/api/v1/audio/speech',
+    ]);
+    expect(upstream[0]?.body).toEqual({
+      model: 'server/asr',
+      input_audio: { data: 'AQIDBA==', format: 'wav' },
+      language: 'zh-CN',
+      temperature: 0,
+    });
+    expect(upstream[1]?.body).toEqual({
+      model: 'server/llm',
+      messages: [
+        { role: 'system', content: 'trusted text policy' },
+        { role: 'assistant', content: '先前回复' },
+        { role: 'user', content: '你好' },
+      ],
+      stream: true,
+      stream_options: { include_usage: true },
+      temperature: 0.2,
+      max_tokens: 64,
+      reasoning: { enabled: false },
+      provider: {
+        sort: 'latency',
+        preferred_max_latency: { p90: 2 },
+      },
+    });
+    expect(upstream.slice(2).map((call) => call.body)).toEqual([
+      {
+        model: 'server/tts',
+        input: '第一句。',
+        voice: 'server-voice',
+        response_format: 'mp3',
+        speed: 1.1,
+      },
+      {
+        model: 'server/tts',
+        input: '第二句。',
+        voice: 'server-voice',
+        response_format: 'mp3',
+        speed: 1.1,
+      },
+    ]);
+  });
+
+  it('starts later sentence synthesis before earlier MP3 playback delivery completes', async () => {
+    let resolveFirstSpeech!: (response: Response) => void;
+    let markSecondSpeechStarted!: () => void;
+    const secondSpeechStarted = new Promise<void>((resolve) => {
+      markSecondSpeechStarted = resolve;
+    });
+    let speechCalls = 0;
+    const handle = gateway({
+      fetch: async (input) => {
+        const path = new URL(String(input)).pathname;
+        if (path.endsWith('/audio/transcriptions')) {
+          return Response.json({ text: 'question' });
+        }
+        if (path.endsWith('/chat/completions')) {
+          return new Response([
+            'data: {"choices":[{"delta":{"content":"First sentence. Second sentence."}}]}',
+            '',
+            'data: [DONE]',
+            '',
+          ].join('\n'));
+        }
+        speechCalls += 1;
+        if (speechCalls === 1) {
+          return await new Promise<Response>((resolve) => {
+            resolveFirstSpeech = resolve;
+          });
+        }
+        markSecondSpeechStarted();
+        return new Response(new Uint8Array([2]), {
+          headers: { 'content-type': 'audio/mpeg' },
+        });
+      },
+    });
+    const response = await handle(request('/asr-llm-tts/chat/completions', {
+      messages: [{
+        role: 'user',
+        content: [{
+          type: 'input_audio',
+          input_audio: { data: 'AQ==', format: 'wav' },
+        }],
+      }],
+    }));
+    const completed = response.text();
+
+    await secondSpeechStarted;
+    expect(speechCalls).toBe(2);
+    resolveFirstSpeech(new Response(new Uint8Array([1]), {
+      headers: { 'content-type': 'audio/mpeg' },
+    }));
+    await completed;
   });
 
   it('sanitizes upstream failures and supports server-owned TTS caching', async () => {

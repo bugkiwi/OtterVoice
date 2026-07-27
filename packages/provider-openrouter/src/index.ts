@@ -35,6 +35,7 @@ import {
 export * from './chat.js';
 export * from './audio.js';
 export * from './audio-llm.js';
+export * from './voice-turn.js';
 export * from './gateway-server.js';
 
 /**

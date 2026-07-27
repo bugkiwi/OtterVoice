@@ -87,6 +87,7 @@ describe('createOpenRouterASR', () => {
 
   it('aborts an in-flight rolling partial before sending the final request', async () => {
     let request = 0;
+    const timeline: string[] = [];
     let partialStarted!: () => void;
     const started = new Promise<void>((resolve) => {
       partialStarted = resolve;
@@ -99,12 +100,20 @@ describe('createOpenRouterASR', () => {
       fetch: async (_url, init) => {
         request += 1;
         if (request === 1) {
+          timeline.push('partial:start');
           partialSignal = init?.signal;
           partialStarted();
           return new Promise<Response>((_resolve, reject) => {
-            partialSignal?.addEventListener('abort', () => reject(new Error('aborted')));
+            partialSignal?.addEventListener('abort', () => {
+              timeline.push('partial:abort');
+              queueMicrotask(() => {
+                timeline.push('partial:settled');
+                reject(new Error('aborted'));
+              });
+            });
           });
         }
+        timeline.push('final:start');
         return Response.json({ text: 'authoritative final' });
       },
     }).createSession({ encoding: 'pcm_s16le' });
@@ -121,6 +130,12 @@ describe('createOpenRouterASR', () => {
     await sending;
     await stopping;
     expect(finals).toEqual(['authoritative final']);
+    expect(timeline).toEqual([
+      'partial:start',
+      'partial:abort',
+      'partial:settled',
+      'final:start',
+    ]);
   });
 
   it('honors the session interim-results switch while keeping the final request', async () => {

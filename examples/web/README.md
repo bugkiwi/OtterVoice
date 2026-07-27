@@ -8,10 +8,12 @@ Full-duplex browser demo with real microphone capture/playback and two live
 pipelines that can be switched in the UI. The demo server currently selects
 OpenRouter adapters, while the session and UI remain provider-independent:
 
-- **Audio LLM (default):** Qwen ASR streams provisional captions and confirms
-  one final turn; only then does `openai/gpt-audio-mini` receive the recorded
-  audio and generate speech directly.
-- **Cascade (retained):** Qwen ASR → DeepSeek V4 Flash → Kokoro 82M.
+- **Audio LLM (default):** one completed audio turn goes to the server-managed
+  `openai/gpt-audio-mini` route and streams text plus audio back.
+- **Cascade:** the browser sends the same one audio-turn request shape. The
+  server performs Qwen ASR → DeepSeek → MiniMax TTS and streams the user
+  transcript, assistant text deltas, and sentence-sized MP3 segments over the
+  original response.
 
 ```bash
 echo 'OPENROUTER_API_KEY=...' > .env
@@ -29,18 +31,11 @@ Click **Start conversation** (allow the microphone), speak naturally,
 and pause when you are done — volume-based VAD ends each turn automatically.
 While the assistant is replying you can speak again to barge in.
 
-Input captions are incremental: `MediaRecorder` emits a WebM/Opus timeslice
-every 100 ms, but rolling ASR stays paused until VAD confirms real speech. The
-demo then requests at most one snapshot every 1 second, and backs off for
-3 seconds after an empty result. Short turns therefore go straight to the
-single final transcription, while idle microphone audio creates no rolling ASR
-requests. `asr_partial` updates the existing user turn by `turnId`; `asr_final`
-replaces the provisional text at the turn boundary. A native streaming ASR
-adapter can replace the rolling snapshot provider without changing the UI event
-handlers.
-Partial results never start an LLM request. If speech resumes before final ASR
-confirms the turn, the pending capture is cancelled without spending an Audio
-LLM request.
+`MediaRecorder` emits WebM/Opus timeslices every 100 ms for local VAD and
+barge-in capture. Once silence closes the turn, the browser converts that one
+immutable recording to WAV and sends exactly one request. In cascade mode the
+authoritative input caption arrives from the same response after server-side
+ASR; there is no rolling browser ASR request to cancel or restart.
 
 After normal assistant playback, the Web runtime rotates `MediaRecorder` so
 the next turn starts with a fresh WebM container instead of joining clusters
@@ -48,14 +43,12 @@ across a filtered playback gap. Audio decode failures are reported without a
 client-side second provider path; production fallback and idempotency belong at
 the authenticated gateway.
 
-The Web controls expose three independent switches. **Live ASR captions** maps to
-the core `asrPartial` session option and can remove rolling ASR requests while
-keeping final recognition. **Input / output text** only controls whether the
-transcript UI is visible. **Web search** is available only for the classic
-ASR → LLM → TTS pipeline; it selects a separate server route that adds one
+The Web controls expose two switches. **Input / output text** only controls
+whether the transcript UI is visible. **Web search** is available only for the
+server-composed ASR → LLM → TTS pipeline; it selects a separate route that adds one
 bounded OpenRouter web-search tool while keeping the model, prompt, and search
-budget out of the browser. Live ASR captions and web search default to off,
-while the transcript defaults to on. All three preferences are remembered in
+budget out of the browser. Web search defaults to off, while the transcript
+defaults to on. Both preferences are remembered in
 `localStorage`; provider-affecting switches are locked while a session is active.
 
 Barge-in is playback-aware: `runtime-web` derives a synchronized RMS envelope
@@ -63,15 +56,11 @@ from the assistant audio, and core searches 0–300 ms of acoustic delay before
 subtracting the learned speaker-to-microphone echo baseline. A 4-of-12 voiced
 frame gate then rejects isolated knocks without requiring uninterrupted speech.
 That first signal is only a candidate: playback is paused rather than destroyed.
-If ASR hears distinct user speech or strong foreground energy continues after
-the loudspeaker tail has decayed, core commits the interruption; if it
+If strong foreground energy continues after the loudspeaker tail has decayed,
+core commits the interruption; if it
 disappears, playback resumes from the same position. The demo also has a
 200 ms fast path for strong foreground speech, so short commands can stop
-playback before their audio ends. Streaming ASR partials are ignored during
-assistant speech unless there is already a candidate and the text is meaningful
-and not a substring of the assistant reply; one-character CJK commands such as
-“停” and short English words such as “no”, “stop”, and “wait” are considered
-meaningful.
+playback before their audio ends.
 
 Run the deterministic real-waveform loopback matrix (requires `ffmpeg`):
 
@@ -93,8 +82,8 @@ or microphone access.
   transitions.
 - `@ottervoice/runtime-web`: continuous microphone capture, Web Audio RMS volume
   samples for VAD, gapless PCM chunk scheduling, and playback cancellation.
-- `@ottervoice/provider-openrouter`: optional demo adapters for chat, rolling
-  speech-to-text, text-to-speech, and Audio LLM output.
+- `@ottervoice/provider-openrouter`: one client audio-turn adapter plus the
+  server-side native and composed OpenRouter implementations.
 - `examples/web/src`: client-side VAD/interruption UX, input meter, transcript,
   and controls. It contains no model, prompt, voice, or generation policy.
 - `examples/web/openrouter-proxy.ts`: server-side authorization boundary,
@@ -102,8 +91,9 @@ or microphone access.
   upstream request construction.
 
 The browser never receives `OPENROUTER_API_KEY` or privileged policy.
-`serve.ts` reads server configuration from `.env`; the client calls six
-profile-specific routes below `/api/voice`. The gateway rejects privileged
+`serve.ts` reads server configuration from `.env`; the client calls either the
+native Audio LLM route or the composed voice-turn route below `/api/voice`.
+The gateway rejects privileged
 client message roles, ignores unknown/top-level policy fields, and reconstructs
 the provider body from locked server policy. It also validates same-origin
 browser requests and caps request, history, and text sizes. Production
@@ -112,19 +102,23 @@ ownership checks and durable cost/rate limits.
 
 ## Low-cost model defaults
 
-- LLM: `deepseek/deepseek-v4-flash:nitro` with reasoning disabled
+- LLM: `deepseek/deepseek-v4-pro` with reasoning disabled; OpenRouter provider
+  endpoints are sorted by latency and prefer a rolling p90 TTFT of at most 2 s
 - ASR: `qwen/qwen3-asr-flash-2026-02-10`
-- TTS: `minimax/speech-2.8-turbo`, voice `zf_xiaoxiao`
+- TTS: `minimax/speech-2.8-turbo`, voice `alloy`
 - Native audio LLM: `openai/gpt-audio-mini`, voice `alloy`
 
-Browser MediaRecorder produces WebM/Opus, while GPT Audio accepts WAV/MP3.
+Browser MediaRecorder produces WebM/Opus, while both server routes accept WAV/MP3.
 `@ottervoice/runtime-web` decodes the completed WebM turn and encodes a mono
 PCM16 WAV before the audio-LLM request. The deployed showcase downsamples that
 WAV to 16 kHz and caps a turn at 90 seconds so Base64 audio plus its JSON
 envelope stays below Vercel's Function request-body limit. Each output
-`delta.audio` PCM16 chunk is decoded and scheduled immediately on a Web Audio
-timeline; the complete stream is still wrapped as WAV for fallback playback
-and the SSE debug button.
+`delta.audio` PCM16 chunk from the native model is decoded and scheduled on a
+Web Audio timeline. The composed route instead returns sentence-sized MP3
+segments: synthesis begins as soon as each LLM clause is ready, independent of
+client playback, and the browser queues already-downloaded segments in order.
+This avoids raw PCM's much larger transfer size while preserving low first-audio
+latency.
 
 ## Price evaluation (2026-07-13)
 
@@ -171,13 +165,15 @@ microphone and VAD remain real-time, then the completed WebM turn is sent when
 silence is detected. The microphone remains open during TTS so barge-in still
 works.
 
-For low perceived latency, the LLM uses OpenRouter's `:nitro` throughput routing
-with reasoning disabled and a 64-token spoken-answer ceiling. Local volume
-detection closes the user turn after 500 ms of silence. In the classic
-pipeline, the first complete LLM
+For low perceived latency, the LLM asks OpenRouter to sort provider endpoints by
+time to first token and prefer endpoints whose rolling p90 latency is at most
+2 seconds. Reasoning is disabled and spoken answers are capped at 512 tokens.
+Local volume detection closes the user turn after 500 ms of silence. In the
+composed pipeline, the first complete LLM
 clause starts a MiniMax MP3 synthesis request while later text is still being
-generated. Batch ASR still drops buffered assistant playback after every
-uninterrupted reply. Repeated speech may use the gateway memory cache.
+generated. Later clauses can synthesize before earlier audio finishes playing;
+the SSE delivery and playback queues preserve sentence order. Repeated speech
+may use the gateway memory cache.
 
 ## Showcase deployment
 
@@ -187,7 +183,7 @@ for the live demo.
 
 - `docs/site/vercel.json`: clean-clone workspace install/build, site output,
   Singapore region (required for GPT Audio availability), and Function limits
-- `docs/site/api/voice/**`: six profile-specific deployed API Functions
+- `docs/site/api/voice/**`: native, composed, and composed-with-search API Functions
 - `docs/site/build.ts`: showcase bundle plus a best-effort prebuilt opening voice
 
 Use `docs/site` as the Vercel project's Root Directory.

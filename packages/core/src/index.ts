@@ -46,6 +46,7 @@ export {
   createOtterVoiceSession,
 } from './session.js';
 export { createIdGenerator, defaultNow } from './internal/ids.js';
+export { SpeechTextSegmenter } from './internal/speech-text-segmenter.js';
 
 // Built-in mock providers & runtime (testing + developer profile).
 export {

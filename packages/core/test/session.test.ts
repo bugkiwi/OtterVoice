@@ -228,6 +228,85 @@ describe('VoiceSession lifecycle', () => {
     expect(session).toBeInstanceOf(VoiceSession);
   });
 
+  it('uses a provider-owned input transcript and plays encoded audio segments in order without client ASR', async () => {
+    const runtime = createMockRuntime();
+    const audioLlm: AudioLLMProvider = {
+      name: 'server-cascaded-voice',
+      transcribesInput: true,
+      async generate(input) {
+        await input.onInputTranscript?.('server transcript');
+        await input.onTranscriptDelta?.('first.');
+        await input.onAudioSegment?.({
+          data: new Uint8Array([1, 2]).buffer,
+          mimeType: 'audio/mpeg',
+          sequence: 0,
+        });
+        await input.onTranscriptDelta?.(' second.');
+        await input.onAudioSegment?.({
+          data: new Uint8Array([3, 4]).buffer,
+          mimeType: 'audio/mpeg',
+          sequence: 1,
+        });
+        return {
+          inputText: 'server transcript',
+          text: 'first. second.',
+          audioBuffer: new Uint8Array([1, 2, 3, 4]).buffer,
+          mimeType: 'audio/mpeg',
+        };
+      },
+    };
+    const session = createOtterVoiceSession({
+      mode: 'half_duplex',
+      pipeline: 'audio_llm',
+      audioLlmStartTiming: 'after_audio',
+      runtime,
+      generateId: seqId(),
+      providers: { audioLlm },
+    });
+    const events: Array<[string, unknown]> = [];
+    for (const name of [
+      'asr_final',
+      'assistant_text_delta',
+      'assistant_text',
+      'assistant_audio_start',
+      'assistant_audio_end',
+    ] as const) {
+      session.on(name, (event) => events.push([name, event]));
+    }
+
+    await session.start();
+    runtime.audioInput.emitChunk({
+      data: new Uint8Array([9]).buffer,
+      timestamp: 1,
+      durationMs: 100,
+      encoding: 'audio/webm;codecs=opus',
+      delivery: 'turn',
+    });
+    const audioEnded = new Promise<void>((resolve) => {
+      session.once('assistant_audio_end', () => resolve());
+    });
+    await session.endUserTurn();
+    await audioEnded;
+
+    expect(runtime.audioOutput.played.map((item) => ({
+      bytes: [...new Uint8Array(item.audioBuffer ?? new ArrayBuffer(0))],
+      mimeType: item.mimeType,
+    }))).toEqual([
+      { bytes: [1, 2], mimeType: 'audio/mpeg' },
+      { bytes: [3, 4], mimeType: 'audio/mpeg' },
+    ]);
+    expect(session.getTurns().map((turn) => ({
+      role: turn.role,
+      text: turn.text,
+    }))).toEqual([
+      { role: 'user', text: 'server transcript' },
+      { role: 'assistant', text: 'first. second.' },
+    ]);
+    expect(events.filter(([name]) => name === 'asr_final')).toHaveLength(1);
+    expect(events.filter(([name]) => name === 'assistant_audio_start')).toHaveLength(1);
+    expect(events.filter(([name]) => name === 'assistant_audio_end')).toHaveLength(1);
+  });
+
   it('start() rejects unless idle', async () => {
     const { session } = makeSession({ policy: { autoStartListening: false } });
     await session.start('hi');
@@ -333,6 +412,66 @@ describe('VoiceSession turn loop', () => {
     await reply;
     expect(synthesized).toEqual(['第一句。', '第二句。']);
     expect(session.getTurns().at(-1)?.text).toBe('第一句。第二句。');
+  });
+
+  it('pre-synthesizes the next buffered sentence while the first is playing', async () => {
+    const runtime = createMockRuntime({ output: { autoComplete: false } });
+    const llm: LLMProvider = {
+      name: 'two-sentence-llm',
+      async generate() {
+        return { text: 'unused' };
+      },
+      async *stream() {
+        yield { type: 'text_delta', text: '第一句。第二句。' } as const;
+        yield { type: 'done' } as const;
+      },
+    };
+    const synthesized: string[] = [];
+    const tts: TTSProvider = {
+      name: 'buffered-tts',
+      capabilities: {
+        streaming: false,
+        voices: [],
+        formats: ['mp3'],
+        languages: ['zh-CN'],
+      },
+      async synthesize(input) {
+        synthesized.push(input.text);
+        return {
+          audioBuffer: new TextEncoder().encode(input.text).buffer,
+          mimeType: 'audio/mpeg',
+        };
+      },
+    };
+    const { session } = makeSession({
+      runtime,
+      providers: { llm, tts } as any,
+    });
+    await session.start();
+
+    const reply = session.submitUserText('请连续回答');
+    for (
+      let index = 0;
+      index < 20 && runtime.audioOutput.played.length === 0;
+      index += 1
+    ) {
+      await Promise.resolve();
+    }
+
+    expect(runtime.audioOutput.played).toHaveLength(1);
+    expect(synthesized).toEqual(['第一句。', '第二句。']);
+
+    runtime.audioOutput.fireEnd();
+    for (
+      let index = 0;
+      index < 20 && runtime.audioOutput.played.length < 2;
+      index += 1
+    ) {
+      await Promise.resolve();
+    }
+    expect(runtime.audioOutput.played).toHaveLength(2);
+    runtime.audioOutput.fireEnd();
+    await reply;
   });
 
   it('writes streamed TTS PCM chunks without calling buffered synthesis', async () => {

@@ -5,12 +5,13 @@
  * reads OPENROUTER_API_KEY from `.env`; the credential is never bundled or
  * returned to the browser.
  */
-import { createVoiceSession } from '@ottervoice/core';
 import {
-  createOpenRouterGatewayASR,
+  createOtterVoiceSession,
+  type AudioLLMProvider,
+} from '@ottervoice/core';
+import {
   createOpenRouterGatewayAudioLLM,
-  createOpenRouterGatewayLLM,
-  createOpenRouterGatewayTTS,
+  createOpenRouterGatewayVoiceTurn,
 } from '@ottervoice/provider-openrouter';
 import { createWebRuntime, prepareBrowserAudio } from '@ottervoice/runtime-web';
 import { shouldMergeAdjacentUserTurn } from './turn-log';
@@ -27,7 +28,6 @@ const audioBtn = $<HTMLButtonElement>('mode-audio');
 const latencyEl = $('latency');
 const langZhBtn = $<HTMLButtonElement>('lang-zh');
 const langEnBtn = $<HTMLButtonElement>('lang-en');
-const asrPartialToggle = $<HTMLInputElement>('asr-partial-toggle');
 const transcriptToggle = $<HTMLInputElement>('transcript-toggle');
 const webSearchToggle = $<HTMLInputElement>('web-search-toggle');
 
@@ -40,10 +40,9 @@ const translations = {
     demoEyebrow: 'Example 01 · Web full duplex', demoTitle: '现在，直接开口。',
     demoCopy: '麦克风会持续监听。停顿即提交，AI 说话时也可直接插话打断；屏幕同步保留完整文字记录。',
     controlsAria: '对话控制', modeAria: '语音处理模式', settingsAria: '会话设置', transcriptAria: '对话记录',
-    modeAudio: '新 · Audio LLM', modeCascade: '旧 · ASR→LLM→TTS', liveChannel: '实时通路',
-    asrPartialLabel: '实时 ASR 回显', asrPartialHint: '说话 1 秒后开始，关闭则只做终句识别',
+    modeAudio: '原生 · Audio LLM', modeCascade: '级联 · ASR→LLM→TTS', liveChannel: '实时通路',
     transcriptLabel: '输入 / 输出文本', transcriptHint: '显示实时字幕与完整对话记录',
-    webSearchLabel: '联网搜索', webSearchHint: '仅用于 ASR→LLM→TTS，由服务端按需搜索网页',
+    webSearchLabel: '联网搜索', webSearchHint: '级联通路由服务端按需搜索网页',
     start: '开始语音对话', finish: '结束会话',
     phoneTitle: '现在，直接开口。', phoneCopy: '持续监听；停顿提交；说话即可打断。', phoneState: '正在持续收听',
     nativeEyebrow: 'Example 02 · React Native / Expo', nativeTitle: '同一条 Audio LLM 通路，装进手机。',
@@ -76,10 +75,9 @@ const translations = {
     demoEyebrow: 'Example 01 · Web full duplex', demoTitle: 'Now, just speak.',
     demoCopy: 'The microphone keeps listening. A pause submits your turn; speak over the assistant to interrupt while the full transcript stays on screen.',
     controlsAria: 'Conversation controls', modeAria: 'Voice processing mode', settingsAria: 'Session settings', transcriptAria: 'Transcript',
-    modeAudio: 'New · Audio LLM', modeCascade: 'Classic · ASR→LLM→TTS', liveChannel: 'Live channel',
-    asrPartialLabel: 'Live ASR captions', asrPartialHint: 'Starts after 1s of speech; off keeps final ASR only',
+    modeAudio: 'Native · Audio LLM', modeCascade: 'Cascaded · ASR→LLM→TTS', liveChannel: 'Live channel',
     transcriptLabel: 'Input / output text', transcriptHint: 'Show live captions and the full transcript',
-    webSearchLabel: 'Web search', webSearchHint: 'Classic pipeline only; the server searches the web when needed',
+    webSearchLabel: 'Web search', webSearchHint: 'The server searches the web for cascaded turns when needed',
     start: 'Start voice session', finish: 'End session',
     phoneTitle: 'Now, just speak.', phoneCopy: 'Always listening. Pause to submit. Speak to interrupt.', phoneState: 'Listening continuously',
     nativeEyebrow: 'Example 02 · React Native / Expo', nativeTitle: 'The same Audio LLM path, now in your pocket.',
@@ -94,7 +92,7 @@ const translations = {
     docsEyebrow: 'Project guide · Architecture', docsTitle: 'The infrastructure owns real time. Your product defines the conversation.',
     flow1Title: 'Runtime', flow1Copy: 'Web Audio or Expo PCM handles capture, levels and playback.',
     flow2Title: 'Core', flow2Copy: 'The state machine coordinates turns, concurrency, interruption, cancellation and recovery.',
-    flow3Title: 'Providers', flow3Copy: 'Use an Audio LLM, or swap in a classic ASR → LLM → TTS cascade.',
+    flow3Title: 'Providers', flow3Copy: 'Use an Audio LLM, or a server-composed ASR → LLM → TTS cascade.',
     flow4Title: 'Experience', flow4Copy: 'Captions, first-audio latency, continuous playback and natural barge-in.',
     packageCore: 'Cross-platform VoiceSession, events and full-duplex policy.',
     packageWeb: 'MediaRecorder, Web Audio VAD and streaming PCM playback.',
@@ -118,7 +116,6 @@ const storedToggle = (key: string, fallback: boolean): boolean => {
   const value = localStorage.getItem(key);
   return value === null ? fallback : value === 'true';
 };
-let asrPartialEnabled = storedToggle('ottervoice-asr-partial', false);
 let transcriptVisible = storedToggle('ottervoice-transcript-visible', true);
 let webSearchEnabled = storedToggle('ottervoice-web-search', false);
 
@@ -337,55 +334,65 @@ function renderTranscriptVisibility() {
   logEl.hidden = !transcriptVisible;
 }
 
-const conversationLlm = createOpenRouterGatewayLLM({
-  baseUrl: `${VOICE_GATEWAY}/llm`,
-});
+const prepareTurnAudio = (
+  audio: ArrayBuffer,
+  format: Parameters<typeof prepareBrowserAudio>[1],
+) => prepareBrowserAudio(audio, format, {
+    sampleRate: 16_000,
+    maxDurationMs: 90_000,
+  });
 
-const webSearchConversationLlm = createOpenRouterGatewayLLM({
-  baseUrl: `${VOICE_GATEWAY}/llm-online/llm`,
-});
-
-const tts = createOpenRouterGatewayTTS({
-  baseUrl: `${VOICE_GATEWAY}/tts`,
-  // MiniMax Speech 2.8 Turbo accepts MP3, but rejects raw-PCM streaming.
-  pcmStreaming: false,
-});
-
-const audioLlmBase = createOpenRouterGatewayAudioLLM({
+const nativeAudioLlmBase = createOpenRouterGatewayAudioLLM({
   baseUrl: `${VOICE_GATEWAY}/audio-llm`,
   requireDoneSentinel: true,
   // Base64 expands PCM by one third. A 16 kHz / 90 s mono WAV remains below
   // Vercel's 4.5 MB function payload limit with room for the JSON envelope.
-  prepareAudio: (audio, format) => prepareBrowserAudio(audio, format, {
-    sampleRate: 16_000,
-    maxDurationMs: 90_000,
-  }),
+  prepareAudio: prepareTurnAudio,
 });
 
-const audioLlm = {
-  ...audioLlmBase,
-  async generate(
-    ...args: Parameters<typeof audioLlmBase.generate>
-  ): ReturnType<typeof audioLlmBase.generate> {
-    const output = await audioLlmBase.generate(...args);
-    const raw = output.raw as
-      | {
-          audioChunkCount?: number;
-          audioByteLength?: number;
-        }
-      | undefined;
-    lastSseAudio = {
-      audioBuffer: output.audioBuffer.slice(0),
-      mimeType: output.mimeType,
-      chunkCount: raw?.audioChunkCount ?? 0,
-      byteLength: raw?.audioByteLength ?? output.audioBuffer.byteLength,
-    };
-    return output;
-  },
-};
+const cascadedVoiceBase = createOpenRouterGatewayVoiceTurn({
+  baseUrl: `${VOICE_GATEWAY}/asr-llm-tts`,
+  requireDoneSentinel: true,
+  prepareAudio: prepareTurnAudio,
+});
+
+const onlineCascadedVoiceBase = createOpenRouterGatewayVoiceTurn({
+  baseUrl: `${VOICE_GATEWAY}/online/asr-llm-tts`,
+  requireDoneSentinel: true,
+  prepareAudio: prepareTurnAudio,
+});
+
+function captureProviderAudio(provider: AudioLLMProvider): AudioLLMProvider {
+  return {
+    ...provider,
+    async generate(
+      ...args: Parameters<AudioLLMProvider['generate']>
+    ): ReturnType<AudioLLMProvider['generate']> {
+      const output = await provider.generate(...args);
+      const raw = output.raw as
+        | {
+            audioChunkCount?: number;
+            audioByteLength?: number;
+            audioSegmentCount?: number;
+          }
+        | undefined;
+      lastSseAudio = {
+        audioBuffer: output.audioBuffer.slice(0),
+        mimeType: output.mimeType,
+        chunkCount: raw?.audioChunkCount ?? raw?.audioSegmentCount ?? 0,
+        byteLength: raw?.audioByteLength ?? output.audioBuffer.byteLength,
+      };
+      return output;
+    },
+  };
+}
+
+const nativeAudioLlm = captureProviderAudio(nativeAudioLlmBase);
+const cascadedVoice = captureProviderAudio(cascadedVoiceBase);
+const onlineCascadedVoice = captureProviderAudio(onlineCascadedVoiceBase);
 
 const runtime = createWebRuntime({
-  // Feed WebM timeslices to ASR while the user is still speaking.
+  // Preserve short WebM timeslices for responsive VAD and barge-in capture.
   timesliceMs: 100,
   volumePollMs: 50,
   bargeInPreRollMs: 500,
@@ -426,29 +433,26 @@ function renderLatency(currentPipeline: Pipeline, latest: number) {
     ? `${Math.round(latencySamples.audio_llm.reduce((a, b) => a + b, 0) / latencySamples.audio_llm.length)} ms`
     : runtimeText[language].pending;
   latencyEl.textContent = language === 'zh'
-    ? `本轮 ${Math.round(latest)} ms · 当前模式均值 ${average} ms · 旧 ${oldAverage} / 新 ${audioAverage}`
-    : `Latest ${Math.round(latest)} ms · current average ${average} ms · classic ${oldAverage} / Audio LLM ${audioAverage}`;
+    ? `本轮 ${Math.round(latest)} ms · 当前模式均值 ${average} ms · 级联 ${oldAverage} / 原生 ${audioAverage}`
+    : `Latest ${Math.round(latest)} ms · current average ${average} ms · cascaded ${oldAverage} / native ${audioAverage}`;
 }
 
 function buildSession(pipeline: Pipeline) {
   const pendingUserAudioEnd = { value: undefined as number | undefined };
-  const voiceSession = createVoiceSession({
+  const voiceSession = createOtterVoiceSession({
     mode: 'full_duplex',
-    pipeline,
-    asrPartial: asrPartialEnabled,
+    // Both UI choices now share the same audio-turn client architecture. The
+    // selected provider decides whether the server uses one native Audio LLM
+    // or composes ASR → LLM → MP3 TTS behind the unified SSE route.
+    pipeline: 'audio_llm',
+    audioLlmStartTiming: 'after_audio',
     runtime,
     providers: {
-      asr: createOpenRouterGatewayASR({
-        baseUrl: `${VOICE_GATEWAY}/asr`,
-        format: 'webm',
-        partialIntervalMs: 1_000,
-        emptyPartialBackoffMs: 3_000,
-      }),
-      llm: pipeline === 'asr_llm_tts' && webSearchEnabled
-        ? webSearchConversationLlm
-        : conversationLlm,
-      tts,
-      audioLlm,
+      audioLlm: pipeline === 'audio_llm'
+        ? nativeAudioLlm
+        : webSearchEnabled
+          ? onlineCascadedVoice
+          : cascadedVoice,
     },
     turnDetection: {
       strategy: 'volume',
@@ -462,7 +466,7 @@ function buildSession(pipeline: Pipeline) {
       // residual threshold makes real speech responsive without hearing itself.
       // Four 50 ms foreground frames make short commands such as “停” eligible
       // for the strong-speech fast path; weaker candidates still use the
-      // echo-tail and ASR confirmation path.
+      // echo-tail and sustained-energy confirmation path.
       minSpeechMs: 160,
       silenceTimeoutMs: 350,
       volumeThreshold: 0.018,
@@ -483,11 +487,6 @@ function buildSession(pipeline: Pipeline) {
       // A newer utterance supersedes an answer that only streamed partially.
       // Finalized assistant rows remain in the transcript.
       removeLiveAssistantTurn();
-    }
-  });
-  voiceSession.on('asr_partial', (event) => {
-    if (event.text.trim().length > 0) {
-      addTurn('user', event.text, { turnId: event.turnId, live: true });
     }
   });
   voiceSession.on('asr_final', (event) => {
@@ -517,7 +516,7 @@ function buildSession(pipeline: Pipeline) {
     if (event.text.trim().length > 0) {
       recordTurnLatency(event.turnId, 'firstTextMs', pendingUserAudioEnd);
     }
-    const sseAudio = pipeline === 'audio_llm' ? lastSseAudio : undefined;
+    const sseAudio = lastSseAudio;
     addTurn('assistant', event.text, {
       turnId: event.turnId,
       ...(sseAudio ? { sseAudio } : {}),
@@ -538,7 +537,6 @@ function buildSession(pipeline: Pipeline) {
     finishBtn.disabled = true;
     cascadeBtn.disabled = false;
     audioBtn.disabled = false;
-    asrPartialToggle.disabled = false;
     session = undefined;
     renderPipeline();
   });
@@ -549,7 +547,6 @@ function buildSession(pipeline: Pipeline) {
     finishBtn.disabled = true;
     cascadeBtn.disabled = false;
     audioBtn.disabled = false;
-    asrPartialToggle.disabled = false;
     session = undefined;
     renderPipeline();
     meterEl.style.setProperty('--level', '0');
@@ -583,7 +580,6 @@ startBtn.addEventListener('click', async () => {
   await session?.dispose();
   cascadeBtn.disabled = true;
   audioBtn.disabled = true;
-  asrPartialToggle.disabled = true;
   webSearchToggle.disabled = true;
   const pipeline = selectedPipeline;
   session = buildSession(pipeline);
@@ -601,12 +597,6 @@ for (const [button, pipeline] of [
     renderPipeline();
   });
 }
-
-asrPartialToggle.addEventListener('change', () => {
-  asrPartialEnabled = asrPartialToggle.checked;
-  localStorage.setItem('ottervoice-asr-partial', String(asrPartialEnabled));
-  renderPipeline();
-});
 
 transcriptToggle.addEventListener('change', () => {
   transcriptVisible = transcriptToggle.checked;
@@ -663,7 +653,6 @@ function applyLanguage(next: AppLanguage) {
 langZhBtn.addEventListener('click', () => applyLanguage('zh'));
 langEnBtn.addEventListener('click', () => applyLanguage('en'));
 
-asrPartialToggle.checked = asrPartialEnabled;
 transcriptToggle.checked = transcriptVisible;
 webSearchToggle.checked = webSearchEnabled;
 renderTranscriptVisibility();

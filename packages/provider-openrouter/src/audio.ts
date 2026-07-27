@@ -219,6 +219,7 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
       let stopped = false;
       let generation = 0;
       let partialInFlight = false;
+      let partialTask: Promise<void> | undefined;
       let partialAbort: AbortController | undefined;
       let finalAbort: AbortController | undefined;
       let interimResultsEnabled = sessionOptions.interimResults !== false;
@@ -344,9 +345,20 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
           if (
             incremental &&
             interimResultsEnabled &&
+            !partialInFlight &&
             now() >= nextPartialAt
           ) {
-            return requestPartial();
+            const task = requestPartial();
+            partialTask = task;
+            void task.then(
+              () => {
+                if (partialTask === task) partialTask = undefined;
+              },
+              () => {
+                if (partialTask === task) partialTask = undefined;
+              },
+            );
+            return task;
           }
         },
         setInterimResultsEnabled(enabled) {
@@ -381,8 +393,13 @@ export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider 
           if (closed || stopped) return;
           stopped = true;
           generation += 1;
+          const pendingPartial = partialTask;
           partialAbort?.abort();
           partialAbort = undefined;
+          // Let the canceled rolling fetch reach its handled catch/finally
+          // before starting the authoritative request. Otherwise Chromium can
+          // report the expected cancellation as an unhandled AbortError.
+          await pendingPartial?.catch(() => {});
           if (chunks.length === 0) {
             for (const cb of [...finalCbs]) cb({ text: '' });
             return;

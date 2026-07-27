@@ -10,6 +10,10 @@ const DEFAULT_SYSTEM_PROMPT =
 type GatewayFetch = NonNullable<OpenRouterGatewayOptions['fetch']>;
 
 const withWebSearch = (fetchImpl: GatewayFetch): GatewayFetch => async (input, init) => {
+  const upstreamUrl = input instanceof Request ? input.url : String(input);
+  if (!new URL(upstreamUrl).pathname.endsWith('/chat/completions')) {
+    return fetchImpl(input, init);
+  }
   const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
   return fetchImpl(input, {
     ...init,
@@ -33,11 +37,15 @@ const withWebSearch = (fetchImpl: GatewayFetch): GatewayFetch => async (input, i
 export const demoVoiceGatewayPolicy: OpenRouterGatewayPolicy = {
   asr: { model: 'qwen/qwen3-asr-flash-2026-02-10' },
   llm: {
-    model: 'deepseek/deepseek-v4-flash',
+    model: 'deepseek/deepseek-v4-pro',
     systemPrompt: process.env.OTTERVOICE_SYSTEM_PROMPT ?? DEFAULT_SYSTEM_PROMPT,
     temperature: 0.45,
-    maxTokens: 64,
+    maxTokens: 512,
     reasoningEnabled: false,
+    provider: {
+      sort: 'latency',
+      preferredMaxLatency: { p90: 2 },
+    },
   },
   tts: {
     model: 'minimax/speech-2.8-turbo',
@@ -78,8 +86,12 @@ export function createDemoVoiceGateway(
   });
   const webSearchGateway = createOpenRouterGateway({
     apiKey,
-    policy: { llm: demoVoiceGatewayPolicy.llm },
-    gatewayPrefix: '/api/voice/llm-online',
+    policy: {
+      asr: demoVoiceGatewayPolicy.asr,
+      llm: demoVoiceGatewayPolicy.llm,
+      tts: demoVoiceGatewayPolicy.tts,
+    },
+    gatewayPrefix: '/api/voice/online',
     maxRequestBodyBytes: 6 * 1024 * 1024,
     maxMessages: 24,
     maxTextCharacters: 20_000,
@@ -88,7 +100,7 @@ export function createDemoVoiceGateway(
     fetch: withWebSearch(fetchImpl),
   });
 
-  return (request) => new URL(request.url).pathname.startsWith('/api/voice/llm-online/')
+  return (request) => new URL(request.url).pathname.startsWith('/api/voice/online/')
     ? webSearchGateway(request)
     : standardGateway(request);
 }

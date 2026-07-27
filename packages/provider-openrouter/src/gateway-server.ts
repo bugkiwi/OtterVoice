@@ -1,4 +1,11 @@
-import { resolveFetch, type FetchLike } from '@ottervoice/provider-utils';
+import { SpeechTextSegmenter } from '@ottervoice/core';
+import {
+  parseSSEStream,
+  resolveFetch,
+  type FetchLike,
+} from '@ottervoice/provider-utils';
+import { bytesToBase64 } from './audio.js';
+import { extractDelta, mapUsage } from './chat.js';
 
 const DEFAULT_UPSTREAM_BASE_URL = 'https://openrouter.ai/api/v1';
 const DEFAULT_GATEWAY_PREFIX = '/api/voice';
@@ -8,7 +15,8 @@ export type OpenRouterGatewayProfile =
   | 'asr'
   | 'llm'
   | 'tts'
-  | 'audio_llm';
+  | 'audio_llm'
+  | 'asr_llm_tts';
 
 /** Locked server policy for speech recognition requests. */
 export interface OpenRouterGatewayASRPolicy {
@@ -32,6 +40,31 @@ export interface OpenRouterGatewayLLMPolicy {
   reasoningEnabled?: boolean;
   /** Server-selected response shape. Defaults to text. */
   responseFormat?: 'text' | 'json';
+  /**
+   * Server-selected OpenRouter endpoint routing preferences. See
+   * {@link OpenRouterGatewayProviderRoutingPolicy}.
+   */
+  provider?: OpenRouterGatewayProviderRoutingPolicy;
+}
+
+/** Locked OpenRouter endpoint-routing preferences for text LLM requests. */
+export interface OpenRouterGatewayProviderRoutingPolicy {
+  /** Attribute used to order eligible provider endpoints. */
+  sort?: 'price' | 'throughput' | 'latency';
+  /**
+   * Preferred maximum time-to-first-token latency in seconds. Endpoints above
+   * these rolling percentile thresholds are deprioritized, not excluded.
+   */
+  preferredMaxLatency?: {
+    /** Preferred maximum median latency in seconds. */
+    p50?: number;
+    /** Preferred maximum p75 latency in seconds. */
+    p75?: number;
+    /** Preferred maximum p90 latency in seconds. */
+    p90?: number;
+    /** Preferred maximum p99 latency in seconds. */
+    p99?: number;
+  };
 }
 
 /** Locked server policy for speech synthesis requests. */
@@ -65,11 +98,11 @@ export interface OpenRouterGatewayAudioLLMPolicy {
  * The gateway never accepts these values from a browser or app request body.
  */
 export interface OpenRouterGatewayPolicy {
-  /** Policy for `/asr/audio/transcriptions`. */
+  /** Policy for standalone ASR and the ASR stage of the composite voice route. */
   asr?: OpenRouterGatewayASRPolicy;
-  /** Policy for `/llm/chat/completions`. */
+  /** Policy for standalone LLM and the LLM stage of the composite voice route. */
   llm?: OpenRouterGatewayLLMPolicy;
-  /** Policy for `/tts/audio/speech`. */
+  /** Policy for standalone TTS and the MP3 TTS stage of the composite voice route. */
   tts?: OpenRouterGatewayTTSPolicy;
   /** Policy for `/audio-llm/chat/completions`. */
   audioLlm?: OpenRouterGatewayAudioLLMPolicy;
@@ -137,7 +170,7 @@ interface CachedSpeech {
 
 interface GatewayRoute {
   profile: OpenRouterGatewayProfile;
-  upstreamPath: '/audio/transcriptions' | '/chat/completions' | '/audio/speech';
+  upstreamPath?: '/audio/transcriptions' | '/chat/completions' | '/audio/speech';
 }
 
 interface TextMessage {
@@ -178,6 +211,8 @@ function routeFor(pathname: string, prefix: string): GatewayRoute | undefined {
       return { profile: 'tts', upstreamPath: '/audio/speech' };
     case '/audio-llm/chat/completions':
       return { profile: 'audio_llm', upstreamPath: '/chat/completions' };
+    case '/asr-llm-tts/chat/completions':
+      return { profile: 'asr_llm_tts' };
     default:
       return undefined;
   }
@@ -187,46 +222,31 @@ function policyEnabled(
   policy: OpenRouterGatewayPolicy,
   profile: OpenRouterGatewayProfile,
 ): boolean {
+  if (profile === 'asr_llm_tts') {
+    return policy.asr !== undefined &&
+      policy.llm !== undefined &&
+      policy.tts !== undefined;
+  }
   if (profile === 'audio_llm') return policy.audioLlm !== undefined;
   return policy[profile] !== undefined;
 }
 
-function readTextMessages(
-  body: Record<string, unknown>,
-  maxMessages: number,
-  maxTextCharacters: number,
-): TextMessage[] {
-  if (!Array.isArray(body.messages) || body.messages.length > maxMessages) {
-    throw new ClientRequestError('invalid conversation history');
-  }
-  let textCharacters = 0;
-  return body.messages.map((value) => {
-    if (!isRecord(value) || (value.role !== 'user' && value.role !== 'assistant')) {
-      throw new ClientRequestError('client message role is not allowed');
-    }
-    if (typeof value.content !== 'string') {
-      throw new ClientRequestError('client message content must be text');
-    }
-    textCharacters += value.content.length;
-    if (textCharacters > maxTextCharacters) {
-      throw new ClientRequestError('conversation text is too large');
-    }
-    return { role: value.role, content: value.content };
-  });
+interface AudioTurnInput {
+  history: TextMessage[];
+  inputAudio: { data: string; format: 'wav' | 'mp3' };
 }
 
-function readAudioMessages(
+function readAudioTurn(
   body: Record<string, unknown>,
   maxMessages: number,
   maxTextCharacters: number,
-): Array<Record<string, unknown>> {
+): AudioTurnInput {
   if (!Array.isArray(body.messages) || body.messages.length === 0 || body.messages.length > maxMessages) {
     throw new ClientRequestError('invalid audio conversation history');
   }
   let textCharacters = 0;
-  let inputAudio: { data: string; format: 'wav' | 'mp3' } | undefined;
-  const history: Array<Record<string, unknown>> = [];
-
+  let inputAudio: AudioTurnInput['inputAudio'] | undefined;
+  const history: TextMessage[] = [];
   for (const [index, value] of body.messages.entries()) {
     if (!isRecord(value) || (value.role !== 'user' && value.role !== 'assistant')) {
       throw new ClientRequestError('client message role is not allowed');
@@ -264,14 +284,55 @@ function readAudioMessages(
     }
   }
   if (!inputAudio) throw new ClientRequestError('input audio is required');
-  history.push({
+  return { history, inputAudio };
+}
+
+function readTextMessages(
+  body: Record<string, unknown>,
+  maxMessages: number,
+  maxTextCharacters: number,
+): TextMessage[] {
+  if (!Array.isArray(body.messages) || body.messages.length > maxMessages) {
+    throw new ClientRequestError('invalid conversation history');
+  }
+  let textCharacters = 0;
+  return body.messages.map((value) => {
+    if (!isRecord(value) || (value.role !== 'user' && value.role !== 'assistant')) {
+      throw new ClientRequestError('client message role is not allowed');
+    }
+    if (typeof value.content !== 'string') {
+      throw new ClientRequestError('client message content must be text');
+    }
+    textCharacters += value.content.length;
+    if (textCharacters > maxTextCharacters) {
+      throw new ClientRequestError('conversation text is too large');
+    }
+    return { role: value.role, content: value.content };
+  });
+}
+
+function readAudioMessages(
+  body: Record<string, unknown>,
+  maxMessages: number,
+  maxTextCharacters: number,
+): Array<Record<string, unknown>> {
+  const { history, inputAudio } = readAudioTurn(
+    body,
+    maxMessages,
+    maxTextCharacters,
+  );
+  const messages: Array<Record<string, unknown>> = history.map((message) => ({
+    role: message.role,
+    content: message.content,
+  }));
+  messages.push({
     role: 'user',
     content: [
       { type: 'text', text: 'Respond naturally to the user audio.' },
       { type: 'input_audio', input_audio: inputAudio },
     ],
   });
-  return history;
+  return messages;
 }
 
 function buildLockedBody(
@@ -331,7 +392,24 @@ function buildLockedBody(
       ...(selected.responseFormat === 'json'
         ? { response_format: { type: 'json_object' } }
         : {}),
+      ...(selected.provider
+        ? {
+            provider: {
+              ...(selected.provider.sort ? { sort: selected.provider.sort } : {}),
+              ...(selected.provider.preferredMaxLatency
+                ? {
+                    preferred_max_latency:
+                      selected.provider.preferredMaxLatency,
+                  }
+                : {}),
+            },
+          }
+        : {}),
     };
+  }
+
+  if (profile === 'asr_llm_tts') {
+    throw new ClientRequestError('composite voice turns use the streaming handler');
   }
 
   const selected = policy.audioLlm!;
@@ -355,7 +433,7 @@ function buildLockedBody(
  * fields are never forwarded.
  *
  * @param options - Server credentials, locked policy, authorization hook, and limits.
- * @returns A Fetch-compatible request handler for the four profile routes.
+ * @returns A Fetch-compatible request handler for standalone and composite profile routes.
  */
 export function createOpenRouterGateway(
   options: OpenRouterGatewayOptions,
@@ -369,6 +447,260 @@ export function createOpenRouterGateway(
   const upstreamTimeoutMs = Math.max(1, options.upstreamTimeoutMs ?? 60_000);
   const ttsCacheEntries = Math.max(0, options.ttsCacheEntries ?? 0);
   const speechCache = new Map<string, CachedSpeech>();
+
+  const upstreamHeaders = {
+    authorization: `Bearer ${options.apiKey ?? ''}`,
+    'content-type': 'application/json',
+    ...(options.referer ? { 'http-referer': options.referer } : {}),
+    ...(options.title ? { 'x-title': options.title } : {}),
+  };
+
+  function handleCompositeVoiceTurn(
+    request: Request,
+    clientBody: Record<string, unknown>,
+  ): Response {
+    const turn = readAudioTurn(clientBody, maxMessages, maxTextCharacters);
+    const encoder = new TextEncoder();
+    const localAbort = new AbortController();
+    const timeoutSignal = AbortSignal.timeout(upstreamTimeoutMs);
+    const signal = AbortSignal.any([
+      request.signal,
+      localAbort.signal,
+      timeoutSignal,
+    ]);
+    let closed = false;
+
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const send = (event: unknown) => {
+          if (closed || signal.aborted) return;
+          try {
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
+            );
+          } catch {
+            closed = true;
+            localAbort.abort();
+          }
+        };
+        const finish = () => {
+          if (closed) return;
+          closed = true;
+          try {
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            controller.close();
+          } catch {
+            localAbort.abort();
+          }
+        };
+
+        void (async () => {
+          let stage: 'asr' | 'llm' | 'tts' = 'asr';
+          try {
+            const asrPolicy = options.policy.asr!;
+            const asrResponse = await fetchImpl(
+              `${upstreamBaseUrl}/audio/transcriptions`,
+              {
+                method: 'POST',
+                headers: upstreamHeaders,
+                body: JSON.stringify({
+                  model: asrPolicy.model,
+                  input_audio: turn.inputAudio,
+                  ...(asrPolicy.language
+                    ? { language: asrPolicy.language }
+                    : {}),
+                  temperature: 0,
+                }),
+                signal,
+              },
+            );
+            if (!asrResponse.ok) {
+              throw new Error(`ASR request failed with status ${asrResponse.status}`);
+            }
+            const asrPayload = await asrResponse.json() as Record<string, unknown>;
+            const inputText = typeof asrPayload.text === 'string'
+              ? asrPayload.text.trim()
+              : '';
+            send({ type: 'input_text', text: inputText });
+            if (inputText.length === 0) {
+              send({ type: 'done' });
+              finish();
+              return;
+            }
+
+            stage = 'llm';
+            const llmPolicy = options.policy.llm!;
+            const llmResponse = await fetchImpl(
+              `${upstreamBaseUrl}/chat/completions`,
+              {
+                method: 'POST',
+                headers: upstreamHeaders,
+                body: JSON.stringify({
+                  model: llmPolicy.model,
+                  messages: [
+                    { role: 'system', content: llmPolicy.systemPrompt },
+                    ...turn.history,
+                    { role: 'user', content: inputText },
+                  ],
+                  stream: true,
+                  stream_options: { include_usage: true },
+                  ...(llmPolicy.temperature !== undefined
+                    ? { temperature: llmPolicy.temperature }
+                    : {}),
+                  max_tokens: llmPolicy.maxTokens,
+                  ...(llmPolicy.reasoningEnabled !== undefined
+                    ? { reasoning: { enabled: llmPolicy.reasoningEnabled } }
+                    : {}),
+                  ...(llmPolicy.provider
+                    ? {
+                        provider: {
+                          ...(llmPolicy.provider.sort
+                            ? { sort: llmPolicy.provider.sort }
+                            : {}),
+                          ...(llmPolicy.provider.preferredMaxLatency
+                            ? {
+                                preferred_max_latency:
+                                  llmPolicy.provider.preferredMaxLatency,
+                              }
+                            : {}),
+                        },
+                      }
+                    : {}),
+                }),
+                signal,
+              },
+            );
+            if (!llmResponse.ok || llmResponse.body === null) {
+              throw new Error(`LLM request failed with status ${llmResponse.status}`);
+            }
+
+            const segmenter = new SpeechTextSegmenter();
+            let sequence = 0;
+            let delivery = Promise.resolve();
+            const queueSpeech = (text: string) => {
+              const ttsPolicy = options.policy.tts!;
+              const speechBody = JSON.stringify({
+                model: ttsPolicy.model,
+                input: text,
+                voice: ttsPolicy.voice,
+                response_format: 'mp3',
+                speed: ttsPolicy.speed ?? 1,
+              });
+              const synthesis = (async () => {
+                const cached = ttsCacheEntries > 0
+                  ? speechCache.get(speechBody)
+                  : undefined;
+                if (cached) return cached;
+                const response = await fetchImpl(
+                  `${upstreamBaseUrl}/audio/speech`,
+                  {
+                    method: 'POST',
+                    headers: upstreamHeaders,
+                    body: speechBody,
+                    signal,
+                  },
+                );
+                if (!response.ok) {
+                  throw new Error(`TTS request failed with status ${response.status}`);
+                }
+                const result: CachedSpeech = {
+                  bytes: await response.arrayBuffer(),
+                  contentType: response.headers.get('content-type') ?? 'audio/mpeg',
+                  ...(response.headers.get('x-generation-id')
+                    ? { generationId: response.headers.get('x-generation-id')! }
+                    : {}),
+                };
+                if (ttsCacheEntries > 0) {
+                  if (speechCache.size >= ttsCacheEntries) {
+                    const oldestKey = speechCache.keys().next().value;
+                    if (oldestKey !== undefined) speechCache.delete(oldestKey);
+                  }
+                  speechCache.set(speechBody, result);
+                }
+                return result;
+              })().then(
+                (value) => ({ ok: true as const, value }),
+                (error: unknown) => ({ ok: false as const, error }),
+              );
+              const currentSequence = sequence++;
+              delivery = delivery.then(async () => {
+                const result = await synthesis;
+                if (!result.ok) throw result.error;
+                send({
+                  type: 'output_audio_segment',
+                  sequence: currentSequence,
+                  mimeType: 'audio/mpeg',
+                  data: bytesToBase64(new Uint8Array(result.value.bytes)),
+                });
+              });
+              void delivery.catch(() => {});
+            };
+
+            for await (const data of parseSSEStream(llmResponse.body)) {
+              if (data === '[DONE]') break;
+              let payload: Record<string, unknown>;
+              try {
+                payload = JSON.parse(data) as Record<string, unknown>;
+              } catch {
+                continue;
+              }
+              const delta = extractDelta(payload);
+              if (delta.length > 0) {
+                send({ type: 'output_text_delta', delta });
+                for (const segment of segmenter.push(delta)) queueSpeech(segment);
+              }
+              const usage = mapUsage((payload as { usage?: never }).usage);
+              if (usage) send({ type: 'usage', usage });
+            }
+            for (const segment of segmenter.flush()) queueSpeech(segment);
+            stage = 'tts';
+            await delivery;
+            send({ type: 'done' });
+            finish();
+          } catch {
+            if (closed || request.signal.aborted || localAbort.signal.aborted) {
+              if (!closed) {
+                closed = true;
+                try {
+                  controller.close();
+                } catch {
+                  // Client cancellation already closed the stream.
+                }
+              }
+              return;
+            }
+            send({
+              type: 'error',
+              error: {
+                code: stage === 'asr'
+                  ? 'asr_connection_failed'
+                  : stage === 'tts'
+                    ? 'tts_failed'
+                    : 'llm_failed',
+                message: `${stage.toUpperCase()} stage failed`,
+                stage: 'gateway',
+                retryable: true,
+              },
+            });
+            finish();
+          }
+        })();
+      },
+      cancel() {
+        closed = true;
+        localAbort.abort();
+      },
+    });
+
+    return new Response(body, {
+      headers: {
+        'cache-control': 'no-store',
+        'content-type': 'text/event-stream; charset=utf-8',
+        connection: 'keep-alive',
+        'x-accel-buffering': 'no',
+      },
+    });
+  }
 
   return async function handleOpenRouterGateway(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -409,6 +741,18 @@ export function createOpenRouterGateway(
       return json({ error: 'invalid JSON request' }, 400);
     }
 
+    if (route.profile === 'asr_llm_tts') {
+      try {
+        return handleCompositeVoiceTurn(request, clientBody);
+      } catch (error) {
+        return json({
+          error: error instanceof ClientRequestError
+            ? error.message
+            : 'invalid request',
+        }, 400);
+      }
+    }
+
     let lockedBody: Record<string, unknown>;
     try {
       lockedBody = buildLockedBody(
@@ -445,7 +789,7 @@ export function createOpenRouterGateway(
     try {
       const startedAt = performance.now();
       const upstreamSignal = AbortSignal.any([request.signal, timeoutSignal]);
-      const upstream = await fetchImpl(`${upstreamBaseUrl}${route.upstreamPath}`, {
+      const upstream = await fetchImpl(`${upstreamBaseUrl}${route.upstreamPath!}`, {
         method: 'POST',
         headers: {
           authorization: `Bearer ${options.apiKey}`,
