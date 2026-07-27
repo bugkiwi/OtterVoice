@@ -5,6 +5,7 @@ import {
 } from '@ottervoice/provider-openrouter';
 
 const DEFAULT_SYSTEM_PROMPT =
+  `当前日期是 ${new Date().toISOString().slice(0, 10)}。对时效性信息，在可用时必须使用联网搜索核实。` +
   '你是一个反应快、语气自然的语音对话助手。默认用中文回复；如果用户明显使用其他语言，则跟随用户。' +
   '第一句立即给出结论；每次只回复 1–5 个简短句子，不使用 Markdown，不列表，适合直接语音播放。';
 type GatewayFetch = NonNullable<OpenRouterGatewayOptions['fetch']>;
@@ -37,7 +38,7 @@ const withWebSearch = (fetchImpl: GatewayFetch): GatewayFetch => async (input, i
 export const demoVoiceGatewayPolicy: OpenRouterGatewayPolicy = {
   asr: { model: 'qwen/qwen3-asr-flash-2026-02-10' },
   llm: {
-    model: 'deepseek/deepseek-v4-pro',
+    model: 'x-ai/grok-4.3',
     systemPrompt: process.env.OTTERVOICE_SYSTEM_PROMPT ?? DEFAULT_SYSTEM_PROMPT,
     temperature: 0.45,
     maxTokens: 512,

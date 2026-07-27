@@ -25,6 +25,10 @@ function request(path: string): Request {
 }
 
 describe('web example OpenRouter policy gateway', () => {
+  it('uses Grok 4.3 for cascaded LLM turns', () => {
+    expect(demoVoiceGatewayPolicy.llm?.model).toBe('x-ai/grok-4.3');
+  });
+
   it('adds a bounded server-owned web search tool only on the online route', async () => {
     const upstreamBodies: Record<string, unknown>[] = [];
     const gateway = createDemoVoiceGateway('server-secret', {

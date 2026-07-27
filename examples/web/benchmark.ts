@@ -22,7 +22,7 @@ const system =
 const options = { apiKey, title: 'OtterVoice Latency Benchmark' };
 const llm = createOpenRouterLLM({
   ...options,
-  model: 'deepseek/deepseek-v4-flash:nitro',
+  model: 'x-ai/grok-4.3',
   defaultTemperature: 0.45,
   reasoningEnabled: false,
 });

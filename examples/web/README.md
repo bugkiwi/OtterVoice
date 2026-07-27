@@ -11,7 +11,7 @@ OpenRouter adapters, while the session and UI remain provider-independent:
 - **Audio LLM (default):** one completed audio turn goes to the server-managed
   `openai/gpt-audio-mini` route and streams text plus audio back.
 - **Cascade:** the browser sends the same one audio-turn request shape. The
-  server performs Qwen ASR → DeepSeek → MiniMax TTS and streams the user
+  server performs Qwen ASR → Grok 4.3 → MiniMax TTS and streams the user
   transcript, assistant text deltas, and sentence-sized MP3 segments over the
   original response.
 
@@ -100,9 +100,9 @@ browser requests and caps request, history, and text sizes. Production
 deployments must replace the loopback-only demo authorizer with user/session
 ownership checks and durable cost/rate limits.
 
-## Low-cost model defaults
+## Model defaults
 
-- LLM: `deepseek/deepseek-v4-pro` with reasoning disabled; OpenRouter provider
+- LLM: `x-ai/grok-4.3` with reasoning disabled; OpenRouter provider
   endpoints are sorted by latency and prefer a rolling p90 TTFT of at most 2 s
 - ASR: `qwen/qwen3-asr-flash-2026-02-10`
 - TTS: `minimax/speech-2.8-turbo`, voice `alloy`
@@ -120,34 +120,34 @@ client playback, and the browser queues already-downloaded segments in order.
 This avoids raw PCM's much larger transfer size while preserving low first-audio
 latency.
 
-## Price evaluation (2026-07-13)
+## Price evaluation (2026-07-27)
 
 Current OpenRouter list prices:
 
 | Component | Price |
 | --- | ---: |
 | Qwen3 ASR Flash | $0.000035 / audio second |
-| DeepSeek V4 Flash | $0.077 / 1M input tokens; $0.154 / 1M output tokens |
+| Grok 4.3 | $1.25 / 1M input tokens; $2.50 / 1M output tokens |
 | MiniMax Speech 2.8 Turbo | $60 / 1M characters |
 | GPT Audio Mini | $0.60 / 1M input tokens; $2.40 / 1M output tokens |
 
 Sources: [GPT Audio Mini](https://openrouter.ai/openai/gpt-audio-mini/pricing),
 [Qwen3 ASR Flash](https://openrouter.ai/qwen/qwen3-asr-flash-2026-02-10/pricing),
-[DeepSeek V4 Flash](https://openrouter.ai/deepseek/deepseek-v4-flash/pricing), and
+[Grok 4.3](https://openrouter.ai/x-ai/grok-4.3/pricing), and
 [MiniMax Speech 2.8 Turbo](https://openrouter.ai/minimax/speech-2.8-turbo/pricing).
 
 On the repository's 9.99-second fixed opening clip, OpenRouter billed 6 seconds
-of non-silent ASR audio. Before the MiniMax TTS switch, three live runs produced
-these historical averages:
+of non-silent ASR audio. Before the current Grok 4.3 and MiniMax defaults, three
+live runs produced these historical averages:
 
 | Pipeline | Cost / turn | Full audio ready | Relative |
 | --- | ---: | ---: | ---: |
 | ASR → LLM → TTS | $0.0002343 | 5,213 ms | 1.00× cost / speed |
 | Audio LLM + eager parallel caption ASR (historical) | $0.0004842 | 2,179 ms | 2.07× cost / 2.39× faster |
 
-The Audio LLM row records the former eager-request path and is retained only as
-a historical baseline. The current cost-safe path waits for final ASR before
-generation, so re-run the benchmark before using its latency in planning.
+Both rows predate the current cascaded model selection and are retained only as
+historical baselines. The current cost-safe path waits for final ASR before
+generation, so re-run the benchmark before using its cost or latency in planning.
 This is a workload sample, not a universal quote: conversation history, reply
 length, provider load, and silence change both token usage and latency. The
 browser also displays per-mode rolling latency measured from VAD turn end to

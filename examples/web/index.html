@@ -102,9 +102,53 @@
       }
       code { color: oklch(48% .09 38); font-size: .9em; }
       .console { display: flex; max-width: 760px; margin: 0 auto; flex-direction: column; justify-content: center; padding: clamp(32px, 6vw, 64px); }
-      .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 24px; padding: 5px; border: 1px solid var(--line); border-radius: 99px; }
+      .mode-control-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; margin-bottom: 24px; }
+      .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 5px; border: 1px solid var(--line); border-radius: 99px; }
       .mode-switch button { min-height: 36px; padding: 0 12px; border: 0; color: var(--muted); background: transparent; font-size: .76rem; }
       .mode-switch button.selected { color: var(--paper); background: var(--ink); }
+      .model-info { position: relative; }
+      .model-info summary {
+        display: grid;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        place-items: center;
+        border: 1px solid var(--line);
+        border-radius: 50%;
+        color: var(--muted);
+        background: transparent;
+        cursor: help;
+        font: 800 .72rem/1 Georgia, "Songti SC", serif;
+        list-style: none;
+        transition: border-color 160ms ease, color 160ms ease, transform 160ms ease;
+      }
+      .model-info summary::-webkit-details-marker { display: none; }
+      .model-info summary:hover, .model-info[open] summary { border-color: var(--ink); color: var(--ink); transform: translateY(-1px); }
+      .model-tooltip {
+        position: absolute;
+        top: calc(100% + 10px);
+        right: 0;
+        z-index: 10;
+        width: min(320px, calc(100vw - 56px));
+        padding: 14px 15px;
+        border: 1px solid var(--ink);
+        border-radius: 14px;
+        color: var(--ink);
+        background: var(--paper-high);
+        box-shadow: 5px 6px 0 var(--mint);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateY(-4px);
+        transition: opacity 140ms ease, transform 180ms cubic-bezier(.22, 1, .36, 1), visibility 140ms ease;
+      }
+      .model-info[open] .model-tooltip,
+      .model-info:focus-within .model-tooltip { opacity: 1; visibility: visible; transform: translateY(0); }
+      .model-tooltip-title { display: block; margin-bottom: 8px; color: oklch(48% .08 37); font-size: .62rem; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+      .model-path { display: grid; gap: 2px; }
+      .model-path + .model-path { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+      .model-path strong { font-size: .68rem; }
+      .model-path code { color: var(--muted); font-size: .63rem; line-height: 1.4; overflow-wrap: anywhere; }
       .demo-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: -6px 0 24px; border-block: 1px solid var(--line); }
       .demo-setting { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; min-height: 68px; padding: 11px 0; cursor: pointer; }
       .demo-setting + .demo-setting { margin-left: 18px; padding-left: 18px; border-left: 1px solid var(--line); }
@@ -248,7 +292,10 @@
       .security-note p { max-width: 70ch; margin: 0; color: var(--muted); font-size: .86rem; }
       footer { display: flex; justify-content: space-between; gap: 24px; padding: 34px 0 max(48px, env(safe-area-inset-bottom)); border-top: 2px solid var(--ink); color: var(--muted); font-size: .82rem; }
       :focus-visible { outline: 3px solid var(--coral); outline-offset: 3px; }
-      @media (hover: hover) { .nav-links a:not(.pill):hover { color: var(--coral); } }
+      @media (hover: hover) {
+        .nav-links a:not(.pill):hover { color: var(--coral); }
+        .model-info:hover .model-tooltip { opacity: 1; visibility: visible; transform: translateY(0); }
+      }
       @media (max-width: 900px) {
         .native-layout { grid-template-columns: 1fr; }
         .phone { order: 2; }
@@ -284,7 +331,7 @@
         .demo-settings { grid-template-columns: 1fr; }
         .demo-setting + .demo-setting { margin-left: 0; padding-left: 0; border-top: 1px solid var(--line); border-left: 0; }
       }
-      @media (pointer: coarse) { button, .pill { min-height: 48px; } }
+      @media (pointer: coarse) { button, .pill { min-height: 48px; } .model-info summary { width: 44px; height: 44px; } }
       @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition-duration: 0s !important; } }
     </style>
   </head>
@@ -315,9 +362,25 @@
         </div>
         <div class="demo-card">
           <section class="console" data-i18n-aria="controlsAria" aria-label="Conversation controls">
-            <div class="mode-switch" data-i18n-aria="modeAria" aria-label="语音处理模式">
-              <button id="mode-audio" type="button" aria-pressed="true" data-i18n="modeAudio">原生 · Audio LLM</button>
-              <button id="mode-cascade" type="button" aria-pressed="false" data-i18n="modeCascade">级联 · ASR→LLM→TTS</button>
+            <div class="mode-control-row">
+              <div class="mode-switch" data-i18n-aria="modeAria" aria-label="语音处理模式">
+                <button id="mode-audio" type="button" aria-pressed="true" data-i18n="modeAudio">原生 · Audio LLM</button>
+                <button id="mode-cascade" type="button" aria-pressed="false" data-i18n="modeCascade">级联 · ASR→LLM→TTS</button>
+              </div>
+              <details class="model-info">
+                <summary data-i18n-aria="modelInfoAria" aria-label="查看通路模型"><span aria-hidden="true">i</span></summary>
+                <div class="model-tooltip" role="tooltip">
+                  <span class="model-tooltip-title" data-i18n="modelInfoTitle">运行模型</span>
+                  <span class="model-path">
+                    <strong data-i18n="modelAudioLabel">原生通路</strong>
+                    <code>openai/gpt-audio-mini</code>
+                  </span>
+                  <span class="model-path">
+                    <strong data-i18n="modelCascadeLabel">级联通路</strong>
+                    <code>qwen/qwen3-asr-flash-2026-02-10 → x-ai/grok-4.3 → minimax/speech-2.8-turbo</code>
+                  </span>
+                </div>
+              </details>
             </div>
             <div class="demo-settings" data-i18n-aria="settingsAria" aria-label="会话设置">
               <label class="demo-setting">
