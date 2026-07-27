@@ -14,6 +14,11 @@
   "dependencies": {
     "@ottervoice/core": "workspace:*",
     "@ottervoice/provider-openrouter": "workspace:*",
-    "@ottervoice/runtime-web": "workspace:*"
+    "@ottervoice/runtime-web": "workspace:*",
+    "https-proxy-agent": "^7.0.6",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1"
   }
 }

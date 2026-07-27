@@ -106,6 +106,11 @@
       .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 5px; border: 1px solid var(--line); border-radius: 99px; }
       .mode-switch button { min-height: 36px; padding: 0 12px; border: 0; color: var(--muted); background: transparent; font-size: .76rem; }
       .mode-switch button.selected { color: var(--paper); background: var(--ink); }
+      .audio-model-picker { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; margin: -10px 0 20px; }
+      .audio-model-label { color: var(--muted); font-size: .62rem; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+      .audio-model-switch { display: grid; grid-template-columns: 1fr 1.25fr; gap: 4px; padding: 3px; border-bottom: 1px solid var(--line); }
+      .audio-model-switch button { min-height: 31px; padding: 0 10px; border: 0; border-radius: 8px 8px 0 0; color: var(--muted); background: transparent; font-size: .68rem; }
+      .audio-model-switch button.selected { color: var(--ink); background: var(--mint); }
       .model-info { position: relative; }
       .model-info summary {
         display: grid;
@@ -328,6 +333,7 @@
         footer { flex-direction: column; }
       }
       @media (max-width: 620px) {
+        .audio-model-picker { grid-template-columns: 1fr; gap: 6px; }
         .demo-settings { grid-template-columns: 1fr; }
         .demo-setting + .demo-setting { margin-left: 0; padding-left: 0; border-top: 1px solid var(--line); border-left: 0; }
       }
@@ -374,6 +380,7 @@
                   <span class="model-path">
                     <strong data-i18n="modelAudioLabel">原生通路</strong>
                     <code>openai/gpt-audio-mini</code>
+                    <code>google/gemini-3.1-flash-live-preview · optional Google Search</code>
                   </span>
                   <span class="model-path">
                     <strong data-i18n="modelCascadeLabel">级联通路</strong>
@@ -382,6 +389,13 @@
                 </div>
               </details>
             </div>
+            <div class="audio-model-picker" id="audio-model-picker">
+              <span class="audio-model-label" data-i18n="audioModelLabel">Audio 模型</span>
+              <div class="audio-model-switch" data-i18n-aria="audioModelAria" aria-label="Audio LLM 模型">
+                <button id="audio-model-openai" class="selected" type="button" aria-pressed="true" data-i18n="audioModelOpenAi">GPT Audio Mini</button>
+                <button id="audio-model-gemini" type="button" aria-pressed="false" data-i18n="audioModelGemini">Gemini 3.1 Live</button>
+              </div>
+            </div>
             <div class="demo-settings" data-i18n-aria="settingsAria" aria-label="会话设置">
               <label class="demo-setting">
                 <span class="setting-copy"><strong data-i18n="transcriptLabel">输入 / 输出文本</strong><small data-i18n="transcriptHint">显示实时字幕与完整对话记录</small></span>
@@ -389,7 +403,7 @@
                 <span class="toggle-track" aria-hidden="true"></span>
               </label>
               <label class="demo-setting unavailable">
-                <span class="setting-copy"><strong data-i18n="webSearchLabel">联网搜索</strong><small data-i18n="webSearchHint">仅用于 ASR→LLM→TTS，由服务端按需搜索网页</small></span>
+                <span class="setting-copy"><strong data-i18n="webSearchLabel">联网搜索</strong><small data-i18n="webSearchHint">级联与 Gemini 通路可用；GPT Audio 不启用搜索</small></span>
                 <input class="toggle-input" id="web-search-toggle" type="checkbox" role="switch" disabled />
                 <span class="toggle-track" aria-hidden="true"></span>
               </label>

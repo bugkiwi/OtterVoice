@@ -7,6 +7,7 @@
  * the development export condition — never stale dist artifacts.
  */
 import { createDemoVoiceGateway } from './openrouter-proxy';
+import { createGeminiLiveGateway } from './gemini-live-proxy';
 
 const root = new URL('.', import.meta.url);
 const repositoryRoot = new URL('../../', root);
@@ -59,6 +60,10 @@ if (!build.success) {
 const appJs = await build.outputs[0]!.text();
 const openRouterKey = process.env.OPENROUTER_API_KEY;
 const voiceGateway = createDemoVoiceGateway(openRouterKey);
+const googleApiKey = process.env.AISTUDIO_GOOGLE_API_KEY ??
+  process.env.GEMINI_API_KEY ??
+  process.env.GOOGLE_API_KEY;
+const geminiLiveGateway = createGeminiLiveGateway({ apiKey: googleApiKey });
 const port = Number(process.env.PORT ?? 5173);
 const htmlPath = new URL('./index.html', root).pathname;
 
@@ -67,6 +72,9 @@ Bun.serve({
   port,
   async fetch(request) {
     const path = new URL(request.url).pathname;
+    if (path.startsWith('/api/voice/google/')) {
+      return geminiLiveGateway(request);
+    }
     if (path.startsWith('/api/voice/')) {
       return voiceGateway(request);
     }
@@ -96,4 +104,5 @@ Bun.serve({
 
 console.log(`OtterVoice web demo: http://localhost:${port}`);
 console.log(`OpenRouter proxy: ${openRouterKey ? 'configured' : 'missing OPENROUTER_API_KEY'}`);
+console.log(`Gemini Live proxy: ${googleApiKey ? 'configured' : 'missing AISTUDIO_GOOGLE_API_KEY'}`);
 console.log('Bundled from packages/*/src (development aliases, no dist cache).');

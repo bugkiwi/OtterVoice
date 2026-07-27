@@ -5,18 +5,23 @@
 # Web example
 
 Full-duplex browser demo with real microphone capture/playback and two live
-pipelines that can be switched in the UI. The demo server currently selects
-OpenRouter adapters, while the session and UI remain provider-independent:
+pipelines that can be switched in the UI. The demo server keeps provider
+credentials and model policy out of the browser:
 
-- **Audio LLM (default):** one completed audio turn goes to the server-managed
-  `openai/gpt-audio-mini` route and streams text plus audio back.
+- **Audio LLM (default):** choose OpenRouter-managed
+  `openai/gpt-audio-mini`, or Google AI Studio's official
+  `gemini-3.1-flash-live-preview` Live API. Gemini can optionally enable
+  Google Search Grounding; GPT Audio Mini never receives a search tool.
 - **Cascade:** the browser sends the same one audio-turn request shape. The
   server performs Qwen ASR → Grok 4.3 → MiniMax TTS and streams the user
   transcript, assistant text deltas, and sentence-sized MP3 segments over the
   original response.
 
 ```bash
-echo 'OPENROUTER_API_KEY=...' > .env
+# repository-root .env
+OPENROUTER_API_KEY=...
+AISTUDIO_GOOGLE_API_KEY=...
+
 bun run examples/web/serve.ts
 # open http://localhost:5173
 ```
@@ -35,7 +40,10 @@ While the assistant is replying you can speak again to barge in.
 barge-in capture. Once silence closes the turn, the browser converts that one
 immutable recording to WAV and sends exactly one request. In cascade mode the
 authoritative input caption arrives from the same response after server-side
-ASR; there is no rolling browser ASR request to cancel or restart.
+ASR. GPT Audio and Gemini Live use the same server-managed Qwen ASR route for
+their input captions because those client adapters only return the assistant
+transcript. This caption request runs in parallel with native audio generation;
+there is no rolling browser ASR request to cancel or restart.
 
 After normal assistant playback, the Web runtime rotates `MediaRecorder` so
 the next turn starts with a fresh WebM container instead of joining clusters
@@ -43,13 +51,14 @@ across a filtered playback gap. Audio decode failures are reported without a
 client-side second provider path; production fallback and idempotency belong at
 the authenticated gateway.
 
-The Web controls expose two switches. **Input / output text** only controls
-whether the transcript UI is visible. **Web search** is available only for the
-server-composed ASR → LLM → TTS pipeline; it selects a separate route that adds one
-bounded OpenRouter web-search tool while keeping the model, prompt, and search
-budget out of the browser. Web search defaults to off, while the transcript
-defaults to on. Both preferences are remembered in
-`localStorage`; provider-affecting switches are locked while a session is active.
+The Web controls expose an Audio LLM model selector plus two switches.
+**Input / output text** only controls whether the transcript UI is visible.
+**Web search** is available for the server-composed ASR → LLM → TTS pipeline
+and for Gemini Live. The former selects a bounded OpenRouter search route; the
+latter adds Google's server-owned `{ googleSearch: {} }` grounding tool to the
+Live session. Search stays unavailable for GPT Audio Mini. Search defaults to
+off and transcript display defaults to on. Preferences are remembered in
+`localStorage`; provider-affecting controls are locked while a session is active.
 
 Barge-in is playback-aware: `runtime-web` derives a synchronized RMS envelope
 from the assistant audio, and core searches 0–300 ms of acoustic delay before
@@ -85,12 +94,17 @@ or microphone access.
 - `@ottervoice/provider-openrouter`: one client audio-turn adapter plus the
   server-side native and composed OpenRouter implementations.
 - `examples/web/src`: client-side VAD/interruption UX, input meter, transcript,
-  and controls. It contains no model, prompt, voice, or generation policy.
+  model selection, and controls. It contains route selection but no provider
+  credential, system prompt, voice, or generation budget.
 - `examples/web/openrouter-proxy.ts`: server-side authorization boundary,
   models, system prompts, voices, generation limits, provider credentials, and
   upstream request construction.
+- `examples/web/gemini-live-proxy.ts`: same-origin Google Live bridge, locked
+  Gemini model and prompt, optional Google Search Grounding, WAV validation,
+  and streamed PCM/audio-transcript translation back to the browser.
 
-The browser never receives `OPENROUTER_API_KEY` or privileged policy.
+The browser never receives `OPENROUTER_API_KEY`, `AISTUDIO_GOOGLE_API_KEY`, or
+privileged policy.
 `serve.ts` reads server configuration from `.env`; the client calls either the
 native Audio LLM route or the composed voice-turn route below `/api/voice`.
 The gateway rejects privileged
@@ -107,6 +121,8 @@ ownership checks and durable cost/rate limits.
 - ASR: `qwen/qwen3-asr-flash-2026-02-10`
 - TTS: `minimax/speech-2.8-turbo`, voice `alloy`
 - Native audio LLM: `openai/gpt-audio-mini`, voice `alloy`
+- Optional native audio LLM: Google official
+  `gemini-3.1-flash-live-preview`, with Google Search Grounding off by default
 
 Browser MediaRecorder produces WebM/Opus, while both server routes accept WAV/MP3.
 `@ottervoice/runtime-web` decodes the completed WebM turn and encodes a mono
@@ -160,10 +176,12 @@ Re-run the comparison with your own MP3:
 BENCHMARK_RUNS=3 bun run examples/web/benchmark.ts path/to/voice.mp3
 ```
 
-OpenRouter transcription is turn-based rather than a streaming WebSocket: the
-microphone and VAD remain real-time, then the completed WebM turn is sent when
-silence is detected. The microphone remains open during TTS so barge-in still
-works.
+The browser microphone and VAD remain real-time, then the completed WebM turn is
+converted to 16 kHz mono PCM16 WAV when silence is detected. GPT Audio uses the
+existing OpenRouter turn request. Gemini opens an official Google Live WebSocket
+on the server, sends the PCM in 500 ms chunks, and translates the 24 kHz native
+audio stream back into the existing gapless browser playback path. The
+microphone remains open during playback so barge-in still works.
 
 For low perceived latency, the LLM asks OpenRouter to sort provider endpoints by
 time to first token and prefer endpoints whose rolling p90 latency is at most

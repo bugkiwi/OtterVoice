@@ -1,8 +1,8 @@
 /**
- * Full-duplex OpenRouter web example.
+ * Full-duplex multi-provider web example.
  *
  * The browser only calls the same-origin `/api/voice` gateway. `serve.ts`
- * reads OPENROUTER_API_KEY from `.env`; the credential is never bundled or
+ * reads provider credentials from `.env`; credentials are never bundled or
  * returned to the browser.
  */
 import {
@@ -10,6 +10,7 @@ import {
   type AudioLLMProvider,
 } from '@ottervoice/core';
 import {
+  createOpenRouterGatewayASR,
   createOpenRouterGatewayAudioLLM,
   createOpenRouterGatewayVoiceTurn,
 } from '@ottervoice/provider-openrouter';
@@ -25,6 +26,9 @@ const startBtn = $<HTMLButtonElement>('start');
 const finishBtn = $<HTMLButtonElement>('finish');
 const cascadeBtn = $<HTMLButtonElement>('mode-cascade');
 const audioBtn = $<HTMLButtonElement>('mode-audio');
+const audioModelPicker = $('audio-model-picker');
+const openAiAudioBtn = $<HTMLButtonElement>('audio-model-openai');
+const geminiAudioBtn = $<HTMLButtonElement>('audio-model-gemini');
 const latencyEl = $('latency');
 const langZhBtn = $<HTMLButtonElement>('lang-zh');
 const langEnBtn = $<HTMLButtonElement>('lang-en');
@@ -39,11 +43,12 @@ const translations = {
     navDemo: '在线体验', navNative: 'React Native', navDocs: '技术文档',
     demoEyebrow: 'Example 01 · Web full duplex', demoTitle: '现在，直接开口。',
     demoCopy: '麦克风会持续监听。停顿即提交，AI 说话时也可直接插话打断；屏幕同步保留完整文字记录。',
-    controlsAria: '对话控制', modeAria: '语音处理模式', settingsAria: '会话设置', transcriptAria: '对话记录',
+    controlsAria: '对话控制', modeAria: '语音处理模式', audioModelAria: 'Audio LLM 模型', settingsAria: '会话设置', transcriptAria: '对话记录',
     modelInfoAria: '查看通路模型', modelInfoTitle: '运行模型', modelAudioLabel: '原生通路', modelCascadeLabel: '级联通路',
     modeAudio: '原生 · Audio LLM', modeCascade: '级联 · ASR→LLM→TTS', liveChannel: '实时通路',
+    audioModelLabel: 'Audio 模型', audioModelOpenAi: 'GPT Audio Mini', audioModelGemini: 'Gemini 3.1 Live',
     transcriptLabel: '输入 / 输出文本', transcriptHint: '显示实时字幕与完整对话记录',
-    webSearchLabel: '联网搜索', webSearchHint: '级联通路由服务端按需搜索网页',
+    webSearchLabel: '联网搜索', webSearchHint: '级联与 Gemini 通路可用；GPT Audio 不启用搜索',
     start: '开始语音对话', finish: '结束会话',
     phoneTitle: '现在，直接开口。', phoneCopy: '持续监听；停顿提交；说话即可打断。', phoneState: '正在持续收听',
     nativeEyebrow: 'Example 02 · React Native / Expo', nativeTitle: '同一条 Audio LLM 通路，装进手机。',
@@ -75,11 +80,12 @@ const translations = {
     navDemo: 'Live demo', navNative: 'React Native', navDocs: 'Docs',
     demoEyebrow: 'Example 01 · Web full duplex', demoTitle: 'Now, just speak.',
     demoCopy: 'The microphone keeps listening. A pause submits your turn; speak over the assistant to interrupt while the full transcript stays on screen.',
-    controlsAria: 'Conversation controls', modeAria: 'Voice processing mode', settingsAria: 'Session settings', transcriptAria: 'Transcript',
+    controlsAria: 'Conversation controls', modeAria: 'Voice processing mode', audioModelAria: 'Audio LLM model', settingsAria: 'Session settings', transcriptAria: 'Transcript',
     modelInfoAria: 'View pipeline models', modelInfoTitle: 'Runtime models', modelAudioLabel: 'Native pipeline', modelCascadeLabel: 'Cascaded pipeline',
     modeAudio: 'Native · Audio LLM', modeCascade: 'Cascaded · ASR→LLM→TTS', liveChannel: 'Live channel',
+    audioModelLabel: 'Audio model', audioModelOpenAi: 'GPT Audio Mini', audioModelGemini: 'Gemini 3.1 Live',
     transcriptLabel: 'Input / output text', transcriptHint: 'Show live captions and the full transcript',
-    webSearchLabel: 'Web search', webSearchHint: 'The server searches the web for cascaded turns when needed',
+    webSearchLabel: 'Web search', webSearchHint: 'Available for cascaded and Gemini turns; disabled for GPT Audio',
     start: 'Start voice session', finish: 'End session',
     phoneTitle: 'Now, just speak.', phoneCopy: 'Always listening. Pause to submit. Speak to interrupt.', phoneState: 'Listening continuously',
     nativeEyebrow: 'Example 02 · React Native / Expo', nativeTitle: 'The same Audio LLM path, now in your pocket.',
@@ -120,6 +126,10 @@ const storedToggle = (key: string, fallback: boolean): boolean => {
 };
 let transcriptVisible = storedToggle('ottervoice-transcript-visible', true);
 let webSearchEnabled = storedToggle('ottervoice-web-search', false);
+type AudioModel = 'openai' | 'gemini';
+let selectedAudioModel: AudioModel = localStorage.getItem('ottervoice-audio-model') === 'gemini'
+  ? 'gemini'
+  : 'openai';
 
 const VOICE_GATEWAY = '/api/voice';
 type SseAudioCapture = {
@@ -344,11 +354,28 @@ const prepareTurnAudio = (
     maxDurationMs: 90_000,
   });
 
+const captionAsr = createOpenRouterGatewayASR({
+  baseUrl: `${VOICE_GATEWAY}/asr`,
+  format: 'webm',
+});
+
 const nativeAudioLlmBase = createOpenRouterGatewayAudioLLM({
   baseUrl: `${VOICE_GATEWAY}/audio-llm`,
   requireDoneSentinel: true,
   // Base64 expands PCM by one third. A 16 kHz / 90 s mono WAV remains below
   // Vercel's 4.5 MB function payload limit with room for the JSON envelope.
+  prepareAudio: prepareTurnAudio,
+});
+
+const geminiAudioLlmBase = createOpenRouterGatewayAudioLLM({
+  baseUrl: `${VOICE_GATEWAY}/google/audio-llm`,
+  requireDoneSentinel: true,
+  prepareAudio: prepareTurnAudio,
+});
+
+const onlineGeminiAudioLlmBase = createOpenRouterGatewayAudioLLM({
+  baseUrl: `${VOICE_GATEWAY}/google/online/audio-llm`,
+  requireDoneSentinel: true,
   prepareAudio: prepareTurnAudio,
 });
 
@@ -390,6 +417,8 @@ function captureProviderAudio(provider: AudioLLMProvider): AudioLLMProvider {
 }
 
 const nativeAudioLlm = captureProviderAudio(nativeAudioLlmBase);
+const geminiAudioLlm = captureProviderAudio(geminiAudioLlmBase);
+const onlineGeminiAudioLlm = captureProviderAudio(onlineGeminiAudioLlmBase);
 const cascadedVoice = captureProviderAudio(cascadedVoiceBase);
 const onlineCascadedVoice = captureProviderAudio(onlineCascadedVoiceBase);
 
@@ -414,12 +443,20 @@ const latencySamples: Record<Pipeline, number[]> = {
 
 function renderPipeline() {
   const isAudio = selectedPipeline === 'audio_llm';
+  const isGemini = selectedAudioModel === 'gemini';
   cascadeBtn.classList.toggle('selected', !isAudio);
   audioBtn.classList.toggle('selected', isAudio);
   cascadeBtn.setAttribute('aria-pressed', String(!isAudio));
   audioBtn.setAttribute('aria-pressed', String(isAudio));
-  webSearchToggle.disabled = isAudio || Boolean(session);
-  webSearchToggle.closest('.demo-setting')?.classList.toggle('unavailable', isAudio);
+  audioModelPicker.hidden = !isAudio;
+  openAiAudioBtn.classList.toggle('selected', !isGemini);
+  geminiAudioBtn.classList.toggle('selected', isGemini);
+  openAiAudioBtn.setAttribute('aria-pressed', String(!isGemini));
+  geminiAudioBtn.setAttribute('aria-pressed', String(isGemini));
+  const searchAvailable = !isAudio || isGemini;
+  webSearchToggle.disabled = !searchAvailable || Boolean(session);
+  webSearchToggle.checked = searchAvailable && webSearchEnabled;
+  webSearchToggle.closest('.demo-setting')?.classList.toggle('unavailable', !searchAvailable);
 }
 
 let lastLatency: { pipeline: Pipeline; value: number } | undefined;
@@ -450,8 +487,17 @@ function buildSession(pipeline: Pipeline) {
     audioLlmStartTiming: 'after_audio',
     runtime,
     providers: {
+      // Native Audio LLM adapters return the assistant transcript, but not an
+      // authoritative transcript of the user's audio. Core therefore needs a
+      // caption ASR for GPT Audio and Gemini Live. The cascaded adapter already
+      // transcribes its input server-side, so it intentionally skips this call.
+      ...(pipeline === 'audio_llm' ? { asr: captionAsr } : {}),
       audioLlm: pipeline === 'audio_llm'
-        ? nativeAudioLlm
+        ? selectedAudioModel === 'gemini'
+          ? webSearchEnabled
+            ? onlineGeminiAudioLlm
+            : geminiAudioLlm
+          : nativeAudioLlm
         : webSearchEnabled
           ? onlineCascadedVoice
           : cascadedVoice,
@@ -539,6 +585,8 @@ function buildSession(pipeline: Pipeline) {
     finishBtn.disabled = true;
     cascadeBtn.disabled = false;
     audioBtn.disabled = false;
+    openAiAudioBtn.disabled = false;
+    geminiAudioBtn.disabled = false;
     session = undefined;
     renderPipeline();
   });
@@ -549,6 +597,8 @@ function buildSession(pipeline: Pipeline) {
     finishBtn.disabled = true;
     cascadeBtn.disabled = false;
     audioBtn.disabled = false;
+    openAiAudioBtn.disabled = false;
+    geminiAudioBtn.disabled = false;
     session = undefined;
     renderPipeline();
     meterEl.style.setProperty('--level', '0');
@@ -582,6 +632,8 @@ startBtn.addEventListener('click', async () => {
   await session?.dispose();
   cascadeBtn.disabled = true;
   audioBtn.disabled = true;
+  openAiAudioBtn.disabled = true;
+  geminiAudioBtn.disabled = true;
   webSearchToggle.disabled = true;
   const pipeline = selectedPipeline;
   session = buildSession(pipeline);
@@ -596,6 +648,17 @@ for (const [button, pipeline] of [
 ] as const) {
   button.addEventListener('click', () => {
     selectedPipeline = pipeline;
+    renderPipeline();
+  });
+}
+
+for (const [button, model] of [
+  [openAiAudioBtn, 'openai'],
+  [geminiAudioBtn, 'gemini'],
+] as const) {
+  button.addEventListener('click', () => {
+    selectedAudioModel = model;
+    localStorage.setItem('ottervoice-audio-model', model);
     renderPipeline();
   });
 }
@@ -656,6 +719,5 @@ langZhBtn.addEventListener('click', () => applyLanguage('zh'));
 langEnBtn.addEventListener('click', () => applyLanguage('en'));
 
 transcriptToggle.checked = transcriptVisible;
-webSearchToggle.checked = webSearchEnabled;
 renderTranscriptVisibility();
 applyLanguage(language);
