@@ -13,8 +13,8 @@ credentials and model policy out of the browser:
   `gemini-3.1-flash-live-preview` Live API. Gemini can optionally enable
   Google Search Grounding; GPT Audio Mini never receives a search tool.
 - **Cascade:** the browser sends the same one audio-turn request shape. The
-  server performs Qwen ASR → Grok 4.3 → MiniMax TTS and streams the user
-  transcript, assistant text deltas, and sentence-sized MP3 segments over the
+  server performs Qwen ASR → Gemini 2.5 Flash Lite → GPT Audio Mini and streams the user
+  transcript, assistant text deltas, and sentence-sized audio segments over the
   original response.
 
 ```bash
@@ -31,6 +31,11 @@ webpack. **Local dev always bundles from `packages/*/src`** (`development`
 export + explicit aliases in `serve.ts`), so you never need to rebuild `dist/`
 just to pick up core/provider changes. Run `bun run build` only before deploy
 (`docs/site` uses compiled `dist/`).
+
+The local Bun server disables its HTTP idle timeout only for `/api/voice/**`.
+Quiet model setup and SSE intervals can exceed Bun's 10-second default, while
+the voice gateways retain their own bounded setup/turn timeouts and abort
+cleanup.
 
 Click **Start conversation** (allow the microphone), speak naturally,
 and pause when you are done — volume-based VAD ends each turn automatically.
@@ -116,13 +121,16 @@ ownership checks and durable cost/rate limits.
 
 ## Model defaults
 
-- LLM: `x-ai/grok-4.3` with reasoning disabled; OpenRouter provider
+- LLM: `google/gemini-3.5-flash-lite`; reasoning follows the model default because
+  Gemini 3.5 Flash Lite rejects requests that explicitly disable it; OpenRouter provider
   endpoints are sorted by latency and prefer a rolling p90 TTFT of at most 2 s
 - ASR: `qwen/qwen3-asr-flash-2026-02-10`
-- TTS: `minimax/speech-2.8-turbo`, voice `alloy`
+- TTS: `openai/gpt-audio-mini`, voice `alloy`, adapted through streaming audio
+  chat completions
 - Native audio LLM: `openai/gpt-audio-mini`, voice `alloy`
 - Optional native audio LLM: Google official
-  `gemini-3.1-flash-live-preview`, with Google Search Grounding off by default
+  `gemini-3.1-flash-live-preview`, voice `Charon`, with Google Search Grounding
+  off by default
 
 Browser MediaRecorder produces WebM/Opus, while both server routes accept WAV/MP3.
 `@ottervoice/runtime-web` decodes the completed WebM turn and encodes a mono
@@ -130,11 +138,11 @@ PCM16 WAV before the audio-LLM request. The deployed showcase downsamples that
 WAV to 16 kHz and caps a turn at 90 seconds so Base64 audio plus its JSON
 envelope stays below Vercel's Function request-body limit. Each output
 `delta.audio` PCM16 chunk from the native model is decoded and scheduled on a
-Web Audio timeline. The composed route instead returns sentence-sized MP3
-segments: synthesis begins as soon as each LLM clause is ready, independent of
-client playback, and the browser queues already-downloaded segments in order.
-This avoids raw PCM's much larger transfer size while preserving low first-audio
-latency.
+Web Audio timeline. The composed route instead asks GPT Audio Mini to read each
+completed LLM clause, wraps its 24 kHz PCM16 output in a WAV segment, and
+returns those segments in order. Synthesis begins as soon as each clause is
+ready, independently of client playback, and the browser queues already-
+downloaded segments in order.
 
 ## Price evaluation (2026-07-27)
 
@@ -143,18 +151,16 @@ Current OpenRouter list prices:
 | Component | Price |
 | --- | ---: |
 | Qwen3 ASR Flash | $0.000035 / audio second |
-| Grok 4.3 | $1.25 / 1M input tokens; $2.50 / 1M output tokens |
-| MiniMax Speech 2.8 Turbo | $60 / 1M characters |
+| Gemini 3.5 Flash Lite | $0.30 / 1M input tokens; $2.50 / 1M output tokens |
 | GPT Audio Mini | $0.60 / 1M input tokens; $2.40 / 1M output tokens |
 
 Sources: [GPT Audio Mini](https://openrouter.ai/openai/gpt-audio-mini/pricing),
 [Qwen3 ASR Flash](https://openrouter.ai/qwen/qwen3-asr-flash-2026-02-10/pricing),
-[Grok 4.3](https://openrouter.ai/x-ai/grok-4.3/pricing), and
-[MiniMax Speech 2.8 Turbo](https://openrouter.ai/minimax/speech-2.8-turbo/pricing).
+and [Gemini 3.5 Flash Lite](https://openrouter.ai/google/gemini-3.5-flash-lite).
 
 On the repository's 9.99-second fixed opening clip, OpenRouter billed 6 seconds
-of non-silent ASR audio. Before the current Grok 4.3 and MiniMax defaults, three
-live runs produced these historical averages:
+of non-silent ASR audio. Before the current model defaults, three live runs
+produced these historical averages:
 
 | Pipeline | Cost / turn | Full audio ready | Relative |
 | --- | ---: | ---: | ---: |

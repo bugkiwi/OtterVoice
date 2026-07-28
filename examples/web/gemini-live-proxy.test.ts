@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import {
   createGeminiLiveGateway,
   GEMINI_LIVE_MODEL,
+  GEMINI_LIVE_VOICE,
 } from './gemini-live-proxy';
 
 type RealtimeInput = {
@@ -12,6 +13,7 @@ type RealtimeInput = {
 type ConnectOptions = {
   systemInstruction: string;
   searchEnabled: boolean;
+  voiceName: string;
   callbacks: {
     onmessage: (message: unknown) => void;
   };
@@ -20,6 +22,7 @@ type ConnectOptions = {
 type Capture = {
   systemInstruction?: string;
   searchEnabled?: boolean;
+  voiceName?: string;
   audio?: RealtimeInput[];
 };
 
@@ -80,6 +83,7 @@ function fakeClient(capture: Capture) {
     async connect(params: ConnectOptions) {
       capture.systemInstruction = params.systemInstruction;
       capture.searchEnabled = params.searchEnabled;
+      capture.voiceName = params.voiceName;
       capture.audio = [];
       return {
         sendRealtimeInput(input: RealtimeInput) {
@@ -127,7 +131,9 @@ describe('Gemini Live web example gateway', () => {
     const body = await response.text();
 
     expect(GEMINI_LIVE_MODEL).toBe('gemini-3.1-flash-live-preview');
+    expect(GEMINI_LIVE_VOICE).toBe('Charon');
     expect(capture.searchEnabled).toBe(false);
+    expect(capture.voiceName).toBe('Charon');
     expect(capture.systemInstruction).toContain('Earlier question');
     expect(capture.audio?.[0]?.audio).toEqual({
       data: 'AQIDBA==',

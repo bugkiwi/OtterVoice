@@ -9,6 +9,7 @@ import {
   createOpenRouterLLM,
   createOpenRouterTTS,
 } from '@ottervoice/provider-openrouter';
+import { createGptAudioTtsFetch } from './openrouter-proxy';
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (!apiKey) throw new Error('OPENROUTER_API_KEY is required');
@@ -20,17 +21,23 @@ const system =
   '你是一个反应快、语气自然的语音对话助手。默认用中文回复。' +
   '第一句立即给出结论；每次只回复 1–2 个简短句子，不使用 Markdown，不列表，适合直接语音播放。';
 const options = { apiKey, title: 'OtterVoice Latency Benchmark' };
+const gptAudioTtsFetch = createGptAudioTtsFetch(globalThis.fetch);
+let latestTtsCost = 0;
 const llm = createOpenRouterLLM({
   ...options,
-  model: 'x-ai/grok-4.3',
+  model: 'google/gemini-3.5-flash-lite',
   defaultTemperature: 0.45,
-  reasoningEnabled: false,
 });
 const tts = createOpenRouterTTS({
   ...options,
-  model: 'minimax/speech-2.8-turbo',
-  voice: 'zf_xiaoxiao',
+  model: 'openai/gpt-audio-mini',
+  voice: 'alloy',
   speed: 1.05,
+  fetch: async (input, init) => {
+    const response = await gptAudioTtsFetch(input, init);
+    latestTtsCost = Number(response.headers.get('x-ottervoice-provider-cost') ?? 0);
+    return response;
+  },
 });
 const audioLlm = createOpenRouterAudioLLM({
   ...options,
@@ -69,6 +76,7 @@ async function benchmarkCascade() {
     temperature: 0.45,
   });
   const llmAt = performance.now();
+  latestTtsCost = 0;
   await tts.synthesize({ text: reply.text, format: 'mp3' });
   const finishedAt = performance.now();
   return {
@@ -79,7 +87,7 @@ async function benchmarkCascade() {
     costUsd:
       transcript.cost +
       Number((reply.raw as { usage?: { cost?: number } } | undefined)?.usage?.cost ?? 0) +
-      reply.text.length * 60 / 1_000_000,
+      latestTtsCost,
   };
 }
 

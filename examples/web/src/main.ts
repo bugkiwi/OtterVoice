@@ -191,6 +191,7 @@ type TurnLatency = { firstTextMs?: number; firstAudioMs?: number };
 const turnLatencies = new Map<string, TurnLatency>();
 const assistantLatencyOrigins = new Map<string, number>();
 let liveAssistantTurnId: string | undefined;
+let forceNextUserRow = false;
 
 function renderTurnLatency(turnId: string) {
   const body = turnElements.get(turnId)?.querySelector<HTMLDivElement>('.turn-body');
@@ -231,23 +232,12 @@ function recordTurnLatency(
   return value;
 }
 
-function removeTurn(turnId: string) {
-  const div = turnElements.get(turnId);
-  if (!div) return;
-  for (const id of turnIdsByElement.get(div) ?? [turnId]) {
-    turnElements.delete(id);
-    turnTexts.delete(id);
-    turnLatencies.delete(id);
-    assistantLatencyOrigins.delete(id);
-  }
-  turnIdsByElement.delete(div);
-  div.remove();
-}
-
-function removeLiveAssistantTurn() {
+function preserveLiveAssistantTurn() {
   if (!liveAssistantTurnId) return;
-  removeTurn(liveAssistantTurnId);
+  const turnId = liveAssistantTurnId;
   liveAssistantTurnId = undefined;
+  const text = turnTexts.get(turnId);
+  if (text !== undefined) addTurn('assistant', text, { turnId });
 }
 
 function addTurn(
@@ -269,6 +259,7 @@ function addTurn(
       role,
       turnId,
       previous instanceof HTMLDivElement && previous.classList.contains('user'),
+      forceNextUserRow,
     );
     if (mergeWithPreviousUser) {
       div = previous;
@@ -296,6 +287,7 @@ function addTurn(
         turnIdsByElement.set(div, [turnId]);
       }
     }
+    if (role === 'user' && turnId) forceNextUserRow = false;
   }
   const displayedText = turnId
     ? (turnIdsByElement.get(div) ?? [turnId])
@@ -532,9 +524,10 @@ function buildSession(pipeline: Pipeline) {
   voiceSession.on('statechange', (event) => {
     renderState(event.to);
     if (event.to === 'user_speaking') {
-      // A newer utterance supersedes an answer that only streamed partially.
-      // Finalized assistant rows remain in the transcript.
-      removeLiveAssistantTurn();
+      // Barge-in ends playback, not the visible conversation turn. Preserve
+      // the generated prefix and keep the next utterance in its own user row.
+      if (event.reason === 'interrupted') forceNextUserRow = true;
+      preserveLiveAssistantTurn();
     }
   });
   voiceSession.on('asr_final', (event) => {
@@ -547,7 +540,7 @@ function buildSession(pipeline: Pipeline) {
   });
   voiceSession.on('assistant_text_delta', (event) => {
     if (liveAssistantTurnId && liveAssistantTurnId !== event.turnId) {
-      removeLiveAssistantTurn();
+      preserveLiveAssistantTurn();
     }
     liveAssistantTurnId = event.turnId;
     if (event.text.trim().length > 0) {
@@ -557,7 +550,7 @@ function buildSession(pipeline: Pipeline) {
   });
   voiceSession.on('assistant_text', (event) => {
     if (liveAssistantTurnId && liveAssistantTurnId !== event.turnId) {
-      removeLiveAssistantTurn();
+      preserveLiveAssistantTurn();
     } else if (liveAssistantTurnId === event.turnId) {
       liveAssistantTurnId = undefined;
     }
@@ -578,7 +571,7 @@ function buildSession(pipeline: Pipeline) {
     renderLatency(pipeline, latency);
   });
   voiceSession.on('error', (event) => {
-    removeLiveAssistantTurn();
+    preserveLiveAssistantTurn();
     renderState('error');
     addTurn('assistant', `${event.code}: ${event.message}`);
     startBtn.disabled = false;
@@ -591,7 +584,7 @@ function buildSession(pipeline: Pipeline) {
     renderPipeline();
   });
   voiceSession.on('finished', () => {
-    removeLiveAssistantTurn();
+    preserveLiveAssistantTurn();
     renderState('finished');
     startBtn.disabled = false;
     finishBtn.disabled = true;
@@ -627,6 +620,7 @@ startBtn.addEventListener('click', async () => {
   turnLatencies.clear();
   assistantLatencyOrigins.clear();
   liveAssistantTurnId = undefined;
+  forceNextUserRow = false;
   lastSseAudio = undefined;
   debugAudioPlayer?.pause();
   await session?.dispose();

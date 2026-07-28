@@ -19,4 +19,8 @@ describe('web transcript turn grouping', () => {
     expect(shouldMergeAdjacentUserTurn('user', 'user-2', false)).toBe(false);
     expect(shouldMergeAdjacentUserTurn('assistant', 'assistant-1', true)).toBe(false);
   });
+
+  it('starts a new user row after a confirmed assistant interruption', () => {
+    expect(shouldMergeAdjacentUserTurn('user', 'user-3', true, true)).toBe(false);
+  });
 });

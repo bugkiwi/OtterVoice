@@ -228,7 +228,7 @@ describe('createOpenRouterGateway trust boundary', () => {
     });
   });
 
-  it('orchestrates ASR, streamed LLM segmentation, and ordered MP3 TTS on one route', async () => {
+  it('orchestrates ASR, streamed LLM segmentation, and ordered TTS on one route', async () => {
     const upstream: Array<{ path: string; body: Record<string, unknown> }> = [];
     const handle = gateway({
       fetch: async (input, init) => {
@@ -251,7 +251,11 @@ describe('createOpenRouterGateway trust boundary', () => {
         const text = String(body.input);
         return new Response(
           new Uint8Array(text.startsWith('第一') ? [1, 2] : [3, 4]),
-          { headers: { 'content-type': 'audio/mpeg' } },
+          {
+            headers: {
+              'content-type': text.startsWith('第一') ? 'audio/wav' : 'audio/mpeg',
+            },
+          },
         );
       },
     });
@@ -289,7 +293,7 @@ describe('createOpenRouterGateway trust boundary', () => {
       {
         type: 'output_audio_segment',
         sequence: 0,
-        mimeType: 'audio/mpeg',
+        mimeType: 'audio/wav',
         data: 'AQI=',
       },
       {

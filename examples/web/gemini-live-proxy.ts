@@ -2,6 +2,7 @@ import { HttpsProxyAgent } from 'https-proxy-agent';
 import WebSocket, { type RawData } from 'ws';
 
 export const GEMINI_LIVE_MODEL = 'gemini-3.1-flash-live-preview';
+export const GEMINI_LIVE_VOICE = 'Charon';
 
 const DEFAULT_SYSTEM_PROMPT =
   `当前日期是 ${new Date().toISOString().slice(0, 10)}。` +
@@ -48,6 +49,7 @@ type GeminiLiveClient = {
   connect: (options: {
     systemInstruction: string;
     searchEnabled: boolean;
+    voiceName: string;
     callbacks: GeminiLiveCallbacks;
   }) => Promise<GeminiLiveSession>;
 };
@@ -223,6 +225,14 @@ function historySystemPrompt(systemPrompt: string, history: TextMessage[]): stri
   return `${systemPrompt}\n以下是此前已完成的对话，仅作为当前语音问题的上下文：\n${transcript}`;
 }
 
+function normalizeWebSocketError(value: unknown): Error {
+  if (value instanceof Error) return value;
+  if (isRecord(value) && typeof value.message === 'string' && value.message) {
+    return new Error(value.message);
+  }
+  return new Error('Gemini Live WebSocket failed');
+}
+
 function createDirectGeminiLiveClient(apiKey: string, proxyUrl?: string): GeminiLiveClient {
   return {
     connect(options) {
@@ -254,6 +264,11 @@ function createDirectGeminiLiveClient(apiKey: string, proxyUrl?: string): Gemini
               model: `models/${GEMINI_LIVE_MODEL}`,
               generationConfig: {
                 responseModalities: ['AUDIO'],
+                speechConfig: {
+                  voiceConfig: {
+                    prebuiltVoiceConfig: { voiceName: options.voiceName },
+                  },
+                },
                 thinkingConfig: { thinkingLevel: 'MINIMAL' },
               },
               systemInstruction: {
@@ -282,7 +297,12 @@ function createDirectGeminiLiveClient(apiKey: string, proxyUrl?: string): Gemini
           }
           options.callbacks.onmessage(message);
         });
-        socket.once('error', (error) => {
+        // Keep this listener for the socket's full lifetime. Bun/ws can emit a
+        // second ErrorEvent while a failed proxy handshake or terminate() is
+        // unwinding; a once-listener would leave that event unhandled and kill
+        // the demo process.
+        socket.on('error', (value: unknown) => {
+          const error = normalizeWebSocketError(value);
           options.callbacks.onerror?.(error);
           if (!connected) {
             clearTimeout(timeout);
@@ -418,6 +438,7 @@ async function createGeminiStream(
           callbacks,
           systemInstruction: historySystemPrompt(systemPrompt, history),
           searchEnabled,
+          voiceName: GEMINI_LIVE_VOICE,
         });
         sessionReady = true;
         if (request.signal.aborted) throw new Error('client request was aborted');

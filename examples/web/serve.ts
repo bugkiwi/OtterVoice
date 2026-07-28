@@ -70,8 +70,14 @@ const htmlPath = new URL('./index.html', root).pathname;
 Bun.serve({
   hostname: '127.0.0.1',
   port,
-  async fetch(request) {
+  async fetch(request, server) {
     const path = new URL(request.url).pathname;
+    if (path.startsWith('/api/voice/')) {
+      // Voice responses may be quiet while an upstream model is connecting or
+      // thinking. Bun's default 10-second idle timeout also applies before the
+      // first SSE byte, so let the gateways' own bounded timeouts own this path.
+      server.timeout(request, 0);
+    }
     if (path.startsWith('/api/voice/google/')) {
       return geminiLiveGateway(request);
     }

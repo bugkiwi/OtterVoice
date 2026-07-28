@@ -9,3 +9,4 @@ coverage/
 .expo/
 examples/react-native-expo/ios/
 examples/react-native-expo/android/
+scripts-local/

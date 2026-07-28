@@ -629,7 +629,7 @@ export function createOpenRouterGateway(
                 send({
                   type: 'output_audio_segment',
                   sequence: currentSequence,
-                  mimeType: 'audio/mpeg',
+                  mimeType: result.value.contentType,
                   data: bytesToBase64(new Uint8Array(result.value.bytes)),
                 });
               });
