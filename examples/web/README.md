@@ -125,8 +125,7 @@ ownership checks and durable cost/rate limits.
   Gemini 3.5 Flash Lite rejects requests that explicitly disable it; OpenRouter provider
   endpoints are sorted by latency and prefer a rolling p90 TTFT of at most 2 s
 - ASR: `qwen/qwen3-asr-flash-2026-02-10`
-- TTS: `openai/gpt-audio-mini`, voice `alloy`, adapted through streaming audio
-  chat completions
+- TTS: `minimax/speech-2.8-turbo`, voice `alloy`
 - Native audio LLM: `openai/gpt-audio-mini`, voice `alloy`
 - Optional native audio LLM: Google official
   `gemini-3.1-flash-live-preview`, voice `Charon`, with Google Search Grounding
@@ -138,11 +137,10 @@ PCM16 WAV before the audio-LLM request. The deployed showcase downsamples that
 WAV to 16 kHz and caps a turn at 90 seconds so Base64 audio plus its JSON
 envelope stays below Vercel's Function request-body limit. Each output
 `delta.audio` PCM16 chunk from the native model is decoded and scheduled on a
-Web Audio timeline. The composed route instead asks GPT Audio Mini to read each
-completed LLM clause, wraps its 24 kHz PCM16 output in a WAV segment, and
-returns those segments in order. Synthesis begins as soon as each clause is
-ready, independently of client playback, and the browser queues already-
-downloaded segments in order.
+Web Audio timeline. The composed route instead sends each completed LLM clause
+to MiniMax Speech and returns sentence-sized MP3 segments in order. Synthesis
+begins as soon as each clause is ready, independently of client playback, and
+the browser queues already-downloaded segments in order.
 
 ## Price evaluation (2026-07-27)
 
@@ -152,11 +150,13 @@ Current OpenRouter list prices:
 | --- | ---: |
 | Qwen3 ASR Flash | $0.000035 / audio second |
 | Gemini 3.5 Flash Lite | $0.30 / 1M input tokens; $2.50 / 1M output tokens |
+| MiniMax Speech 2.8 Turbo | $60 / 1M characters |
 | GPT Audio Mini | $0.60 / 1M input tokens; $2.40 / 1M output tokens |
 
 Sources: [GPT Audio Mini](https://openrouter.ai/openai/gpt-audio-mini/pricing),
 [Qwen3 ASR Flash](https://openrouter.ai/qwen/qwen3-asr-flash-2026-02-10/pricing),
-and [Gemini 3.5 Flash Lite](https://openrouter.ai/google/gemini-3.5-flash-lite).
+[Gemini 3.5 Flash Lite](https://openrouter.ai/google/gemini-3.5-flash-lite), and
+[MiniMax Speech 2.8 Turbo](https://openrouter.ai/minimax/speech-2.8-turbo).
 
 On the repository's 9.99-second fixed opening clip, OpenRouter billed 6 seconds
 of non-silent ASR audio. Before the current model defaults, three live runs

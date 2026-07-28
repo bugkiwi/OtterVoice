@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'bun:test';
 import {
-  createGptAudioTtsFetch,
   createDemoVoiceGateway,
   demoVoiceGatewayPolicy,
   stripSearchCitations,
@@ -30,59 +29,49 @@ function request(path: string): Request {
 }
 
 describe('web example OpenRouter policy gateway', () => {
-  it('uses Gemini 3.5 Flash Lite and GPT Audio Mini for cascaded turns', () => {
+  it('uses Gemini 3.5 Flash Lite and MiniMax Speech for cascaded turns', () => {
     expect(demoVoiceGatewayPolicy.llm?.model).toBe('google/gemini-3.5-flash-lite');
-    expect(demoVoiceGatewayPolicy.tts?.model).toBe('openai/gpt-audio-mini');
+    expect(demoVoiceGatewayPolicy.tts?.model).toBe('minimax/speech-2.8-turbo');
   });
 
-  it('adapts GPT Audio Mini TTS to streaming audio chat completions', async () => {
-    let upstreamUrl = '';
-    let upstreamBody: Record<string, unknown> = {};
-    const fetchImpl = createGptAudioTtsFetch(async (input, init) => {
-      upstreamUrl = String(input);
-      upstreamBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      return new Response([
-        'data: {"choices":[{"delta":{"audio":{"data":"AQIDBA=="}}}]}',
-        '',
-        'data: {"choices":[],"usage":{"cost":0.001}}',
-        '',
-        'data: [DONE]',
-        '',
-      ].join('\n'), {
-        headers: {
-          'content-type': 'text/event-stream',
-          'x-generation-id': 'gen-audio',
-        },
-      });
+  it('sends cascaded speech directly to the MiniMax audio endpoint', async () => {
+    let speechPath = '';
+    let speechBody: Record<string, unknown> = {};
+    const gateway = createDemoVoiceGateway('server-secret', {
+      fetch: async (input, init) => {
+        const path = new URL(String(input)).pathname;
+        if (path.endsWith('/audio/transcriptions')) {
+          return Response.json({ text: '你好' });
+        }
+        if (path.endsWith('/chat/completions')) {
+          return new Response([
+            'data: {"choices":[{"delta":{"content":"你好。"}}]}',
+            '',
+            'data: [DONE]',
+            '',
+          ].join('\n'), { headers: { 'content-type': 'text/event-stream' } });
+        }
+        speechPath = path;
+        speechBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return new Response(new Uint8Array([1, 2, 3, 4]), {
+          headers: { 'content-type': 'audio/mpeg' },
+        });
+      },
     });
 
-    const response = await fetchImpl('https://openrouter.ai/api/v1/audio/speech', {
-      method: 'POST',
-      body: JSON.stringify({
-        model: 'openai/gpt-audio-mini',
-        input: '你好',
-        voice: 'alloy',
-        response_format: 'mp3',
-      }),
-    });
-    const bytes = new Uint8Array(await response.arrayBuffer());
+    const response = await gateway(request('/api/voice/asr-llm-tts/chat/completions'));
+    const output = await response.text();
 
-    expect(upstreamUrl).toBe('https://openrouter.ai/api/v1/chat/completions');
-    expect(upstreamBody).toMatchObject({
-      model: 'openai/gpt-audio-mini',
-      messages: [
-        { role: 'system' },
-        { role: 'user', content: '你好' },
-      ],
-      modalities: ['text', 'audio'],
-      audio: { voice: 'alloy', format: 'pcm16' },
-      stream: true,
+    expect(speechPath).toBe('/api/v1/audio/speech');
+    expect(speechBody).toEqual({
+      model: 'minimax/speech-2.8-turbo',
+      input: '你好。',
+      voice: 'alloy',
+      response_format: 'mp3',
+      speed: 1.05,
     });
-    expect(new TextDecoder().decode(bytes.slice(0, 4))).toBe('RIFF');
-    expect([...bytes.slice(44)]).toEqual([1, 2, 3, 4]);
-    expect(response.headers.get('content-type')).toBe('audio/wav');
-    expect(response.headers.get('x-generation-id')).toBe('gen-audio');
-    expect(response.headers.get('x-ottervoice-provider-cost')).toBe('0.001');
+    expect(output).toContain('"mimeType":"audio/mpeg"');
+    expect(output).toContain('"type":"done"');
   });
 
   it('adds a bounded server-owned web search tool only on the online route', async () => {
@@ -165,20 +154,14 @@ describe('web example OpenRouter policy gateway', () => {
         if (path.endsWith('/audio/transcriptions')) {
           return Response.json({ text: '今年的世界杯谁获得了冠军？' });
         }
+        if (path.endsWith('/audio/speech')) {
+          const body = JSON.parse(String(init?.body)) as { input?: string };
+          spokenInputs.push(body.input ?? '');
+          return new Response(new Uint8Array([1, 2, 3, 4]), {
+            headers: { 'content-type': 'audio/mpeg' },
+          });
+        }
         if (path.endsWith('/chat/completions')) {
-          const body = JSON.parse(String(init?.body)) as {
-            model?: string;
-            messages?: Array<{ content?: string }>;
-          };
-          if (body.model === 'openai/gpt-audio-mini') {
-            spokenInputs.push(body.messages?.[1]?.content ?? '');
-            return new Response([
-              'data: {"choices":[{"delta":{"audio":{"data":"AQIDBA=="}}}]}',
-              '',
-              'data: [DONE]',
-              '',
-            ].join('\n'), { headers: { 'content-type': 'text/event-stream' } });
-          }
           return new Response([
             'data: {"choices":[{"delta":{"content":"西班牙赢得了冠军。 [[1]](https://example"}}]}',
             '',
@@ -198,7 +181,7 @@ describe('web example OpenRouter policy gateway', () => {
     expect(output).toContain('西班牙赢得了冠军。');
     expect(output).not.toContain('example.com');
     expect(output).not.toContain('[[1]]');
-    expect(output).toContain('"mimeType":"audio/wav"');
+    expect(output).toContain('"mimeType":"audio/mpeg"');
     expect(spokenInputs).toEqual(['西班牙赢得了冠军。']);
   });
 });

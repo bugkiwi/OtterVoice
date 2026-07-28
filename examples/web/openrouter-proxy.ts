@@ -1,6 +1,5 @@
 import {
   createOpenRouterGateway,
-  pcm16ToWav,
   type OpenRouterGatewayOptions,
   type OpenRouterGatewayPolicy,
 } from '@ottervoice/provider-openrouter';
@@ -13,9 +12,6 @@ const DEFAULT_SYSTEM_PROMPT =
 const SEARCH_OUTPUT_INSTRUCTION =
   '联网搜索结果只用于内部核实。最终回答只输出适合朗读的自然语言正文；' +
   '禁止输出引用编号、脚注、URL、域名、Markdown 链接、来源或参考资料列表。';
-const GPT_AUDIO_TTS_PROMPT =
-  '你是文字转语音引擎。逐字朗读用户提供的文本，保持原语言和自然语气；' +
-  '不得回答、改写、解释、添加开场白或朗读指令本身。';
 type GatewayFetch = NonNullable<OpenRouterGatewayOptions['fetch']>;
 
 type SearchMessage = { role?: unknown; content?: unknown };
@@ -23,109 +19,9 @@ type OpenRouterStreamPayload = {
   choices?: Array<{
     delta?: {
       content?: unknown;
-      audio?: { data?: unknown };
     };
-    message?: { audio?: { data?: unknown } };
   }>;
 };
-
-function base64ToBytes(value: string): Uint8Array {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  const clean = value.replace(/\s/g, '');
-  const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
-  const output = new Uint8Array(Math.max(0, (clean.length / 4) * 3 - padding));
-  let offset = 0;
-  for (let index = 0; index < clean.length; index += 4) {
-    const a = alphabet.indexOf(clean[index] ?? 'A');
-    const b = alphabet.indexOf(clean[index + 1] ?? 'A');
-    const c = clean[index + 2] === '=' ? 0 : alphabet.indexOf(clean[index + 2] ?? 'A');
-    const d = clean[index + 3] === '=' ? 0 : alphabet.indexOf(clean[index + 3] ?? 'A');
-    const bits = (a << 18) | (b << 12) | (c << 6) | d;
-    if (offset < output.length) output[offset++] = (bits >> 16) & 255;
-    if (offset < output.length) output[offset++] = (bits >> 8) & 255;
-    if (offset < output.length) output[offset++] = bits & 255;
-  }
-  return output;
-}
-
-function audioData(payload: OpenRouterStreamPayload): string | undefined {
-  const choice = payload.choices?.[0];
-  const data = choice?.delta?.audio?.data ?? choice?.message?.audio?.data;
-  return typeof data === 'string' ? data : undefined;
-}
-
-/**
- * Adapt OpenAI-compatible `/audio/speech` calls to GPT Audio chat output.
- *
- * `openai/gpt-audio-mini` generates audio through streaming chat completions,
- * so the web demo translates its locked TTS request without exposing provider
- * policy to the browser.
- *
- * @param fetchImpl - Upstream fetch implementation used by the web gateway.
- * @returns A fetch implementation that translates GPT Audio TTS requests.
- */
-export function createGptAudioTtsFetch(fetchImpl: GatewayFetch): GatewayFetch {
-  return async (input, init) => {
-    const upstreamUrl = input instanceof Request ? input.url : String(input);
-    const url = new URL(upstreamUrl);
-    if (!url.pathname.endsWith('/audio/speech')) return fetchImpl(input, init);
-
-    const speechBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
-    if (speechBody.model !== 'openai/gpt-audio-mini' || typeof speechBody.input !== 'string') {
-      return fetchImpl(input, init);
-    }
-    url.pathname = url.pathname.replace(/\/audio\/speech$/, '/chat/completions');
-    const upstream = await fetchImpl(url, {
-      ...init,
-      body: JSON.stringify({
-        model: speechBody.model,
-        messages: [
-          { role: 'system', content: GPT_AUDIO_TTS_PROMPT },
-          { role: 'user', content: speechBody.input },
-        ],
-        modalities: ['text', 'audio'],
-        audio: {
-          voice: typeof speechBody.voice === 'string' ? speechBody.voice : 'alloy',
-          format: 'pcm16',
-        },
-        stream: true,
-        stream_options: { include_usage: true },
-        temperature: 0.1,
-      }),
-    });
-    if (!upstream.ok || !upstream.body) return upstream;
-
-    const parts: string[] = [];
-    let providerCost: number | undefined;
-    for await (const data of parseSSEStream(upstream.body)) {
-      if (data === '[DONE]') break;
-      try {
-        const payload = JSON.parse(data) as OpenRouterStreamPayload & {
-          usage?: { cost?: unknown };
-        };
-        const part = audioData(payload);
-        if (part) parts.push(part);
-        if (typeof payload.usage?.cost === 'number') providerCost = payload.usage.cost;
-      } catch {
-        // Ignore malformed chunks; an empty result becomes a sanitized 502.
-      }
-    }
-    const pcm = base64ToBytes(parts.join(''));
-    if (pcm.byteLength === 0) {
-      return Response.json({ error: 'GPT Audio returned no speech' }, { status: 502 });
-    }
-    const returnRawPcm = speechBody.response_format === 'pcm';
-    const headers = new Headers({
-      'content-type': returnRawPcm ? 'audio/pcm' : 'audio/wav',
-    });
-    const generationId = upstream.headers.get('x-generation-id');
-    if (generationId) headers.set('x-generation-id', generationId);
-    if (providerCost !== undefined) {
-      headers.set('x-ottervoice-provider-cost', String(providerCost));
-    }
-    return new Response(returnRawPcm ? pcm : pcm16ToWav(pcm), { headers });
-  };
-}
 
 function addSearchOutputInstruction(body: Record<string, unknown>): Record<string, unknown> {
   const messages = Array.isArray(body.messages)
@@ -319,7 +215,7 @@ export const demoVoiceGatewayPolicy: OpenRouterGatewayPolicy = {
     },
   },
   tts: {
-    model: 'openai/gpt-audio-mini',
+    model: 'minimax/speech-2.8-turbo',
     voice: 'alloy',
     speed: 1.05,
     responseFormat: 'mp3',
@@ -338,7 +234,6 @@ export function createDemoVoiceGateway(
   overrides: Pick<OpenRouterGatewayOptions, 'fetch'> = {},
 ): (request: Request) => Promise<Response> {
   const fetchImpl: GatewayFetch = overrides.fetch ?? ((input, init) => globalThis.fetch(input, init));
-  const gptAudioTtsFetch = createGptAudioTtsFetch(fetchImpl);
   const authorize: OpenRouterGatewayOptions['authorize'] = ({ request, url }) => {
     const origin = request.headers.get('origin');
     // Local loopback demo only. Production must validate the authenticated
@@ -354,7 +249,7 @@ export function createDemoVoiceGateway(
     ttsCacheEntries: 32,
     title: 'OtterVoice Web Example',
     authorize,
-    fetch: gptAudioTtsFetch,
+    fetch: fetchImpl,
   });
   const webSearchGateway = createOpenRouterGateway({
     apiKey,
@@ -369,7 +264,7 @@ export function createDemoVoiceGateway(
     maxTextCharacters: 20_000,
     title: 'OtterVoice Web Example',
     authorize,
-    fetch: withWebSearch(gptAudioTtsFetch),
+    fetch: withWebSearch(fetchImpl),
   });
 
   return (request) => new URL(request.url).pathname.startsWith('/api/voice/online/')
