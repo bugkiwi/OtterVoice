@@ -51,11 +51,13 @@ const handleVoice = createOpenRouterGateway({
 Mount `handleVoice` at `/api/voice/*`. The composite
 `asr-llm-tts/chat/completions` route accepts one audio turn, runs all three
 stages on the server, and returns text plus sentence-sized MP3 segments over
-one SSE response. Independent `asr`, `llm`, and `tts` profiles remain available
-for server/trusted integrations; an omitted policy is disabled.
+one SSE response. Apps use this route or the native `audio-llm` route through
+the same `AudioLLMProvider` contract. The standalone `asr` route remains
+available only for optional captions; there are no standalone client LLM/TTS
+profiles.
 
-Direct factories such as `createOpenRouterLLM()` remain available for trusted
-Node/server/CLI runtimes. Do not return a broad OpenRouter bearer token to a
+Direct `createOpenRouterLLM()` and `createOpenRouterTTS()` factories remain as
+trusted-server building blocks for composite audio-turn implementations. Do not return a broad OpenRouter bearer token to a
 browser: hiding a long-lived key is insufficient if the client can still select
 models or generation parameters.
 

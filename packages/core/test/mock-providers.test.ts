@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import {
   createMockASR,
+  createMockAudioLLM,
   createMockLLM,
   createMockPronunciation,
   createMockTTS,
@@ -12,6 +13,43 @@ const someError: NormalizedVoiceError = {
   message: 'down',
   retryable: true,
 };
+
+describe('createMockAudioLLM', () => {
+  it('returns scripted transcripts, reply audio, callbacks, and usage', async () => {
+    const inputTranscripts: string[] = [];
+    const deltas: string[] = [];
+    const provider = createMockAudioLLM({
+      inputTranscripts: ['hello'],
+      reply: (_input, callIndex, inputText) => `${callIndex}:${inputText}`,
+      mimeType: 'audio/wav',
+    });
+    const output = await provider.generate({
+      audio: new ArrayBuffer(1),
+      format: 'wav',
+      messages: [],
+      onInputTranscript: (text) => inputTranscripts.push(text),
+      onTranscriptDelta: (text) => deltas.push(text),
+    });
+
+    expect(provider.transcribesInput).toBe(true);
+    expect(output.inputText).toBe('hello');
+    expect(output.text).toBe('0:hello');
+    expect(new TextDecoder().decode(output.audioBuffer)).toBe('0:hello');
+    expect(output.mimeType).toBe('audio/wav');
+    expect(output.usage?.totalTokens).toBe(15);
+    expect(inputTranscripts).toEqual(['hello']);
+    expect(deltas).toEqual(['0:hello']);
+  });
+
+  it('rejects with failWith', async () => {
+    const provider = createMockAudioLLM({ failWith: someError });
+    await expect(provider.generate({
+      audio: new ArrayBuffer(0),
+      format: 'wav',
+      messages: [],
+    })).rejects.toBe(someError);
+  });
+});
 
 describe('createMockASR', () => {
   it('emits a partial then a final per sendAudio, advancing across sessions', async () => {

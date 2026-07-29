@@ -1,6 +1,6 @@
 {
   "name": "@ottervoice/provider-azure-speech",
-  "version": "0.2.0-alpha.1",
+  "version": "0.2.0-alpha.2",
   "type": "module",
   "description": "Azure Cognitive Services TTS provider for OtterVoice (REST, SSML).",
   "license": "MIT",
@@ -37,10 +37,5 @@
   },
   "dependencies": {
     "@ottervoice/provider-utils": "workspace:^"
-  },
-  "typedoc": {
-    "entryPoints": [
-      "./src/index.ts"
-    ]
   }
 }

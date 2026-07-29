@@ -196,4 +196,41 @@ describe('ExpoAudioInput native PCM stream', () => {
       new Int16Array([16_384, -16_384]),
     );
   });
+
+  it('cancels a native start that completes after stop', async () => {
+    let onBuffer: ((buffer: ExpoPcmInputBuffer) => void) | undefined;
+    let releaseStart!: () => void;
+    const startGate = new Promise<void>((resolve) => {
+      releaseStart = resolve;
+    });
+    let stopCount = 0;
+    const input = new ExpoAudioInput({
+      createPcmStream: (_options, cb) => {
+        onBuffer = cb;
+        return {
+          start: () => startGate,
+          stop: () => {
+            stopCount += 1;
+          },
+        };
+      },
+    });
+    const chunks: AudioChunk[] = [];
+    input.onChunk((chunk) => chunks.push(chunk));
+
+    const starting = input.start();
+    await Promise.resolve();
+    const stopping = input.stop();
+    releaseStart();
+    await Promise.all([starting, stopping]);
+    onBuffer?.({
+      data: new Int16Array([1_000]).buffer,
+      encoding: 'pcm_s16le',
+      sampleRate: 16_000,
+      channels: 1,
+    });
+
+    expect(stopCount).toBe(1);
+    expect(chunks).toHaveLength(0);
+  });
 });

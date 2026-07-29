@@ -19,7 +19,7 @@ provider-deepgram | elevenlabs | openrouter | azure-speech | 自研
 
 | 包 | 何时用 |
 | --- | --- |
-| [`@ottervoice/core`](/docs/packages/core/) | 始终需要。`createVoiceSession`、事件、Mock。 |
+| [`@ottervoice/core`](/docs/packages/core/) | 始终需要。`createVoiceSession` / `createOtterVoiceSession`、事件、Mock。 |
 | [`@ottervoice/runtime-web`](/docs/packages/runtime-web/) | 浏览器麦克风 + 播放。 |
 | [`@ottervoice/runtime-react-native`](/docs/packages/runtime-react-native/) | Expo / RN，注入原生音频能力。 |
 | [`@ottervoice/runtime-node`](/docs/packages/runtime-node/) | CLI / 服务端音频与网络。 |
@@ -27,11 +27,14 @@ provider-deepgram | elevenlabs | openrouter | azure-speech | 自研
 | [`@ottervoice/protocol`](/docs/packages/protocol/) | 跨进程 / 跨端转发 Session 事件时。 |
 | [`@ottervoice/provider-utils`](/docs/packages/provider-utils/) | 写自定义 Provider：凭证、SSE、WebSocket ASR。 |
 
-## 两条流水线
+## 一种客户端契约，两种后端实现
 
-| `pipeline` | 路径 | 适用 |
+| 后端 | `AudioLLMProvider` 内部路径 | 客户端差异 |
 | --- | --- | --- |
-| `asr_llm_tts`（默认） | ASR 文本 → LLM 流式文本 → TTS | 经典级联，易换件 |
-| `audio_llm` | ASR 字幕 ∥ Audio LLM 文本/PCM（时机可配置） | 低延迟一体模型 |
+| 原生 | audio in → 原生语音模型 → text + audio out | 无 |
+| 复合 | audio in → ASR → LLM → TTS → text + audio out | 无 |
+
+`VoiceSession` 始终只接收 `providers.audioLlm`，需要独立字幕时再加可选
+`providers.asr`。模型数量与厂商选择全部封装在 Provider 或可信网关后。
 
 OpenRouter 等只是仓库附带适配器，不是固定线上通路。

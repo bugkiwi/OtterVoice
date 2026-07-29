@@ -23,9 +23,13 @@ The runnable [Audio LLM-only example](https://github.com/bugkiwi/OtterVoice/tree
 | Standard client factory | Base URL | Server locks |
 | --- | --- | --- |
 | `createOpenRouterGatewayASR` | `/api/voice/asr` | ASR model and language policy |
-| `createOpenRouterGatewayLLM` | `/api/voice/llm` | model, system prompt, temperature, tokens, reasoning |
-| `createOpenRouterGatewayTTS` | `/api/voice/tts` | model, voice, speed, format |
 | `createOpenRouterGatewayAudioLLM` | `/api/voice/audio-llm` | model, system prompt, voice, temperature, tokens |
+| `createOpenRouterGatewayVoiceTurn` | `/api/voice/asr-llm-tts` | ASR, LLM, and TTS policy; one SSE response returns input transcript, text, and MP3 segments |
+
+The composite voice factory implements `AudioLLMProvider` with
+`transcribesInput: true`. With `createOtterVoiceSession`, clients may omit
+caption `asr`; the gateway must still authorize, rate-limit, and meter the
+`asr_llm_tts` profile independently.
 
 ## Credentials and headers
 
@@ -59,11 +63,10 @@ session.on('assistant_audio', async ({ turnId, audio, mimeType }) => {
 
 ## Retry policy
 
-Retry only failures marked `retryable`; use exponential backoff with jitter and honor provider retry headers at the gateway. Do not retry authentication, quota, audio-decode, or request-validation failures without changing the request. Client `audioLlmRetry`, rolling ASR, `after_audio`, and pipeline selection can all increase calls/spend; server budgets and idempotency must not trust those client values.
+Retry only failures marked `retryable`; use exponential backoff with jitter and honor provider retry headers at the gateway. Do not retry authentication, quota, audio-decode, or request-validation failures without changing the request. Client `audioLlmRetry`, rolling ASR, `after_audio`, and backend selection can all increase calls/spend; server budgets and idempotency must not trust those client values.
 
 ```ts
 const session = createOtterVoiceSession({
-  pipeline: 'audio_llm',
   // Standard clients make one request; the gateway enforces budget independently.
   audioLlmRetry: { maxAttempts: 1 },
   // ...

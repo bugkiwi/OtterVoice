@@ -3,18 +3,17 @@ title: "@ottervoice/core"
 description: VoiceSession、配置、事件、Mock 与状态机。
 ---
 
-核心入口：`createVoiceSession(config)`。
+`createVoiceSession(config)` 与 `createOtterVoiceSession(config)` 使用完全相同的
+统一 audio-turn 配置；后者只是语义更明确的别名。
 
 ## `VoiceSessionConfig` 要点
 
 | 字段 | 说明 |
 | --- | --- |
 | `mode` | `half_duplex` · `full_duplex` · `push_to_talk` · `streaming_transcript` |
-| `pipeline` | `asr_llm_tts`（默认）或 `audio_llm` |
 | `runtime` | 平台适配器 |
-| `providers.asr` / `llm` | 必需 |
-| `providers.tts` | `asr_llm_tts` 需要 |
-| `providers.audioLlm` | `audio_llm` 需要 |
+| `providers.audioLlm` | 必需；原生语音模型或服务端复合语音栈 |
+| `providers.asr` | 可选字幕 ASR；当 audio-turn Provider 不返回输入转写时使用 |
 | `language` | 偏好 ASR 语言，如 `zh-CN` |
 | `asrPartial` | 是否发 `asr_partial`，默认 `true` |
 | `turnDetection` | 听用户说话时的 VAD |
@@ -23,11 +22,16 @@ description: VoiceSession、配置、事件、Mock 与状态机。
 | `audioLlmSystemPrompt` / `audioLlmMaxTokens` | 仅可信 Node/服务端 Session；浏览器标准模式由网关注入 |
 | `audioLlmStartTiming` | `after_audio` 并行降首响；默认 `after_asr_final` |
 
+Core 只与单个 audio-turn Provider 对话。该 Provider 可以是
+原生语音模型，也可以是网关后组合的 ASR → LLM → TTS。若它声明
+`transcribesInput: true`，Core 会把 Provider 返回的输入转写作为 `asr_final`；
+否则应额外提供 caption ASR。
+
 完整字段见 [API 参考](/docs/reference/)。源码：[`types.ts`](https://github.com/bugkiwi/OtterVoice/blob/main/packages/core/src/types.ts)。
 
-Core 是跨运行时编排层，因此保留 prompt、temperature、max tokens、voice 等
-能力供可信服务端使用；它们不是浏览器安全边界。浏览器/App 应使用
-server-managed Provider，并让自有网关覆盖所有业务与成本策略。
+底层 `LLMProvider` 与 `TTSProvider` 仍供可信后端实现复合
+`AudioLLMProvider`，不再是 `VoiceSessionConfig.providers` 的槽位。浏览器/App
+应使用 server-managed Provider，并让自有网关覆盖所有业务与成本策略。
 
 ## `TurnDetectionConfig`
 

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AppState,
   Image,
   Pressable,
   ScrollView,
   Text,
   useColorScheme,
   View,
+  type AppStateStatus,
   type ColorValue,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -69,6 +71,10 @@ function DemoScreen() {
   const providers = useMemo(() => createMobileProviders(), []);
   const sessionRef = useRef<VoiceSession | null>(null);
   const cleanupsRef = useRef<Array<() => void>>([]);
+  const releaseChainRef = useRef<Promise<void>>(Promise.resolve());
+  const startAttemptRef = useRef(0);
+  const mountedRef = useRef(false);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const userAudioEndedAt = useRef<number | undefined>(undefined);
   const liveAssistantTurnIdRef = useRef<string | undefined>(undefined);
   const [language, setLanguage] = useState<AppLanguage>(() =>
@@ -83,8 +89,10 @@ function DemoScreen() {
   const [peakLevel, setPeakLevel] = useState(0);
   const [latencyMs, setLatencyMs] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
+  const [starting, setStarting] = useState(false);
   const t = copy[language];
-  const active = !['idle', 'finished', 'error'].includes(state);
+  const sessionActive = !['idle', 'finished', 'error'].includes(state);
+  const active = starting || sessionActive;
 
   useEffect(
     () => runtime.audioInput.onVolume((value) => {
@@ -95,22 +103,67 @@ function DemoScreen() {
     [runtime],
   );
 
-  const releaseSession = useCallback(async () => {
+  const releaseSession = useCallback((expected?: VoiceSession): Promise<void> => {
+    if (expected && sessionRef.current !== expected) return Promise.resolve();
     for (const off of cleanupsRef.current) off();
     cleanupsRef.current = [];
     const previous = sessionRef.current;
     sessionRef.current = null;
-    if (previous) await previous.dispose();
+    if (!previous) return releaseChainRef.current.catch(() => {});
+    const operation = releaseChainRef.current
+      .catch(() => {})
+      .then(() => previous.dispose());
+    releaseChainRef.current = operation;
+    return operation;
   }, []);
 
-  useEffect(
-    () => () => {
-      void releaseSession();
-    },
-    [releaseSession],
-  );
+  const finishSession = useCallback(async (
+    session: VoiceSession,
+    reason: string,
+  ): Promise<void> => {
+    try {
+      await session.finish(reason);
+    } finally {
+      await releaseSession(session);
+    }
+  }, [releaseSession]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      startAttemptRef.current += 1;
+      void releaseSession().catch(() => {});
+    };
+  }, [releaseSession]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const previousState = appStateRef.current;
+      appStateRef.current = nextState;
+      if (previousState !== 'active' || nextState === 'active') return;
+
+      startAttemptRef.current += 1;
+      setStarting(false);
+      const session = sessionRef.current;
+      if (!session) return;
+      void finishSession(session, 'app_background')
+        .then(() => {
+          if (!mountedRef.current) return;
+          setState('finished');
+          setPartial('');
+          setLiveTurnId(undefined);
+          setLevel(0);
+        })
+        .catch(() => {});
+    });
+    return () => subscription.remove();
+  }, [finishSession]);
 
   const start = useCallback(async () => {
+    const attempt = ++startAttemptRef.current;
+    let sessionForAttempt: VoiceSession | undefined;
+    setStarting(true);
     setError(undefined);
     setTurns([]);
     setPartial('');
@@ -119,50 +172,115 @@ function DemoScreen() {
     setLatencyMs(undefined);
     setRawLevel(0);
     setPeakLevel(0);
-    await releaseSession();
-    const granted = await runtime.audioInput.requestPermission();
-    if (!granted) {
-      setState('error');
-      setError(
-        language === 'zh'
-          ? '需要麦克风权限才能开始语音对话。'
-          : 'Microphone permission is required to start a voice session.',
-      );
-      return;
-    }
+    try {
+      await releaseSession();
+      const granted = await runtime.audioInput.requestPermission();
+      if (
+        attempt !== startAttemptRef.current ||
+        !mountedRef.current ||
+        AppState.currentState !== 'active'
+      ) {
+        return;
+      }
+      if (!granted) {
+        setState('error');
+        setError(
+          language === 'zh'
+            ? '需要麦克风权限才能开始语音对话。'
+            : 'Microphone permission is required to start a voice session.',
+        );
+        return;
+      }
 
-    const session = createVoiceSession({
-      mode: 'full_duplex',
-      pipeline: 'audio_llm',
-      audioLlmStartTiming: 'after_audio',
-      asrPartial: false,
-      runtime,
-      providers,
-      turnDetection: {
-        strategy: 'hybrid',
-        minSpeechMs: 180,
-        silenceTimeoutMs: 450,
-        volumeThreshold: TURN_VOLUME_THRESHOLD,
-      },
-      interruptionDetection: {
-        minSpeechMs: 160,
-        silenceTimeoutMs: 350,
-        volumeThreshold: 0.018,
-      },
-      policy: {
-        autoStartListening: true,
-        allowInterruption: true,
-        interruptionTailIgnoreMs: 200,
-        falseInterruptionSilenceMs: 400,
-        falseInterruptionTimeoutMs: 1_200,
-        interruptionCooldownMs: 500,
-      },
-    });
-    sessionRef.current = session;
-    cleanupsRef.current = [
-      session.on('statechange', ({ to }) => {
-        setState(to);
-        if (to === 'user_speaking') {
+      const session = createVoiceSession({
+        mode: 'full_duplex',
+        audioLlmStartTiming: 'after_audio',
+        asrPartial: false,
+        runtime,
+        providers,
+        turnDetection: {
+          strategy: 'hybrid',
+          minSpeechMs: 180,
+          silenceTimeoutMs: 450,
+          volumeThreshold: TURN_VOLUME_THRESHOLD,
+        },
+        interruptionDetection: {
+          minSpeechMs: 160,
+          silenceTimeoutMs: 350,
+          volumeThreshold: 0.018,
+        },
+        policy: {
+          autoStartListening: true,
+          allowInterruption: true,
+          interruptionTailIgnoreMs: 200,
+          falseInterruptionSilenceMs: 400,
+          falseInterruptionTimeoutMs: 1_200,
+          interruptionCooldownMs: 500,
+        },
+      });
+      sessionForAttempt = session;
+      sessionRef.current = session;
+      cleanupsRef.current = [
+        session.on('statechange', ({ to }) => {
+          setState(to);
+          if (to === 'user_speaking') {
+            const staleTurnId = liveAssistantTurnIdRef.current;
+            if (staleTurnId) {
+              setTurns((current) => current.filter((turn) => turn.id !== staleTurnId));
+              setLiveTurnId((current) => (
+                current === staleTurnId ? undefined : current
+              ));
+              liveAssistantTurnIdRef.current = undefined;
+            }
+          }
+          if (to === 'listening' || to === 'user_speaking') setPartial('');
+        }),
+        session.on('asr_partial', ({ text, turnId }) => {
+          setPartial(text);
+          setLiveTurnId(turnId);
+          if (text.trim()) {
+            setTurns((current) => upsertTurn(current, { id: turnId, role: 'user', text }));
+          }
+        }),
+        session.on('asr_final', ({ text, turnId }) => {
+          setPartial('');
+          setLiveTurnId((current) => (current === turnId ? undefined : current));
+          if (!text.trim()) {
+            setTurns((current) => current.filter((turn) => turn.id !== turnId));
+            return;
+          }
+          setTurns((current) => upsertTurn(current, { id: turnId, role: 'user', text }));
+        }),
+        session.on('assistant_text_delta', ({ text, turnId }) => {
+          const staleTurnId = liveAssistantTurnIdRef.current;
+          liveAssistantTurnIdRef.current = turnId;
+          setLiveTurnId(turnId);
+          setTurns((current) => upsertTurn(
+            staleTurnId && staleTurnId !== turnId
+              ? current.filter((turn) => turn.id !== staleTurnId)
+              : current,
+            { id: turnId, role: 'assistant', text },
+          ));
+        }),
+        session.on('assistant_text', ({ text, turnId }) => {
+          const staleTurnId = liveAssistantTurnIdRef.current;
+          if (staleTurnId === turnId) liveAssistantTurnIdRef.current = undefined;
+          setLiveTurnId((current) => (current === turnId ? undefined : current));
+          setTurns((current) => upsertTurn(
+            staleTurnId && staleTurnId !== turnId
+              ? current.filter((turn) => turn.id !== staleTurnId)
+              : current,
+            { id: turnId, role: 'assistant', text },
+          ));
+        }),
+        session.on('user_audio_end', () => {
+          userAudioEndedAt.current = performance.now();
+        }),
+        session.on('assistant_audio_start', () => {
+          const endedAt = userAudioEndedAt.current;
+          if (endedAt !== undefined) setLatencyMs(performance.now() - endedAt);
+        }),
+        session.on('error', (event) => {
           const staleTurnId = liveAssistantTurnIdRef.current;
           if (staleTurnId) {
             setTurns((current) => current.filter((turn) => turn.id !== staleTurnId));
@@ -171,76 +289,51 @@ function DemoScreen() {
             ));
             liveAssistantTurnIdRef.current = undefined;
           }
-        }
-        if (to === 'listening' || to === 'user_speaking') setPartial('');
-      }),
-      session.on('asr_partial', ({ text, turnId }) => {
-        setPartial(text);
-        setLiveTurnId(turnId);
-        if (text.trim()) {
-          setTurns((current) => upsertTurn(current, { id: turnId, role: 'user', text }));
-        }
-      }),
-      session.on('asr_final', ({ text, turnId }) => {
-        setPartial('');
-        setLiveTurnId((current) => (current === turnId ? undefined : current));
-        if (!text.trim()) {
-          setTurns((current) => current.filter((turn) => turn.id !== turnId));
-          return;
-        }
-        setTurns((current) => upsertTurn(current, { id: turnId, role: 'user', text }));
-      }),
-      session.on('assistant_text_delta', ({ text, turnId }) => {
-        const staleTurnId = liveAssistantTurnIdRef.current;
-        liveAssistantTurnIdRef.current = turnId;
-        setLiveTurnId(turnId);
-        setTurns((current) => upsertTurn(
-          staleTurnId && staleTurnId !== turnId
-            ? current.filter((turn) => turn.id !== staleTurnId)
-            : current,
-          { id: turnId, role: 'assistant', text },
-        ));
-      }),
-      session.on('assistant_text', ({ text, turnId }) => {
-        const staleTurnId = liveAssistantTurnIdRef.current;
-        if (staleTurnId === turnId) liveAssistantTurnIdRef.current = undefined;
-        setLiveTurnId((current) => (current === turnId ? undefined : current));
-        setTurns((current) => upsertTurn(
-          staleTurnId && staleTurnId !== turnId
-            ? current.filter((turn) => turn.id !== staleTurnId)
-            : current,
-          { id: turnId, role: 'assistant', text },
-        ));
-      }),
-      session.on('user_audio_end', () => {
-        userAudioEndedAt.current = performance.now();
-      }),
-      session.on('assistant_audio_start', () => {
-        const endedAt = userAudioEndedAt.current;
-        if (endedAt !== undefined) setLatencyMs(performance.now() - endedAt);
-      }),
-      session.on('error', (event) => {
-        const staleTurnId = liveAssistantTurnIdRef.current;
-        if (staleTurnId) {
-          setTurns((current) => current.filter((turn) => turn.id !== staleTurnId));
-          setLiveTurnId((current) => (
-            current === staleTurnId ? undefined : current
-          ));
-          liveAssistantTurnIdRef.current = undefined;
-        }
-        setError(event.message);
+          setError(event.message);
+          setState('error');
+          void releaseSession(session).catch(() => {});
+        }),
+      ];
+      await session.start();
+    } catch (cause) {
+      if (
+        attempt === startAttemptRef.current &&
+        mountedRef.current &&
+        AppState.currentState === 'active'
+      ) {
         setState('error');
-      }),
-    ];
-    await session.start();
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+      if (sessionForAttempt) {
+        await releaseSession(sessionForAttempt).catch(() => {});
+      }
+    } finally {
+      if (attempt === startAttemptRef.current && mountedRef.current) {
+        setStarting(false);
+      }
+    }
   }, [language, providers, releaseSession, runtime]);
 
   const finish = useCallback(async () => {
-    await sessionRef.current?.finish();
-    await releaseSession();
-    setState('finished');
-    setLevel(0);
-  }, [releaseSession]);
+    startAttemptRef.current += 1;
+    setStarting(false);
+    const session = sessionRef.current;
+    try {
+      if (session) await finishSession(session, 'user_finished');
+    } catch (cause) {
+      if (mountedRef.current) {
+        setState('error');
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+      return;
+    }
+    if (mountedRef.current) {
+      setState('finished');
+      setPartial('');
+      setLiveTurnId(undefined);
+      setLevel(0);
+    }
+  }, [finishSession]);
 
   const meterBars = Array.from({ length: 9 }, (_, index) => {
     const threshold = (index + 1) / 9;
@@ -390,7 +483,7 @@ function DemoScreen() {
           />
           <ActionButton
             label={t.finish}
-            disabled={!active}
+            disabled={!sessionActive}
             colors={colors}
             onPress={() => void finish()}
           />

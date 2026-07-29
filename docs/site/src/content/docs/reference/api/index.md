@@ -14,7 +14,7 @@ editUrl: false
 
 | Package | Description |
 | ------ | ------ |
-| [@ottervoice/core](/docs/reference/api/ottervoice-core/) | Platform-agnostic core for OtterVoice: VoiceSession, state machine, provider router, events, and mock providers. |
+| [@ottervoice/core](/docs/reference/api/ottervoice-core/) | Platform-agnostic OtterVoice core: unified audio-turn VoiceSession, state machine, events, and mocks. |
 | [@ottervoice/protocol](/docs/reference/api/ottervoice-protocol/) | JSON wire protocol for OtterVoice sessions — encode/parse/validate session events for native (Swift/Kotlin) and cross-process clients. |
 | [@ottervoice/provider-azure-speech](/docs/reference/api/ottervoice-provider-azure-speech/) | Azure Cognitive Services TTS provider for OtterVoice (REST, SSML). |
 | [@ottervoice/provider-deepgram](/docs/reference/api/ottervoice-provider-deepgram/) | Deepgram streaming ASR provider for OtterVoice (WebSocket). |

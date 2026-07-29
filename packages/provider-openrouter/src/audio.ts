@@ -52,7 +52,7 @@ export interface OpenRouterASROptions extends CredentialOptions, HeaderOptions {
 
 /**
  * Options for direct OpenRouter HTTP speech synthesis in trusted server/CLI
- * runtimes. Browser/app integrations should use `OpenRouterGatewayClientOptions`.
+ * runtimes. Use it for the TTS stage of a composite audio-turn backend.
  */
 export interface OpenRouterTTSOptions extends CredentialOptions, HeaderOptions {
   /** OpenRouter / OpenAI-compatible TTS model id. Keep server-owned. */
@@ -65,8 +65,6 @@ export interface OpenRouterTTSOptions extends CredentialOptions, HeaderOptions {
   requestStage?: 'gateway' | 'provider';
   /** Speaking rate multiplier when the upstream model supports it. Keep server-owned. */
   speed?: number;
-  /** Omit provider policy fields because a trusted gateway reconstructs the request. */
-  serverManaged?: boolean;
 }
 
 function joinChunks(chunks: readonly ArrayBuffer[]): Uint8Array {
@@ -184,7 +182,7 @@ export function bytesToBase64(bytes: Uint8Array): string {
  * final request still covers the complete turn.
  *
  * @param options - Model, credentials, and optional rolling-partial interval.
- * @returns An {@link ASRProvider} for {@link VoiceSessionConfig.providers.asr}.
+ * @returns An {@link ASRProvider} for a session's caption/transcription provider slot.
  */
 export function createOpenRouterASR(options: OpenRouterASROptions): ASRProvider {
   const fetchImpl = resolveFetch(options.fetch);
@@ -461,7 +459,7 @@ function resolveSpeechFormat(format: TTSFormat | undefined): 'mp3' | 'pcm' {
  * OpenAI-compatible `/audio/speech` endpoint.
  *
  * @param options - Model, voice, credentials, and optional speed.
- * @returns A {@link TTSProvider} for the classic `asr_llm_tts` pipeline.
+ * @returns A {@link TTSProvider} for trusted-server audio-turn composition.
  */
 export function createOpenRouterTTS(options: OpenRouterTTSOptions): TTSProvider {
   const fetchImpl = resolveFetch(options.fetch);
@@ -474,22 +472,19 @@ export function createOpenRouterTTS(options: OpenRouterTTSOptions): TTSProvider 
 
   const requestSpeech = async (
     input: Parameters<TTSProvider['synthesize']>[0],
-    streaming: boolean,
   ): Promise<Response> => {
     const { token } = await resolveCredential();
     const responseFormat = resolveSpeechFormat(input.format);
     const res = await fetchImpl(`${baseUrl}/audio/speech`, {
       method: 'POST',
       headers: buildHeaders(token, options),
-      body: JSON.stringify(options.serverManaged
-        ? { input: input.text, ...(streaming ? { stream: true } : {}) }
-        : {
-            model: options.model,
-            input: input.text,
-            voice: input.voice ?? options.voice,
-            response_format: responseFormat,
-            speed: input.speed ?? options.speed ?? 1,
-          }),
+      body: JSON.stringify({
+        model: options.model,
+        input: input.text,
+        voice: input.voice ?? options.voice,
+        response_format: responseFormat,
+        speed: input.speed ?? options.speed ?? 1,
+      }),
       signal: input.signal,
     });
     if (!res.ok) {
@@ -514,7 +509,7 @@ export function createOpenRouterTTS(options: OpenRouterTTSOptions): TTSProvider 
     },
     async synthesize(input) {
       const responseFormat = resolveSpeechFormat(input.format);
-      const res = await requestSpeech(input, false);
+      const res = await requestSpeech(input);
       return {
         audioBuffer: await res.arrayBuffer(),
         mimeType:
@@ -524,7 +519,7 @@ export function createOpenRouterTTS(options: OpenRouterTTSOptions): TTSProvider 
       };
     },
     async *stream(input) {
-      const res = await requestSpeech({ ...input, format: 'pcm' }, true);
+      const res = await requestSpeech({ ...input, format: 'pcm' });
       for await (const data of streamPcm16Response(res)) {
         yield {
           data,

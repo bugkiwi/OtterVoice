@@ -1,6 +1,6 @@
 {
   "name": "@ottervoice/provider-deepgram",
-  "version": "0.2.0-alpha.1",
+  "version": "0.2.0-alpha.2",
   "type": "module",
   "description": "Deepgram streaming ASR provider for OtterVoice (WebSocket).",
   "license": "MIT",
@@ -37,10 +37,5 @@
   },
   "dependencies": {
     "@ottervoice/provider-utils": "workspace:^"
-  },
-  "typedoc": {
-    "entryPoints": [
-      "./src/index.ts"
-    ]
   }
 }

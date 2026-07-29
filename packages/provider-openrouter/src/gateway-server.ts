@@ -13,8 +13,6 @@ const DEFAULT_GATEWAY_PREFIX = '/api/voice';
 /** Server-owned gateway profile selected by an explicit application route. */
 export type OpenRouterGatewayProfile =
   | 'asr'
-  | 'llm'
-  | 'tts'
   | 'audio_llm'
   | 'asr_llm_tts';
 
@@ -100,9 +98,9 @@ export interface OpenRouterGatewayAudioLLMPolicy {
 export interface OpenRouterGatewayPolicy {
   /** Policy for standalone ASR and the ASR stage of the composite voice route. */
   asr?: OpenRouterGatewayASRPolicy;
-  /** Policy for standalone LLM and the LLM stage of the composite voice route. */
+  /** Policy for the LLM stage of the composite voice route. */
   llm?: OpenRouterGatewayLLMPolicy;
-  /** Policy for standalone TTS and the MP3 TTS stage of the composite voice route. */
+  /** Policy for the TTS stage of the composite voice route. */
   tts?: OpenRouterGatewayTTSPolicy;
   /** Policy for `/audio-llm/chat/completions`. */
   audioLlm?: OpenRouterGatewayAudioLLMPolicy;
@@ -205,10 +203,6 @@ function routeFor(pathname: string, prefix: string): GatewayRoute | undefined {
   switch (suffix) {
     case '/asr/audio/transcriptions':
       return { profile: 'asr', upstreamPath: '/audio/transcriptions' };
-    case '/llm/chat/completions':
-      return { profile: 'llm', upstreamPath: '/chat/completions' };
-    case '/tts/audio/speech':
-      return { profile: 'tts', upstreamPath: '/audio/speech' };
     case '/audio-llm/chat/completions':
       return { profile: 'audio_llm', upstreamPath: '/chat/completions' };
     case '/asr-llm-tts/chat/completions':
@@ -287,30 +281,6 @@ function readAudioTurn(
   return { history, inputAudio };
 }
 
-function readTextMessages(
-  body: Record<string, unknown>,
-  maxMessages: number,
-  maxTextCharacters: number,
-): TextMessage[] {
-  if (!Array.isArray(body.messages) || body.messages.length > maxMessages) {
-    throw new ClientRequestError('invalid conversation history');
-  }
-  let textCharacters = 0;
-  return body.messages.map((value) => {
-    if (!isRecord(value) || (value.role !== 'user' && value.role !== 'assistant')) {
-      throw new ClientRequestError('client message role is not allowed');
-    }
-    if (typeof value.content !== 'string') {
-      throw new ClientRequestError('client message content must be text');
-    }
-    textCharacters += value.content.length;
-    if (textCharacters > maxTextCharacters) {
-      throw new ClientRequestError('conversation text is too large');
-    }
-    return { role: value.role, content: value.content };
-  });
-}
-
 function readAudioMessages(
   body: Record<string, unknown>,
   maxMessages: number,
@@ -358,53 +328,6 @@ function buildLockedBody(
       input_audio: { data, format },
       ...(selected.language ? { language: selected.language } : {}),
       temperature: 0,
-    };
-  }
-
-  if (profile === 'tts') {
-    const selected = policy.tts!;
-    if (typeof body.input !== 'string' || body.input.length === 0 || body.input.length > maxTextCharacters) {
-      throw new ClientRequestError('invalid speech text');
-    }
-    return {
-      model: selected.model,
-      input: body.input,
-      voice: selected.voice,
-      response_format: body.stream === true
-        ? 'pcm'
-        : selected.responseFormat ?? 'mp3',
-      speed: selected.speed ?? 1,
-    };
-  }
-
-  if (profile === 'llm') {
-    const selected = policy.llm!;
-    const messages = readTextMessages(body, maxMessages, maxTextCharacters);
-    return {
-      model: selected.model,
-      messages: [{ role: 'system', content: selected.systemPrompt }, ...messages],
-      stream: body.stream === true,
-      ...(selected.temperature !== undefined ? { temperature: selected.temperature } : {}),
-      ...(selected.maxTokens !== undefined ? { max_tokens: selected.maxTokens } : {}),
-      ...(selected.reasoningEnabled !== undefined
-        ? { reasoning: { enabled: selected.reasoningEnabled } }
-        : {}),
-      ...(selected.responseFormat === 'json'
-        ? { response_format: { type: 'json_object' } }
-        : {}),
-      ...(selected.provider
-        ? {
-            provider: {
-              ...(selected.provider.sort ? { sort: selected.provider.sort } : {}),
-              ...(selected.provider.preferredMaxLatency
-                ? {
-                    preferred_max_latency:
-                      selected.provider.preferredMaxLatency,
-                  }
-                : {}),
-            },
-          }
-        : {}),
     };
   }
 
@@ -767,24 +690,6 @@ export function createOpenRouterGateway(
     }
 
     const upstreamBody = JSON.stringify(lockedBody);
-    const speechKey = route.profile === 'tts' &&
-      clientBody.stream !== true &&
-      ttsCacheEntries > 0
-      ? upstreamBody
-      : undefined;
-    const cachedSpeech = speechKey ? speechCache.get(speechKey) : undefined;
-    if (cachedSpeech) {
-      return new Response(cachedSpeech.bytes.slice(0), {
-        headers: {
-          'cache-control': 'no-store',
-          'content-type': cachedSpeech.contentType,
-          'server-timing': 'voice_gateway;dur=0;desc="TTS memory cache"',
-          'x-ottervoice-cache': 'HIT',
-          ...(cachedSpeech.generationId ? { 'x-generation-id': cachedSpeech.generationId } : {}),
-        },
-      });
-    }
-
     const timeoutSignal = AbortSignal.timeout(upstreamTimeoutMs);
     try {
       const startedAt = performance.now();
@@ -810,20 +715,6 @@ export function createOpenRouterGateway(
 
       if (!upstream.ok) {
         return json({ error: 'voice provider request failed' }, upstream.status);
-      }
-      if (speechKey) {
-        const cached: CachedSpeech = {
-          bytes: await upstream.arrayBuffer(),
-          contentType: headers.get('content-type') ?? 'audio/mpeg',
-          ...(generationId ? { generationId } : {}),
-        };
-        if (speechCache.size >= ttsCacheEntries) {
-          const oldestKey = speechCache.keys().next().value;
-          if (oldestKey !== undefined) speechCache.delete(oldestKey);
-        }
-        speechCache.set(speechKey, cached);
-        headers.set('x-ottervoice-cache', 'MISS');
-        return new Response(cached.bytes.slice(0), { headers });
       }
       return new Response(upstream.body, {
         status: upstream.status,

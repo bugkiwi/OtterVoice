@@ -24,6 +24,10 @@ Native capture and playback primitives are injected so the runtime has no hard
 dependency on a particular Expo audio library. See the repository's
 `examples/react-native-expo` app for a complete integration.
 
+The adapters cancel native microphone/player setup that completes after
+`stop()`, making them safe for backgrounding and rapid session restarts.
+Provide `deleteAudioFile` to clean both one-shot and streamed temporary audio.
+
 ## Links
 
 [Documentation](https://ottervoice.vercel.app/docs/) ·

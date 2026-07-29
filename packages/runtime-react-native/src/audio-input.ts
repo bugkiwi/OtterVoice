@@ -143,6 +143,8 @@ export class ExpoAudioInput implements AudioInputAdapter {
   private pcmSampleRate = 16_000;
   private pcmChannels = 1;
   private captureEnabled = true;
+  private lifecycleGeneration = 0;
+  private startPromise: Promise<void> | undefined;
 
   constructor(private readonly options: ExpoAudioInputOptions) {
     this.now = options.now ?? Date.now;
@@ -153,6 +155,23 @@ export class ExpoAudioInput implements AudioInputAdapter {
   }
 
   async start(options: AudioInputOptions = {}): Promise<void> {
+    if (this.pcmStream || this.recording || this.startPromise) {
+      await this.stop();
+    }
+    const generation = ++this.lifecycleGeneration;
+    const operation = this.startInternal(options, generation);
+    this.startPromise = operation;
+    try {
+      await operation;
+    } finally {
+      if (this.startPromise === operation) this.startPromise = undefined;
+    }
+  }
+
+  private async startInternal(
+    options: AudioInputOptions,
+    generation: number,
+  ): Promise<void> {
     if (this.options.createPcmStream) {
       this.pcmParts = [];
       this.pcmByteLength = 0;
@@ -165,10 +184,22 @@ export class ExpoAudioInput implements AudioInputAdapter {
           channels: this.pcmChannels,
           encoding: 'pcm_s16le',
         },
-        (buffer) => this.handlePcmBuffer(buffer),
+        (buffer) => {
+          if (generation === this.lifecycleGeneration) {
+            this.handlePcmBuffer(buffer);
+          }
+        },
       );
-      this.pcmStream = stream;
+      if (generation !== this.lifecycleGeneration) {
+        await Promise.resolve(stream.stop()).catch(() => {});
+        return;
+      }
       await stream.start();
+      if (generation !== this.lifecycleGeneration) {
+        await stream.stop();
+        return;
+      }
+      this.pcmStream = stream;
       return;
     }
 
@@ -179,7 +210,15 @@ export class ExpoAudioInput implements AudioInputAdapter {
       );
     }
     const recording = await this.options.createRecording();
+    if (generation !== this.lifecycleGeneration) {
+      await recording.stopAndUnloadAsync().catch(() => {});
+      return;
+    }
     await recording.startAsync();
+    if (generation !== this.lifecycleGeneration) {
+      await recording.stopAndUnloadAsync();
+      return;
+    }
     this.recording = recording;
   }
 
@@ -209,6 +248,8 @@ export class ExpoAudioInput implements AudioInputAdapter {
   }
 
   async stop(): Promise<void> {
+    this.lifecycleGeneration += 1;
+    const pendingStart = this.startPromise;
     const pcmStream = this.pcmStream;
     this.pcmStream = undefined;
     if (pcmStream) {
@@ -231,12 +272,16 @@ export class ExpoAudioInput implements AudioInputAdapter {
           delivery: 'turn',
         });
       }
+      await pendingStart?.catch(() => {});
       return;
     }
 
     const recording = this.recording;
     this.recording = undefined;
-    if (!recording) return;
+    if (!recording) {
+      await pendingStart?.catch(() => {});
+      return;
+    }
     await recording.stopAndUnloadAsync();
     const uri = recording.getURI();
     if (uri === null) return;
@@ -252,6 +297,7 @@ export class ExpoAudioInput implements AudioInputAdapter {
       });
       for (const cb of [...this.errorCbs]) cb(error);
     }
+    await pendingStart?.catch(() => {});
   }
 
   async suspendCapture(): Promise<void> {

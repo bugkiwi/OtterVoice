@@ -134,12 +134,18 @@ describe('ExpoAudioOutput.play', () => {
   it('writes an audioBuffer to a file first', async () => {
     const s = sound();
     const writeAudioFile = mock(async () => 'file://written.mp3');
-    const output = new ExpoAudioOutput({ createSound: async () => s, writeAudioFile });
+    const deleteAudioFile = mock(async () => {});
+    const output = new ExpoAudioOutput({
+      createSound: async () => s,
+      writeAudioFile,
+      deleteAudioFile,
+    });
     const p = output.play({ audioBuffer: new ArrayBuffer(3), mimeType: 'audio/mp3' });
     await tick();
     s.finish();
     await p;
     expect(writeAudioFile).toHaveBeenCalled();
+    expect(deleteAudioFile).toHaveBeenCalledWith('file://written.mp3');
   });
 
   it('rejects when audioBuffer playback lacks writeAudioFile', async () => {
@@ -147,6 +153,23 @@ describe('ExpoAudioOutput.play', () => {
     await expect(output.play({ audioBuffer: new ArrayBuffer(1) })).rejects.toMatchObject({
       code: 'audio_playback_failed',
     });
+  });
+
+  it('cleans a temporary file when native sound creation fails', async () => {
+    const deleteAudioFile = mock(async () => {});
+    const output = new ExpoAudioOutput({
+      createSound: async () => {
+        throw new Error('load failed');
+      },
+      writeAudioFile: async () => 'file://temporary.mp3',
+      deleteAudioFile,
+    });
+
+    await expect(output.play({
+      audioBuffer: new ArrayBuffer(1),
+      mimeType: 'audio/mp3',
+    })).rejects.toMatchObject({ code: 'audio_playback_failed' });
+    expect(deleteAudioFile).toHaveBeenCalledWith('file://temporary.mp3');
   });
 
   it('reports and rethrows a playback failure, still unloading', async () => {
@@ -162,6 +185,51 @@ describe('ExpoAudioOutput.play', () => {
     });
     expect(errors[0]?.code).toBe('audio_playback_failed');
     expect(events).toEqual(['requested']);
+    expect(s.unloaded).toBe(true);
+  });
+
+  it('reports a native status error as a rejected playback', async () => {
+    const s = sound();
+    const output = new ExpoAudioOutput({ createSound: async () => s });
+    const errors: NormalizedVoiceError[] = [];
+    output.onError((error) => errors.push(error));
+
+    const playing = output.play({ audioUrl: 'u' });
+    await tick();
+    s.update({ error: 'decoder failed' });
+
+    await expect(playing).rejects.toMatchObject({
+      code: 'audio_playback_failed',
+      message: 'decoder failed',
+    });
+    expect(errors).toHaveLength(1);
+    expect(s.unloaded).toBe(true);
+  });
+
+  it('unloads a sound created after stop without starting playback', async () => {
+    const s = sound();
+    let releaseSound!: () => void;
+    const soundGate = new Promise<void>((resolve) => {
+      releaseSound = resolve;
+    });
+    let playCount = 0;
+    s.playAsync = async () => {
+      playCount += 1;
+    };
+    const output = new ExpoAudioOutput({
+      createSound: async () => {
+        await soundGate;
+        return s;
+      },
+    });
+
+    const playing = output.play({ audioUrl: 'u' });
+    await tick();
+    await output.stop();
+    releaseSound();
+    await playing;
+
+    expect(playCount).toBe(0);
     expect(s.unloaded).toBe(true);
   });
 });
@@ -190,6 +258,34 @@ describe('ExpoAudioOutput.stop', () => {
 });
 
 describe('ExpoAudioOutput.startPcmStream', () => {
+  it('destroys a playlist created after stop and rejects setup', async () => {
+    const playlist = pcmPlaylist();
+    let releasePlaylist!: () => void;
+    const playlistGate = new Promise<void>((resolve) => {
+      releasePlaylist = resolve;
+    });
+    const output = new ExpoAudioOutput({
+      createSound: async () => sound(),
+      createPcmPlaylist: async () => {
+        await playlistGate;
+        return playlist;
+      },
+      writePcmChunk: async ({ index }) => `file://chunk-${index}.wav`,
+    });
+
+    const opening = output.startPcmStream!({
+      encoding: 'pcm_s16le',
+      sampleRate: 24_000,
+      channels: 1,
+    });
+    await tick();
+    await output.stop();
+    releasePlaylist();
+
+    await expect(opening).rejects.toMatchObject({ code: 'aborted' });
+    expect(playlist.destroyed).toBe(true);
+  });
+
   it('queues SSE PCM chunks in a gapless playlist and resolves after the last track', async () => {
     const playlist = pcmPlaylist();
     const writes: number[] = [];

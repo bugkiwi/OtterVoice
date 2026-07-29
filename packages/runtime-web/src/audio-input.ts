@@ -100,7 +100,7 @@ export interface WebAudioInputOptions {
  * Microphone capture via `getUserMedia` + `MediaRecorder` timeslices. Suitable
  * for near-real-time ASR; streaming PCM (AudioWorklet) is a future enhancement.
  *
- * When an {@link AudioContext} is available, {@link WebAudioInput.onVolume}
+ * When a Web Audio `AudioContext` is available, {@link WebAudioInput.onVolume}
  * reports RMS levels for rule-based turn detection.
  *
  * Platform primitives are injected; {@link createWebRuntime} supplies the

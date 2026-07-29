@@ -17,11 +17,13 @@ capabilities that can receive genuinely least-privilege credentials.
 | User text/audio, ordinary history, stream transport | System/developer prompt, model, voice, speed |
 | Optional product profile id | Temperature, max tokens, reasoning, tool permissions, budget |
 
-OpenRouter clients use
-`createOpenRouterGatewayASR/LLM/TTS/AudioLLM`; the server uses
-`createOpenRouterGateway()`. Four separate profile routes rebuild upstream
-bodies from allowlisted user content instead of editing and forwarding
-arbitrary client JSON.
+OpenRouter clients use optional caption `createOpenRouterGatewayASR`, plus
+native `createOpenRouterGatewayAudioLLM` or composite
+`createOpenRouterGatewayVoiceTurn`; the server uses
+`createOpenRouterGateway()`. All three profiles (`asr`, `audio_llm`, and
+`asr_llm_tts`) require independent authorization. The server
+rebuilds upstream bodies from allowlisted user content instead of editing and
+forwarding arbitrary client JSON.
 
 ## Token broker
 

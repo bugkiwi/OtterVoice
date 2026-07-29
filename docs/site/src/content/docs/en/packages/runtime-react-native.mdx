@@ -69,6 +69,13 @@ Whole-file and streamed PCM playback share the same order:
 `onPlaybackRequested` → `onStart` → `onEnd`. A failure or cancellation before
 audible playback emits only the first signal.
 
+`start()` and `stop()` are safe to overlap across React Native lifecycle
+changes. If native microphone, sound, or playlist setup completes after
+`stop()`, the runtime immediately stops or destroys that stale object instead
+of resuming work in the background. Temporary files created by `writeAudioFile`
+and `writePcmChunk` are best-effort removed through `deleteAudioFile` on normal,
+cancelled, and failed paths.
+
 During assistant playback, suspend encoded capture while keeping volume callbacks for real barge-in.
 
 Example: [examples/react-native-expo](https://github.com/bugkiwi/OtterVoice/tree/main/examples/react-native-expo). Types: [API reference](/docs/en/reference/api/ottervoice-runtime-react-native/).

@@ -19,7 +19,7 @@ provider-deepgram | elevenlabs | openrouter | azure-speech | custom
 
 | Package | When |
 | --- | --- |
-| [`@ottervoice/core`](/docs/en/packages/core/) | Always. `createVoiceSession`, events, mocks. |
+| [`@ottervoice/core`](/docs/en/packages/core/) | Always. `createVoiceSession` / `createOtterVoiceSession`, events, mocks. |
 | [`@ottervoice/runtime-web`](/docs/en/packages/runtime-web/) | Browser mic + playback. |
 | [`@ottervoice/runtime-react-native`](/docs/en/packages/runtime-react-native/) | Expo / RN with injected native audio. |
 | [`@ottervoice/runtime-node`](/docs/en/packages/runtime-node/) | CLI / server audio and networking. |
@@ -27,11 +27,15 @@ provider-deepgram | elevenlabs | openrouter | azure-speech | custom
 | [`@ottervoice/protocol`](/docs/en/packages/protocol/) | Forward session events across processes. |
 | [`@ottervoice/provider-utils`](/docs/en/packages/provider-utils/) | Custom providers: credentials, SSE, WebSocket ASR. |
 
-## Pipelines
+## One client contract, two backend implementations
 
-| `pipeline` | Path | Fit |
+| Backend | Inside `AudioLLMProvider` | Client difference |
 | --- | --- | --- |
-| `asr_llm_tts` (default) | ASR text → streaming LLM → TTS | Classic cascade |
-| `audio_llm` | ASR captions ∥ Audio LLM text/PCM (timing configurable) | Lower-latency native audio models |
+| Native | audio in → native speech model → text + audio out | None |
+| Composite | audio in → ASR → LLM → TTS → text + audio out | None |
+
+`VoiceSession` always receives `providers.audioLlm`, plus optional
+`providers.asr` for separate captions. Model count and vendor selection stay
+behind the provider or trusted gateway.
 
 Bundled OpenRouter adapters are optional demos, not a fixed production route.

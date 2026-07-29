@@ -7,23 +7,31 @@ Perceived latency is not one HTTP round-trip. It is the full pipeline:
 
 **local turn detection → upload → model TTFT / first PCM → player queueing**
 
-Typical turn:
+Typical composite audio-turn backend:
 
 1. User speaks → Session tracks local microphone volume
 2. Live chunks hit ASR; `asr_partial` keeps updating
 3. Sustained local silence closes the turn → `user_audio_end`
-4. The first complete LLM clause enters TTS while later tokens keep arriving
+4. The gateway sends the first complete LLM clause to TTS while later tokens keep arriving
 5. The first PCM packet is enqueued → `assistant_audio_start`
+
+The current Web example also has one unified audio-turn path: after local
+silence, it uploads one completed turn. A native Audio LLM or server-side
+ASR → LLM → TTS can return input transcript, assistant text, and audio over the
+same SSE response; the cascade plays sentence-sized MP3 segments. It does not
+run rolling browser ASR.
 
 ## Practical levers
 
-1. Prefer **streaming ASR** with partials for responsive captions. Stable ASR
-   segments remain transcript data; local VAD owns the turn boundary.
+1. Use **streaming ASR** with partials when captions must appear during speech.
+   If post-turn authoritative captions are enough, let the audio-turn provider
+   return the input transcript and avoid a second request. Local VAD owns the
+   turn boundary in both cases.
 2. Tune `silenceTimeoutMs` on target devices. The web example starts at
    **500 ms**; noisy rooms or deliberate speakers may need a longer value.
-3. Implement both `LLMProvider.stream()` and `TTSProvider.stream()`. Core sends
-   the first complete sentence/clause to TTS immediately; without streaming
-   TTS it still falls back to sentence-sized `synthesize()` calls.
+3. A composite backend should stream LLM output and start clause-sized TTS as
+   early as possible. This is an `AudioLLMProvider` implementation detail;
+   Core consumes only the unified text/audio stream.
 4. Reuse connections and playback; cap reply length and `maxTokens`.
 5. Use stricter `interruptionDetection` during playback so echo does not false-trigger, without delaying real barge-in.
 

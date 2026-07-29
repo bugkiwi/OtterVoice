@@ -9,10 +9,8 @@ Mock 与真实 Provider 共享同一套事件协议，UI 只需写一套逻辑�
 
 ```ts
 import {
-  createMockASR,
-  createMockLLM,
+  createMockAudioLLM,
   createMockRuntime,
-  createMockTTS,
   createVoiceSession,
 } from '@ottervoice/core';
 
@@ -21,9 +19,10 @@ const session = createVoiceSession({
   mode: 'half_duplex',
   runtime,
   providers: {
-    asr: createMockASR({ transcripts: ['Hello Otter'] }),
-    llm: createMockLLM({ reply: () => 'Hello! How can I help?' }),
-    tts: createMockTTS(),
+    audioLlm: createMockAudioLLM({
+      inputTranscripts: ['Hello Otter'],
+      reply: () => 'Hello! How can I help?',
+    }),
   },
 });
 
@@ -32,7 +31,7 @@ session.on('assistant_text_delta', ({ text }) => console.log('assistant:', text)
 
 await session.start();
 
-// 向 mock 输入推一条假音频分片，触发 ASR → LLM → TTS
+// 向 mock 输入推一条假音频分片，触发一个统一 audio turn
 runtime.audioInput.emitChunk({
   data: new ArrayBuffer(8),
   timestamp: Date.now(),

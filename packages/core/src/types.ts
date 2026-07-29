@@ -26,7 +26,7 @@ export type VoiceSessionState =
   | 'listening'
   /** User speech detected; ASR active. */
   | 'user_speaking'
-  /** ASR final received; LLM/TTS or Audio LLM in flight. */
+  /** User audio is committed and the audio-turn reply is in flight. */
   | 'processing'
   /** Optional pronunciation / scoring phase. */
   | 'scoring'
@@ -455,7 +455,8 @@ export interface LLMStreamChunk {
 }
 
 /**
- * Text LLM used by the classic `asr_llm_tts` pipeline.
+ * Low-level text LLM contract for trusted server-side audio-turn composition.
+ * Browser/app sessions do not configure this provider directly.
  * Prefer implementing {@link LLMProvider.stream} so the UI can show incremental text.
  */
 export interface LLMProvider {
@@ -559,7 +560,7 @@ export interface AudioLLMGenerateOutput {
 /**
  * A provider that consumes one user-audio turn and returns assistant text and
  * speech. It may wrap one native audio model or a server-composed voice stack.
- * Use it when {@link VoiceSessionConfig.pipeline} is `audio_llm`.
+ * Use it as the single conversational provider in {@link VoiceSessionConfig}.
  */
 export interface AudioLLMProvider {
   /** Stable provider id used in errors and usage. */
@@ -661,8 +662,8 @@ export interface TTSOutput {
 }
 
 /**
- * Text-to-speech adapter for the classic `asr_llm_tts` pipeline.
- * Required when {@link VoiceSessionConfig.pipeline} is `asr_llm_tts`.
+ * Low-level text-to-speech contract for trusted server-side audio-turn
+ * composition. Browser/app sessions do not configure this provider directly.
  */
 export interface TTSProvider {
   /** Stable provider id used in errors and usage. */
@@ -1061,59 +1062,6 @@ export interface RuntimeAdapter {
 }
 
 // ---------------------------------------------------------------------------
-// Agent plugin
-// ---------------------------------------------------------------------------
-
-/**
- * Arguments passed to {@link VoiceAgentPlugin.generateNextAssistantMessage}.
- * Contains the full turn history plus the latest user utterance for convenience.
- */
-export interface AgentTurnInput {
-  /** Completed turns in chronological order (includes the latest user turn). */
-  turns: VoiceTurn[];
-  /** Text of the most recent user turn. */
-  lastUserText: string;
-}
-
-/**
- * Arguments passed to {@link VoiceAgentPlugin.shouldFinishSession} and
- * {@link VoiceAgentPlugin.generateReport}.
- */
-export interface AgentSessionInput {
-  /** Completed turns in chronological order. */
-  turns: VoiceTurn[];
-}
-
-/**
- * Optional higher-level dialog controller (opening line, next line, finish rule).
- * When set, the session may call these instead of / in addition to a raw LLM.
- * Keep business rules and privileged prompts on a trusted server when the
- * session itself runs in a browser or app.
- */
-export interface VoiceAgentPlugin {
-  /** Spoken (or displayed) opening line after {@link VoiceSession.start}. */
-  getInitialAssistantMessage(): Promise<string>;
-  /**
-   * Produce the next assistant line after a completed user turn.
-   *
-   * @param input - Full history plus the latest user text.
-   */
-  generateNextAssistantMessage(input: AgentTurnInput): Promise<string>;
-  /**
-   * Return `true` to end the session after the latest turn.
-   *
-   * @param input - Full turn history.
-   */
-  shouldFinishSession(input: AgentSessionInput): boolean;
-  /**
-   * Optional end-of-session artifact (scores, summary, etc.).
-   *
-   * @param input - Full turn history.
-   */
-  generateReport?(input: AgentSessionInput): Promise<unknown>;
-}
-
-// ---------------------------------------------------------------------------
 // Turn detection
 // ---------------------------------------------------------------------------
 
@@ -1205,15 +1153,17 @@ export interface AudioLLMRetryPolicy {
 /**
  * Top-level configuration for {@link createVoiceSession},
  * {@link createOtterVoiceSession}, or {@link VoiceSession}.
- * Create at the application composition root; keep provider credentials out of UI code.
+ *
+ * Every session uses one audio-turn provider. That provider may call one native
+ * speech model or a trusted server route that composes ASR, LLM, and TTS. Add a
+ * separate ASR only when the audio-turn provider does not return the input
+ * transcript itself.
  */
 export interface VoiceSessionConfig {
   /**
    * Duplex / PTT mode. See {@link VoiceSessionMode}.
    */
   mode: VoiceSessionMode;
-  /** Defaults to the classic ASR -> LLM -> TTS cascade. A gateway must authorize every selected profile independently. */
-  pipeline?: 'asr_llm_tts' | 'audio_llm';
   /**
    * Emit provisional `asr_partial` results. Defaults to true. Disabling this
    * does not affect the authoritative `asr_final` transcript. Batch-backed
@@ -1246,19 +1196,13 @@ export interface VoiceSessionConfig {
   /** Platform audio (and optional network/storage/logger) adapter. */
   runtime: RuntimeAdapter;
   providers: {
-    /** Speech-to-text provider (required for live captions / classic pipeline). */
-    asr: ASRProvider;
-    /** Text LLM used by `asr_llm_tts` (and optional agents). */
-    llm: LLMProvider;
-    /** Text-to-speech; required when `pipeline` is `asr_llm_tts`. */
-    tts?: TTSProvider;
-    /** Required when `pipeline` is `audio_llm`; ASR supplies captions while request timing follows {@link VoiceSessionConfig.audioLlmStartTiming}. */
-    audioLlm?: AudioLLMProvider;
+    /** Optional caption ASR; omit when {@link AudioLLMProvider.transcribesInput} is true. */
+    asr?: ASRProvider;
+    /** Unified audio-turn provider: native speech model or server-composed voice stack. */
+    audioLlm: AudioLLMProvider;
     /** Optional pronunciation scoring after a user turn. */
     pronunciation?: PronunciationProvider;
   };
-  /** Optional higher-level dialog plugin (opening line, next line, finish rule). */
-  agent?: VoiceAgentPlugin;
   /** Local voice-activity detection while listening for the user. */
   turnDetection?: TurnDetectionConfig;
   /**
@@ -1276,28 +1220,3 @@ export interface VoiceSessionConfig {
   /** Opaque app metadata (not interpreted by core). */
   metadata?: Record<string, unknown>;
 }
-
-/**
- * Audio LLM-only configuration accepted by {@link createOtterVoiceSession}.
- * Use this additive config shape when no text-only {@link LLMProvider} is needed;
- * {@link VoiceSessionConfig} remains unchanged for existing callers.
- */
-export type AudioLLMOnlyVoiceSessionConfig = Omit<
-  VoiceSessionConfig,
-  'pipeline' | 'providers'
-> & {
-  /** Select the unified audio-turn pipeline. */
-  pipeline: 'audio_llm';
-  /** Providers required by an Audio LLM-only session. */
-  providers: Omit<
-    VoiceSessionConfig['providers'],
-    'asr' | 'llm' | 'audioLlm'
-  > & {
-    /** Optional caption ASR; omit it when {@link AudioLLMProvider.transcribesInput} is true. */
-    asr?: ASRProvider;
-    /** Text-only LLMs are intentionally omitted from this minimal configuration. */
-    llm?: never;
-    /** Audio-turn provider used to understand and answer the captured turn. */
-    audioLlm: AudioLLMProvider;
-  };
-};

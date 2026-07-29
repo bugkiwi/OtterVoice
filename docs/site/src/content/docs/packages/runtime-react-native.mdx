@@ -67,6 +67,11 @@ runtime.audioOutput.onStart(() => {
 整段音频与流式 PCM 都遵循相同顺序：`onPlaybackRequested` → `onStart` →
 `onEnd`。如果播放在出声前失败或取消，只会收到第一个信号。
 
+`start()` / `stop()` 可以安全地跨 React Native 生命周期并发调用。若原生麦克风、
+sound 或 playlist 在 `stop()` 之后才完成初始化，Runtime 会立即停止 / 销毁该对象，
+不会在 App 进入后台后恢复采集或播放。`writeAudioFile` 和 `writePcmChunk` 生成的
+临时文件会通过 `deleteAudioFile` 在完成、取消和失败路径尽力清理。
+
 助手播放期间可暂停编码采集，但保留音量回调，以便检测真实 barge-in。
 
 示例：[examples/react-native-expo](https://github.com/bugkiwi/OtterVoice/tree/main/examples/react-native-expo)。类型详情：[API 参考](/docs/reference/api/ottervoice-runtime-react-native/)。

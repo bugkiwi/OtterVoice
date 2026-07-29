@@ -6,16 +6,16 @@
 
 <p align="center"><strong>TypeScript-first real-time voice SDK for Web, React Native / Expo, and Node.js.</strong></p>
 
-OtterVoice 提供可替换 Provider 的实时语音会话内核，支持 ASR、LLM、TTS / Audio LLM、流式字幕、静音断句和自然打断。应用可以独立选择运行时与模型服务，不需要把业务 UI 绑定到某一家 Provider。
+OtterVoice 提供统一 audio-turn Provider 的实时语音会话内核，支持流式字幕、静音断句和自然打断。后端既可以使用原生语音模型，也可以组合 ASR、LLM 与 TTS，而客户端始终保持同一套 Session API。
 
 ## Features
 
 - Half-duplex, full-duplex, push-to-talk, and transcript-only modes
 - Incremental `asr_partial` and `assistant_text_delta` events
 - Barge-in, playback-echo filtering, and false-interruption recovery
-- Classic `ASR → LLM → TTS` and native Audio LLM pipelines
+- One audio-turn contract with native and server-composed backends
 - Web, Expo, and Node runtime adapters
-- Replaceable ASR / LLM / TTS providers
+- Optional caption ASR plus replaceable audio-turn providers
 - Normalized errors, usage metering, and deterministic mocks
 
 ## Quick start
@@ -27,10 +27,8 @@ bun add @ottervoice/core
 
 ```ts
 import {
-  createMockASR,
-  createMockLLM,
+  createMockAudioLLM,
   createMockRuntime,
-  createMockTTS,
   createVoiceSession,
 } from '@ottervoice/core';
 
@@ -39,13 +37,14 @@ const session = createVoiceSession({
   mode: 'half_duplex',
   runtime,
   providers: {
-    asr: createMockASR({ transcripts: ['Hello Otter'] }),
-    llm: createMockLLM({ reply: () => 'Hello! How can I help?' }),
-    tts: createMockTTS(),
+    audioLlm: createMockAudioLLM({
+      inputTranscripts: ['Hello Otter'],
+      reply: () => 'Hello! How can I help?',
+    }),
   },
 });
 
-session.on('asr_partial', ({ text }) => console.log('user:', text));
+session.on('asr_final', ({ text }) => console.log('user:', text));
 session.on('assistant_text_delta', ({ text }) => console.log('assistant:', text));
 
 await session.start();
@@ -54,6 +53,7 @@ runtime.audioInput.emitChunk({
   timestamp: Date.now(),
   durationMs: 800,
 });
+await session.endUserTurn();
 ```
 
 ## Run the examples
@@ -77,7 +77,7 @@ bun run start
 
 | Package | Purpose |
 | --- | --- |
-| `@ottervoice/core` | Session, events, state machine, routing, mocks |
+| `@ottervoice/core` | Unified audio-turn Session, events, state machine, mocks |
 | `@ottervoice/runtime-web` | Browser capture, VAD, and playback |
 | `@ottervoice/runtime-react-native` | Expo PCM capture and streaming playback |
 | `@ottervoice/runtime-node` | Node audio and network runtime |

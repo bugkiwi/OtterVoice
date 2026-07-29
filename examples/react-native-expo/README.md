@@ -8,19 +8,25 @@
 
 ## 中文
 
-这是 Expo SDK 57 的全双工 Audio LLM 示例。应用使用 16 kHz mono PCM 持续采集音频：
+这是 Expo SDK 57 的全双工统一 audio-turn 示例。应用使用 16 kHz mono PCM
+持续采集音频，客户端始终只装配一个 `AudioLLMProvider`：
 
 ```text
-原生 PCM 麦克风
-  ├─→ 每轮一次终句 ASR → asr_final（仅字幕）
-  └─→ VAD 完成整轮 WAV → Audio LLM → assistant_text_delta + PCM 分片播放
+原生 PCM 麦克风 → 本地 VAD → 整轮 WAV → AudioLLMProvider
+                                          ├─ 复合：服务端 ASR → LLM → TTS（默认）
+                                          └─ 原生：上游 Audio LLM
+                                                + 可选独立 ASR（仅用户字幕）
 ```
 
-标准配置等待终句 ASR 后再请求 Audio LLM，避免被后续语音覆盖的轮次产生模型
-费用；`asr_final` 同时负责修正屏幕上的最终用户字幕。服务端策略网关设置
-Audio LLM 输出上限，客户端不能修改。
+默认 `composite` 后端通过 `/asr-llm-tts` 发起一次请求，在同一 SSE 响应里返回
+输入转写、助手文本与音频。`native` 后端通过 `/audio-llm` 调用原生语音模型，另用
+`/asr` 生成可选用户字幕。两条后端通路对 `VoiceSession`、Runtime、UI 和生命周期
+完全一致，不再存在客户端 ASR / LLM / TTS 三 Provider 会话配置。
 
-Demo 在服务端选择 OpenRouter、模型、system prompt、voice 与生成上限，但 UI、`VoiceSession` 和 Runtime 不依赖它。可以替换 ASR、LLM、TTS 或 Audio LLM Provider，而无需修改会话交互代码。客户端只看到 `/api/voice/{asr,llm,audio-llm}` profile，不包含 Provider 长期密钥、具体上游地址或业务策略。
+示例使用 `audioLlmStartTiming: 'after_audio'`：VAD 完成整轮 WAV 后立即请求
+audio-turn。原生后端的可选字幕 ASR 与回复并行；复合后端则由同一次请求回传输入
+转写。服务端负责 OpenRouter、模型、system prompt、voice 与生成上限，客户端不包含
+Provider 长期密钥、具体上游地址或业务策略。
 
 ### 运行
 
@@ -46,9 +52,25 @@ cp .env.example .env
 
 ```dotenv
 EXPO_PUBLIC_OTTERVOICE_API_URL=https://your-domain.example/api/voice
+EXPO_PUBLIC_OTTERVOICE_BACKEND=composite
 ```
 
-这个值会进入客户端包，只能是你控制的服务端策略网关地址。不要在 `EXPO_PUBLIC_*` 中保存 Provider Key、prompt、model 或成本参数。网关实现必须提供 Demo 所用的兼容 profile 子路由并逐请求校验用户/会话；生产项目也可在 [`src/providers.ts`](src/providers.ts) 中组合其他 server-managed Provider Adapter。
+这些值会进入客户端包，URL 只能指向你控制的服务端策略网关。不要在
+`EXPO_PUBLIC_*` 中保存 Provider Key、prompt、model 或成本参数。网关实现必须提供
+Demo 所用的兼容 profile 子路由并逐请求校验用户 / 会话；生产项目也可在
+[`src/providers.ts`](src/providers.ts) 中组合其他 server-managed Provider Adapter。
+
+`EXPO_PUBLIC_OTTERVOICE_BACKEND` 可设为 `composite`（默认，单次服务端复合请求）
+或 `native`（原生 Audio LLM + 可选字幕 ASR）。这只改变后端实现，不改变 Session
+配置和应用事件处理。
+
+### 移动端生命周期
+
+- App 离开 `active` 时，示例会 `finish('app_background')` 并 `dispose()` 当前会话，
+  停止麦克风、网络请求和播放；回到前台后由用户显式重新开始。
+- Runtime 使用代际令牌处理异步 `start()` / `stop()` 竞态，后台切换或快速重启不会让
+  延迟完成的麦克风或播放器重新启动。
+- 整段音频与 PCM 分片产生的缓存文件会在播放结束、取消或失败后尽力清理。
 
 ### 验证与构建
 
@@ -99,11 +121,33 @@ Web 展示页的二维码只编码专用的 `rn-latest` 地址，因此无需随
 
 ## English
 
-This Expo SDK 57 example demonstrates full-duplex Audio LLM sessions with continuous 16 kHz mono PCM capture. Standard mode waits for authoritative final ASR before requesting the Audio LLM, avoiding spend on a turn superseded by later speech. It makes one final ASR request per turn; assistant captions update on `assistant_text_delta`, and PCM playback starts as chunks arrive. The server policy gateway owns the Audio LLM output ceiling; the client cannot change it.
+This Expo SDK 57 example demonstrates full-duplex sessions through one unified
+audio-turn contract. The client always supplies one `AudioLLMProvider`. The
+default `composite` backend sends the turn to `/asr-llm-tts`, where the server
+runs ASR → LLM → TTS and returns the input transcript, assistant text, and audio
+in one SSE response. The `native` backend uses `/audio-llm` plus optional `/asr`
+for user captions. Neither choice changes the `VoiceSession`, runtime, UI, or
+lifecycle code; there is no client three-provider session path.
 
-The demo uses local-RMS hybrid turn detection and about 450 ms of local silence to submit a turn. Rolling ASR is off by default so the client cannot multiply provider calls. The server selects OpenRouter, models, system prompt, voice, and generation ceilings, while the UI, `VoiceSession`, and runtime remain provider-independent. Replace the server-managed adapters in [`src/providers.ts`](src/providers.ts) without changing session interaction code. The client sees only `/api/voice/{asr,llm,audio-llm}` profiles and contains no long-lived provider key, upstream URL, or business policy.
+The demo uses local-RMS hybrid turn detection and about 450 ms of local silence
+to submit a complete WAV. With `audioLlmStartTiming: 'after_audio'`, native
+caption ASR runs in parallel with reply generation; the composite route returns
+its own input transcript. The server owns models, prompts, voices, and generation
+ceilings. The client contains no long-lived provider key, upstream URL, or
+business policy.
 
-Run it with `bun run start`, scan the Expo Go QR code, or press `i` / `a`. `EXPO_PUBLIC_OTTERVOICE_API_URL` is required and must point to a policy gateway you control. The value is public by design; never place provider credentials, prompts, models, spend controls, or a shared gateway secret in an `EXPO_PUBLIC_*` variable. Pass the current user's short-lived application session header to `createMobileProviders()` after login.
+Run it with `bun run start`, scan the Expo Go QR code, or press `i` / `a`.
+`EXPO_PUBLIC_OTTERVOICE_API_URL` is required and must point to a policy gateway
+you control. Set `EXPO_PUBLIC_OTTERVOICE_BACKEND` to `composite` (default) or
+`native`. These values are public by design; never place provider credentials,
+prompts, models, spend controls, or a shared gateway secret in an
+`EXPO_PUBLIC_*` variable. Pass the current user's short-lived application
+session header to `createMobileProviders()` after login.
+
+When the app leaves the active state, the example finishes and disposes the
+session, stopping capture, requests, and playback. Returning to the foreground
+requires an explicit restart. The runtime cancels microphone/player setup that
+finishes after `stop()` and best-effort deletes temporary playback files.
 
 The current mobile VAD submits after roughly 450 ms of silence. Treat that as a low-latency starting point and test it on target devices, noisy input, speaker playback, real barge-in, and false-interruption recovery before release.
 

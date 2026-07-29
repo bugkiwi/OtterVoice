@@ -1,4 +1,7 @@
 import type {
+  AudioLLMGenerateInput,
+  AudioLLMGenerateOutput,
+  AudioLLMProvider,
   ASRProvider,
   ASRResult,
   ASRSession,
@@ -14,6 +17,77 @@ import type {
   TTSOutput,
   TTSProvider,
 } from '../types.js';
+
+// ---------------------------------------------------------------------------
+// Mock audio turn
+// ---------------------------------------------------------------------------
+
+/** Options for {@link createMockAudioLLM}. */
+export interface MockAudioLLMOptions {
+  /** Scripted authoritative input transcripts, consumed one per turn. */
+  inputTranscripts?: string[];
+  /**
+   * Reply generator for one audio turn.
+   *
+   * @param input - Audio, conversation history, and streaming callbacks.
+   * @param callIndex - Zero-based turn index.
+   * @param inputText - Scripted authoritative input transcript for this turn.
+   */
+  reply?: (
+    input: AudioLLMGenerateInput,
+    callIndex: number,
+    inputText: string,
+  ) => string;
+  /** Token usage returned for every turn. */
+  usage?: AudioLLMGenerateOutput['usage'];
+  /** MIME type attached to the synthetic audio buffer. Defaults to `audio/mpeg`. */
+  mimeType?: string;
+  /** When set, `generate` rejects with this error. */
+  failWith?: NormalizedVoiceError;
+}
+
+/**
+ * Create a deterministic unified audio-turn provider for tests and examples.
+ * It reports a scripted input transcript and encodes the reply text as the
+ * returned synthetic audio bytes.
+ *
+ * @param options - Scripted transcripts, reply behavior, usage, and failures.
+ * @returns An {@link AudioLLMProvider} with name `mock_audio_turn`.
+ */
+export function createMockAudioLLM(
+  options: MockAudioLLMOptions = {},
+): AudioLLMProvider {
+  const {
+    inputTranscripts = [],
+    reply = (_input, _callIndex, inputText) => `You said: ${inputText}`,
+    usage = { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+    mimeType = 'audio/mpeg',
+    failWith,
+  } = options;
+  let calls = 0;
+
+  return {
+    name: 'mock_audio_turn',
+    transcribesInput: true,
+    async generate(input): Promise<AudioLLMGenerateOutput> {
+      if (failWith) throw failWith;
+      const callIndex = calls;
+      calls += 1;
+      const inputText = inputTranscripts[callIndex] ?? '';
+      await input.onInputTranscript?.(inputText);
+      const text = reply(input, callIndex, inputText);
+      await input.onTranscriptDelta?.(text);
+      const bytes = new TextEncoder().encode(text);
+      return {
+        inputText,
+        text,
+        audioBuffer: bytes.buffer.slice(0) as ArrayBuffer,
+        mimeType,
+        usage,
+      };
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Mock ASR

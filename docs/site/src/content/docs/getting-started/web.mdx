@@ -1,11 +1,15 @@
 ---
 title: Web 浏览器接入
-description: 使用 runtime-web 做全双工采集、VAD 与 barge-in。
+description: 使用统一 audio-turn 客户端接入原生 Audio LLM 或服务端级联语音。
 ---
 
 对应示例：[`examples/web`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web)
 
-只需要原生音频输入/输出时，直接从更小的 [`examples/web-audio-llm-only`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web-audio-llm-only) 开始；它不配置文本 LLM 和 TTS。
+完整示例可在 UI 中切换两条服务端通路：原生 Audio LLM，以及
+ASR → LLM → TTS 级联。两者在浏览器里都实现为一个 audio-turn Provider，
+因此共享同一套 Session、事件、播放和 barge-in 生命周期。只需要原生音频
+输入/输出时，可从更小的 [`examples/web-audio-llm-only`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web-audio-llm-only)
+开始；它不配置文本 LLM 和 TTS。
 
 ```bash
 cd examples/web
@@ -14,16 +18,23 @@ bun run start   # http://localhost:5173
 
 线上 Demo 即本示例打包产物：[ottervoice.vercel.app](https://ottervoice.vercel.app/)
 
+## 示例当前通路
+
+| UI 选择 | 服务端实现 | 输入字幕 | 联网搜索 |
+| --- | --- | --- | --- |
+| 原生 · GPT Audio Mini | OpenRouter `openai/gpt-audio-mini` | 并行 Qwen ASR | 不支持 |
+| 原生 · Gemini Live | Google `gemini-3.1-flash-live-preview` | 并行 Qwen ASR | 可选 Google Search Grounding |
+| 级联 | Qwen ASR → Gemini Flash Lite → MiniMax Speech | 同一复合响应 | 可选 OpenRouter 搜索路由 |
+
+这些模型、prompt、voice、搜索工具和预算都只存在于服务端。UI 的“输入 / 输出
+文本”开关只控制字幕是否可见，不会关闭服务器需要的转写步骤。
+
 ## 最小接入
 
 ```ts
-import { createVoiceSession } from '@ottervoice/core';
-import {
-  createOpenRouterGatewayASR,
-  createOpenRouterGatewayLLM,
-  createOpenRouterGatewayTTS,
-} from '@ottervoice/provider-openrouter';
-import { createWebRuntime } from '@ottervoice/runtime-web';
+import { createOtterVoiceSession } from '@ottervoice/core';
+import { createOpenRouterGatewayVoiceTurn } from '@ottervoice/provider-openrouter';
+import { createWebRuntime, prepareBrowserAudio } from '@ottervoice/runtime-web';
 
 const runtime = createWebRuntime({
   mimeType: 'audio/webm;codecs=opus',
@@ -32,20 +43,23 @@ const runtime = createWebRuntime({
   bargeInPreRollMs: 500,
 });
 
-// 浏览器只知道自有 profile 路由，不包含模型、prompt、voice 或 Provider Key。
-const asr = createOpenRouterGatewayASR({
-  baseUrl: '/api/voice/asr',
-  format: 'webm',
+// 浏览器只知道自有复合路由，不包含模型、prompt、voice 或 Provider Key。
+const voiceTurn = createOpenRouterGatewayVoiceTurn({
+  baseUrl: '/api/voice/asr-llm-tts',
+  requireDoneSentinel: true,
+  prepareAudio: (audio, format) => prepareBrowserAudio(audio, format, {
+    sampleRate: 16_000,
+    maxDurationMs: 60_000,
+  }),
 });
-const llm = createOpenRouterGatewayLLM({ baseUrl: '/api/voice/llm' });
-const tts = createOpenRouterGatewayTTS({ baseUrl: '/api/voice/tts' });
 
-const session = createVoiceSession({
+const session = createOtterVoiceSession({
   mode: 'full_duplex',
-  pipeline: 'asr_llm_tts', // 或 'audio_llm'
+  // 这里描述客户端与 Provider 的契约；服务端仍可组合 ASR → LLM → TTS。
+  audioLlmStartTiming: 'after_audio',
   runtime,
-  language: 'zh-CN',
-  providers: { asr, llm, tts },
+  // voiceTurn.transcribesInput === true，因此不需要额外的 ASR 或文本 LLM。
+  providers: { audioLlm: voiceTurn },
   turnDetection: {
     strategy: 'volume',
     minSpeechMs: 180,
@@ -61,10 +75,16 @@ const session = createVoiceSession({
 await session.start();
 ```
 
-服务端用 `createOpenRouterGateway()` 为每个 profile 固定模型、系统提示词、
-声音、temperature、token 上限与 reasoning，并在 `authorize` 中校验用户和
-会话归属。不要在浏览器 Session 中设置 `audioLlmSystemPrompt`；该字段只适合
-完全运行在可信 Node/服务端的 Session。
+服务端用 `createOpenRouterGateway()` 为复合 `asr_llm_tts` profile 的三段
+policy 固定模型、系统提示词、声音、temperature、token 上限与 reasoning，并在
+`authorize` 中校验用户和会话归属。原生 Audio LLM 路线则使用
+`createOpenRouterGatewayAudioLLM`；若它不返回权威输入转写，再并行配置一个
+`createOpenRouterGatewayASR`。不要在浏览器 Session 中设置
+`audioLlmSystemPrompt`；该字段只适合完全运行在可信 Node/服务端的 Session。
+
+客户端只有一种 audio-turn 契约，不代表网关后面只能有一个模型。
+`createOpenRouterGatewayVoiceTurn` 把服务端复合实现包装成 `AudioLLMProvider`，并通过
+`transcribesInput: true` 把同一响应中的输入转写交给 Core，避免再发一次 ASR 请求。
 
 ## VAD 默认值与起步配置
 

@@ -79,7 +79,7 @@ export interface ExpoAudioOutputOptions {
   createPcmPlaylist?: () => ExpoPcmPlaylist | Promise<ExpoPcmPlaylist>;
   /** Wrap and persist one PCM16 response chunk as a small WAV file. */
   writePcmChunk?: (input: ExpoPcmChunkFileInput) => Promise<string>;
-  /** Best-effort cleanup for temporary response chunk files. */
+  /** Best-effort cleanup for one-shot and streamed temporary response audio. */
   deleteAudioFile?: (uri: string) => void | Promise<void>;
 }
 
@@ -129,6 +129,7 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
   private readonly errorCbs = new Set<(error: NormalizedVoiceError) => void>();
   private current: CurrentSound | undefined;
   private activePcm: ActivePcmPlayback | undefined;
+  private lifecycleGeneration = 0;
   readonly startPcmStream?: (
     options: PcmAudioStreamOptions,
   ) => Promise<AudioOutputStream>;
@@ -141,7 +142,9 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
 
   async play(input: AudioPlaybackInput): Promise<void> {
     await this.stop();
+    const generation = ++this.lifecycleGeneration;
     let uri: string;
+    let temporaryUri = false;
     if (input.audioUrl !== undefined) {
       uri = input.audioUrl;
     } else {
@@ -155,9 +158,41 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
         input.audioBuffer ?? new ArrayBuffer(0),
         input.mimeType ?? 'audio/mpeg',
       );
+      temporaryUri = true;
+    }
+    if (generation !== this.lifecycleGeneration) {
+      if (temporaryUri) {
+        await Promise.resolve(this.options.deleteAudioFile?.(uri)).catch(() => {});
+      }
+      return;
     }
 
-    const sound = await this.options.createSound(uri);
+    let sound: ExpoSound;
+    try {
+      sound = await this.options.createSound(uri);
+    } catch (err) {
+      if (temporaryUri) {
+        await Promise.resolve(this.options.deleteAudioFile?.(uri)).catch(() => {});
+      }
+      if (generation !== this.lifecycleGeneration) return;
+      const error = createVoiceError(
+        'audio_playback_failed',
+        'failed to create native sound',
+        { raw: err },
+      );
+      this.emitError(error);
+      throw error;
+    }
+    if (generation !== this.lifecycleGeneration) {
+      try {
+        await sound.unloadAsync();
+      } finally {
+        if (temporaryUri) {
+          await Promise.resolve(this.options.deleteAudioFile?.(uri)).catch(() => {});
+        }
+      }
+      return;
+    }
     let resolveFinished!: () => void;
     const finished = new Promise<void>((resolve) => {
       resolveFinished = resolve;
@@ -165,8 +200,15 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
     const current: CurrentSound = { sound, resolve: resolveFinished };
     this.current = current;
     let started = false;
+    let playbackError: NormalizedVoiceError | undefined;
     sound.setOnPlaybackStatusUpdate((status) => {
       if (status.error) {
+        const error = createVoiceError(
+          'audio_playback_failed',
+          status.error,
+        );
+        playbackError = error;
+        this.emitError(error);
         current.resolve();
       } else {
         if (!started && status.playing) {
@@ -183,8 +225,12 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
       this.fire(this.playbackRequestedCbs);
       await sound.playAsync();
       await finished;
+      if (playbackError) throw playbackError;
       if (this.current === current) this.current = undefined;
     } catch (err) {
+      if (playbackError !== undefined && err === playbackError) {
+        throw playbackError;
+      }
       const error = createVoiceError('audio_playback_failed', 'playback failed', {
         raw: err,
       });
@@ -192,7 +238,13 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
       throw error;
     } finally {
       if (this.current === current) this.current = undefined;
-      await sound.unloadAsync();
+      try {
+        await sound.unloadAsync();
+      } finally {
+        if (temporaryUri) {
+          await Promise.resolve(this.options.deleteAudioFile?.(uri)).catch(() => {});
+        }
+      }
     }
   }
 
@@ -208,7 +260,13 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
       );
     }
     await this.stop();
+    const generation = ++this.lifecycleGeneration;
     const playlist = await createPlaylist();
+    if (generation !== this.lifecycleGeneration) {
+      playlist.clear();
+      playlist.destroy();
+      throw createVoiceError('aborted', 'Expo PCM playback was cancelled before setup');
+    }
     const files: string[] = [];
     const envelopes: number[][] = [];
     const durationStartsMs: number[] = [];
@@ -337,7 +395,7 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
         const index = files.length;
         const uri = await writePcmChunk({ ...streamOptions, data, index });
         if (finished) {
-          await this.options.deleteAudioFile?.(uri);
+          await Promise.resolve(this.options.deleteAudioFile?.(uri)).catch(() => {});
           return;
         }
         files.push(uri);
@@ -394,14 +452,18 @@ export class ExpoAudioOutput implements AudioOutputAdapter {
   }
 
   async stop(): Promise<void> {
+    this.lifecycleGeneration += 1;
     const activePcm = this.activePcm;
     this.activePcm = undefined;
     if (activePcm) await activePcm.stop();
     const current = this.current;
     this.current = undefined;
     if (!current) return;
-    await current.sound.stopAsync();
-    current.resolve();
+    try {
+      await current.sound.stopAsync();
+    } finally {
+      current.resolve();
+    }
   }
 
   async pause(): Promise<void> {

@@ -28,13 +28,22 @@ const runtime = createExpoRuntime({
 
 const session = createVoiceSession({
   mode: 'full_duplex',
-  pipeline: 'audio_llm', // 示例默认走 Audio LLM
   audioLlmStartTiming: 'after_audio', // ASR 终句与回复生成并行，降低首响。
   asrPartial: false, // 标准模式只做一次终句 ASR，避免客户端放大请求数。
   runtime,
-  providers: { asr, llm, audioLlm },
+  providers: { asr, audioLlm },
 });
 ```
+
+示例的 `createMobileProviders()` 始终返回统一的 `providers.audioLlm`：
+
+| `EXPO_PUBLIC_OTTERVOICE_BACKEND` | 服务端实现 | 客户端 Provider |
+| --- | --- | --- |
+| `composite`（默认） | 一次 `/asr-llm-tts` 请求执行 ASR → LLM → TTS | `audioLlm` |
+| `native` | `/audio-llm` 原生语音模型；`/asr` 仅用于可选字幕 | `audioLlm` + 可选 `asr` |
+
+切换后端不改变 Session、Runtime、事件或 UI；移动端没有经典的 ASR / LLM / TTS
+三 Provider 通路。
 
 采集分两路：
 
@@ -48,3 +57,9 @@ const session = createVoiceSession({
 因此服务端必须按用户、会话和 profile 设置预算、速率限制与幂等控制。
 
 助手播放期间可暂停编码采集，但保留音量回调以继续 barge-in。细节见 [runtime-react-native](/docs/packages/runtime-react-native/)。
+
+## App 生命周期
+
+示例在 App 离开 `active` 时调用 `finish('app_background')` 后 `dispose()`，从而停止
+麦克风、请求与播放；回到前台后由用户显式开启新会话。Runtime 会取消在 `stop()`
+之后才完成的异步麦克风 / 播放器初始化，并清理临时音频文件，避免后台资源泄漏。

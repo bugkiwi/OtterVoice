@@ -12,7 +12,7 @@ Application UI
    ↕ RuntimeAdapter          ↕ Gateway client providers (user content only)
 runtime-web | rn | node      App auth/policy gateway (server)
                               ↕ Provider API
-                              ASR · LLM · TTS · Audio LLM
+                              Native Audio LLM or server ASR → LLM → TTS
 ```
 
 ## Boundaries
@@ -32,15 +32,21 @@ standard mode should omit them and use the `createOpenRouterGateway*` client
 factories; the server injects model, prompt, voice, and generation ceilings via
 `createOpenRouterGateway()`.
 
-Clients may still own VAD, captions, playback, and interruption UX. Pipeline
-selection, rolling ASR, eager Audio LLM starts, and automatic retries can change
+Clients may still own VAD, captions, playback, and interruption UX. Backend
+selection, rolling ASR, eager audio-turn starts, and automatic retries can change
 spend; if exposed to clients, enforce per-user/session/profile budgets and rate
 limits independently at the gateway.
 
-## Pipelines
+## One contract, two backends
 
-- **`asr_llm_tts` (default)**: completed local turn → ASR → streaming LLM → sentence/clause queue → streaming PCM TTS. Providers without streaming TTS use ordered sentence-sized synthesis as a compatibility path.
-- **`audio_llm`**: ASR supplies captions while turn audio enters an Audio LLM; use `audioLlmStartTiming` to run both in parallel or wait for `asr_final`. Text and PCM stream back.
+- **Native backend**: completed turn audio enters a native Audio LLM and returns assistant text plus audio.
+- **Composite backend**: the same `AudioLLMProvider` runs ASR → LLM → TTS on a trusted server and streams input transcript, assistant text, and audio.
+
+Clients always configure `providers.audioLlm`. A composite provider normally
+sets `transcribesInput: true`, avoiding a separate caption request. Add optional
+`providers.asr` when a native provider does not return the input transcript.
+`audioLlmStartTiming` either runs caption ASR and reply generation in parallel
+or waits for `asr_final`.
 
 Create the session once at the composition root. Swap runtime or providers without rewriting UI.
 

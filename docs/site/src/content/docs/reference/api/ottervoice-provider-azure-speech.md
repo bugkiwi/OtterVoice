@@ -53,7 +53,7 @@ MIT
 
 ### AzureTTSOptions
 
-Defined in: [provider-azure-speech/src/index.ts:33](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-azure-speech/src/index.ts#L33)
+Defined in: [provider-azure-speech/src/index.ts:33](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-azure-speech/src/index.ts#L33)
 
 Options for [createAzureTTS](/docs/reference/api/ottervoice-provider-azure-speech/#createazuretts). Region and neural voice are required;
 authenticate with `subscriptionKey` on a trusted server. `tokenBrokerUrl`
@@ -70,24 +70,24 @@ instead of `apiKey`).
 
 | Property | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-| <a id="defaultformat"></a> `defaultFormat?` | [`TTSFormat`](/docs/reference/api/ottervoice-core/#ttsformat) | Default audio container when the request omits `format`. | - | [provider-azure-speech/src/index.ts:43](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-azure-speech/src/index.ts#L43) |
-| <a id="endpoint"></a> `endpoint?` | `string` | Override the synthesis endpoint (defaults to the region host). | - | [provider-azure-speech/src/index.ts:45](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-azure-speech/src/index.ts#L45) |
+| <a id="defaultformat"></a> `defaultFormat?` | [`TTSFormat`](/docs/reference/api/ottervoice-core/#ttsformat) | Default audio container when the request omits `format`. | - | [provider-azure-speech/src/index.ts:43](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-azure-speech/src/index.ts#L43) |
+| <a id="endpoint"></a> `endpoint?` | `string` | Override the synthesis endpoint (defaults to the region host). | - | [provider-azure-speech/src/index.ts:45](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-azure-speech/src/index.ts#L45) |
 | <a id="fetch"></a> `fetch?` | [`FetchLike`](/docs/reference/api/ottervoice-provider-utils/#fetchlike) | Custom `fetch` implementation (tests / React Native polyfills). | `Omit.fetch` | provider-utils/dist/credential.d.ts:50 |
-| <a id="language"></a> `language?` | `string` | BCP-47 language tag for SSML. Defaults to `en-US`. | - | [provider-azure-speech/src/index.ts:41](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-azure-speech/src/index.ts#L41) |
+| <a id="language"></a> `language?` | `string` | BCP-47 language tag for SSML. Defaults to `en-US`. | - | [provider-azure-speech/src/index.ts:41](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-azure-speech/src/index.ts#L41) |
 | <a id="now"></a> `now?` | () => `number` | Clock override for deterministic expiry checks in tests. | `Omit.now` | provider-utils/dist/credential.d.ts:52 |
-| <a id="region"></a> `region` | `string` | Azure region, e.g. `eastus`. | - | [provider-azure-speech/src/index.ts:35](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-azure-speech/src/index.ts#L35) |
-| <a id="subscriptionkey"></a> `subscriptionKey?` | `string` | Subscription key (server-side). Mutually exclusive with `tokenBrokerUrl`. | - | [provider-azure-speech/src/index.ts:37](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-azure-speech/src/index.ts#L37) |
+| <a id="region"></a> `region` | `string` | Azure region, e.g. `eastus`. | - | [provider-azure-speech/src/index.ts:35](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-azure-speech/src/index.ts#L35) |
+| <a id="subscriptionkey"></a> `subscriptionKey?` | `string` | Subscription key (server-side). Mutually exclusive with `tokenBrokerUrl`. | - | [provider-azure-speech/src/index.ts:37](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-azure-speech/src/index.ts#L37) |
 | <a id="tokenbrokercredentials"></a> `tokenBrokerCredentials?` | `RequestCredentials` | Browser credential mode for the broker request. Use `include` for a cross-origin cookie session. | `Omit.tokenBrokerCredentials` | provider-utils/dist/credential.d.ts:48 |
 | <a id="tokenbrokerheaders"></a> `tokenBrokerHeaders?` | `Readonly`\<`Record`\<`string`, `string`\>\> | Application-authentication headers sent only to the token broker, such as a short-lived user session bearer token. Use browser-compatible characters. | `Omit.tokenBrokerHeaders` | provider-utils/dist/credential.d.ts:44 |
 | <a id="tokenbrokersessionid"></a> `tokenBrokerSessionId?` | `string` | Application voice-session id sent to the broker for ownership checks, audit, and quotas. | `Omit.tokenBrokerSessionId` | provider-utils/dist/credential.d.ts:46 |
 | <a id="tokenbrokerurl"></a> `tokenBrokerUrl?` | `string` | Endpoint that mints short-lived, least-privilege tokens; broad provider bearer tokens are not client-safe. | `Omit.tokenBrokerUrl` | provider-utils/dist/credential.d.ts:39 |
-| <a id="voice"></a> `voice` | `string` | Neural voice name, e.g. `zh-CN-XiaoxiaoNeural`. Keep server-owned in standard mode. | - | [provider-azure-speech/src/index.ts:39](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-azure-speech/src/index.ts#L39) |
+| <a id="voice"></a> `voice` | `string` | Neural voice name, e.g. `zh-CN-XiaoxiaoNeural`. Keep server-owned in standard mode. | - | [provider-azure-speech/src/index.ts:39](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-azure-speech/src/index.ts#L39) |
 
 ***
 
 ### SSMLOptions
 
-Defined in: [provider-azure-speech/src/ssml.ts:56](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-azure-speech/src/ssml.ts#L56)
+Defined in: [provider-azure-speech/src/ssml.ts:56](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-azure-speech/src/ssml.ts#L56)
 
 Default voice / language when [TTSInput](/docs/reference/api/ottervoice-core/#ttsinput) omits them.
 
@@ -95,8 +95,8 @@ Default voice / language when [TTSInput](/docs/reference/api/ottervoice-core/#tt
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="language-1"></a> `language` | `string` | BCP-47 language for the `<voice xml:lang>` attribute. | [provider-azure-speech/src/ssml.ts:60](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-azure-speech/src/ssml.ts#L60) |
-| <a id="voice-1"></a> `voice` | `string` | Azure neural voice name (e.g. `zh-CN-XiaoxiaoNeural`). | [provider-azure-speech/src/ssml.ts:58](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-azure-speech/src/ssml.ts#L58) |
+| <a id="language-1"></a> `language` | `string` | BCP-47 language for the `<voice xml:lang>` attribute. | [provider-azure-speech/src/ssml.ts:60](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-azure-speech/src/ssml.ts#L60) |
+| <a id="voice-1"></a> `voice` | `string` | Azure neural voice name (e.g. `zh-CN-XiaoxiaoNeural`). | [provider-azure-speech/src/ssml.ts:58](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-azure-speech/src/ssml.ts#L58) |
 
 ## Functions
 
@@ -106,7 +106,7 @@ Default voice / language when [TTSInput](/docs/reference/api/ottervoice-core/#tt
 function azureOutputFormat(format): string;
 ```
 
-Defined in: [provider-azure-speech/src/ssml.ts:26](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-azure-speech/src/ssml.ts#L26)
+Defined in: [provider-azure-speech/src/ssml.ts:26](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-azure-speech/src/ssml.ts#L26)
 
 Map a core [TTSFormat](/docs/reference/api/ottervoice-core/#ttsformat) to an Azure `X-Microsoft-OutputFormat` value.
 
@@ -130,7 +130,7 @@ Azure output-format header value.
 function buildSSML(input, defaults): string;
 ```
 
-Defined in: [provider-azure-speech/src/ssml.ts:69](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-azure-speech/src/ssml.ts#L69)
+Defined in: [provider-azure-speech/src/ssml.ts:69](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-azure-speech/src/ssml.ts#L69)
 
 Build an SSML document for a synthesis request.
 
@@ -153,7 +153,7 @@ Build an SSML document for a synthesis request.
 function createAzureTTS(options): TTSProvider;
 ```
 
-Defined in: [provider-azure-speech/src/index.ts:62](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-azure-speech/src/index.ts#L62)
+Defined in: [provider-azure-speech/src/index.ts:62](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-azure-speech/src/index.ts#L62)
 
 Azure Cognitive Services Text-to-Speech provider (REST + SSML).
 
@@ -175,7 +175,7 @@ Azure Cognitive Services Text-to-Speech provider (REST + SSML).
 function escapeXml(text): string;
 ```
 
-Defined in: [provider-azure-speech/src/ssml.ts:40](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-azure-speech/src/ssml.ts#L40)
+Defined in: [provider-azure-speech/src/ssml.ts:40](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-azure-speech/src/ssml.ts#L40)
 
 Escape the five XML predefined entities so user text is SSML-safe.
 
@@ -197,7 +197,7 @@ Escape the five XML predefined entities so user text is SSML-safe.
 function mimeTypeForFormat(format): string;
 ```
 
-Defined in: [provider-azure-speech/src/ssml.ts:35](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-azure-speech/src/ssml.ts#L35)
+Defined in: [provider-azure-speech/src/ssml.ts:35](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-azure-speech/src/ssml.ts#L35)
 
 MIME type for a synthesized [TTSFormat](/docs/reference/api/ottervoice-core/#ttsformat).
 
@@ -219,7 +219,7 @@ MIME type for a synthesized [TTSFormat](/docs/reference/api/ottervoice-core/#tts
 function ratePercent(speed): string;
 ```
 
-Defined in: [provider-azure-speech/src/ssml.ts:50](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-azure-speech/src/ssml.ts#L50)
+Defined in: [provider-azure-speech/src/ssml.ts:50](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-azure-speech/src/ssml.ts#L50)
 
 Convert a 0.5–2.0 multiplier into an Azure prosody `rate` percentage.
 

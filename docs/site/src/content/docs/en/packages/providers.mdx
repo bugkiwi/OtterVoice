@@ -31,8 +31,16 @@ options contain no model, prompt, voice, or generation controls:
 import {
   createOpenRouterGatewayASR,
   createOpenRouterGatewayAudioLLM,
+  createOpenRouterGatewayVoiceTurn,
 } from '@ottervoice/provider-openrouter';
 
+// Server-composed ASR → LLM → TTS; input transcript and reply share one SSE request.
+const cascadedVoice = createOpenRouterGatewayVoiceTurn({
+  baseUrl: '/api/voice/asr-llm-tts',
+  prepareAudio,
+});
+
+// A native Audio LLM may need a separate caption ASR.
 const asr = createOpenRouterGatewayASR({
   baseUrl: '/api/voice/asr',
   format: 'webm',
@@ -44,9 +52,12 @@ const audioLlm = createOpenRouterGatewayAudioLLM({
 ```
 
 Configure `createOpenRouterGateway()` on the server with locked `policy` and
-its mandatory `authorize` hook. Direct factories such as
-`createOpenRouterLLM` and `createOpenRouterAudioLLM` are for trusted
-Node/server/CLI runtimes.
+its mandatory `authorize` hook. The composite `asr_llm_tts` profile is enabled
+only when `policy.asr`, `policy.llm`, and `policy.tts` all exist; standalone
+`audio_llm` is the native speech-model route and standalone `asr` is only for
+optional captions. There are no client LLM/TTS profiles. Direct factories such
+as `createOpenRouterLLM` and `createOpenRouterTTS` are trusted-backend building
+blocks for a composite `AudioLLMProvider`.
 
 Direct WebSocket services such as Deepgram may still use a broker when the
 issued credential is short-lived and tightly scoped:

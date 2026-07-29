@@ -23,9 +23,12 @@ description: 面向正式语音产品的网关、数据留存、安全诊断、�
 | 标准客户端工厂 | Base URL | 服务端锁定 |
 | --- | --- | --- |
 | `createOpenRouterGatewayASR` | `/api/voice/asr` | ASR model、language 策略 |
-| `createOpenRouterGatewayLLM` | `/api/voice/llm` | model、system prompt、temperature、tokens、reasoning |
-| `createOpenRouterGatewayTTS` | `/api/voice/tts` | model、voice、speed、format |
 | `createOpenRouterGatewayAudioLLM` | `/api/voice/audio-llm` | model、system prompt、voice、temperature、tokens |
+| `createOpenRouterGatewayVoiceTurn` | `/api/voice/asr-llm-tts` | ASR、LLM、TTS 三段 policy；同一 SSE 响应返回输入转写、文本与 MP3 分片 |
+
+复合语音工厂实现 `AudioLLMProvider` 并声明 `transcribesInput: true`。配合
+`createOtterVoiceSession` 时可以省略客户端字幕 `asr`；但网关仍必须对
+`asr_llm_tts` profile 单独鉴权、限流和记账。
 
 ## 密钥与请求头
 
@@ -59,11 +62,10 @@ session.on('assistant_audio', async ({ turnId, audio, mimeType }) => {
 
 ## 重试策略
 
-只重试 `retryable` 错误，在网关使用带随机抖动的指数退避并遵守供应商 Retry Header。鉴权、额度、音频解码、参数校验失败不能在请求不变时盲目重试。客户端 `audioLlmRetry`、滚动 ASR、`after_audio` 和 pipeline 选择都可能增加请求/成本；服务端预算与幂等控制不能依赖这些客户端值。
+只重试 `retryable` 错误，在网关使用带随机抖动的指数退避并遵守供应商 Retry Header。鉴权、额度、音频解码、参数校验失败不能在请求不变时盲目重试。客户端 `audioLlmRetry`、滚动 ASR、`after_audio` 和后端选择都可能增加请求/成本；服务端预算与幂等控制不能依赖这些客户端值。
 
 ```ts
 const session = createOtterVoiceSession({
-  pipeline: 'audio_llm',
   // 标准客户端默认单次请求；确需重试时仍由网关独立限制预算。
   audioLlmRetry: { maxAttempts: 1 },
   // ...

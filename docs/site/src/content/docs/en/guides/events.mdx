@@ -40,6 +40,11 @@ session.on('assistant_text', ({ turnId, text }) => {
 
 `assistant_text_delta.delta` is the new fragment; render accumulated `text`. Finals may normalize punctuation. Audio and text events for the same speaker share a `turnId`.
 
+`asr_final` does not have to come from a separate ASR. When
+`AudioLLMProvider.transcribesInput` is `true`, Core commits the authoritative
+input transcript from the same audio-turn response as `asr_final`, and
+`providers.asr` may be omitted. Otherwise caption ASR owns user subtitles.
+
 ## State and event order
 
 ```text

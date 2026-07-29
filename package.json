@@ -1,16 +1,16 @@
 {
   "name": "ottervoice",
   "private": true,
-  "version": "0.2.0-alpha.1",
+  "version": "0.2.0-alpha.2",
   "type": "module",
-  "description": "OtterVoice — a TypeScript-first, platform-agnostic SDK for real-time voice conversation (ASR + LLM + TTS).",
+  "description": "OtterVoice — a TypeScript-first, platform-agnostic SDK for unified real-time audio-turn conversations.",
   "workspaces": [
     "packages/*",
     "examples/*",
     "docs/*"
   ],
   "scripts": {
-    "build": "tsc -b",
+    "build": "bun run scripts/build-packages.ts",
     "build:site": "bun run --cwd docs/site build",
     "test": "bun test",
     "test:smoke:audio-llm": "bun run --cwd examples/web test:audio-llm-smoke",

@@ -426,15 +426,15 @@ runtime.audioInput.onVolume((level) => {
   meterEl.style.setProperty('--level', normalized.toFixed(3));
 });
 
-type Pipeline = 'asr_llm_tts' | 'audio_llm';
-let selectedPipeline: Pipeline = 'audio_llm';
-const latencySamples: Record<Pipeline, number[]> = {
-  asr_llm_tts: [],
-  audio_llm: [],
+type AudioTurnBackend = 'composite' | 'native';
+let selectedBackend: AudioTurnBackend = 'native';
+const latencySamples: Record<AudioTurnBackend, number[]> = {
+  composite: [],
+  native: [],
 };
 
-function renderPipeline() {
-  const isAudio = selectedPipeline === 'audio_llm';
+function renderBackend() {
+  const isAudio = selectedBackend === 'native';
   const isGemini = selectedAudioModel === 'gemini';
   cascadeBtn.classList.toggle('selected', !isAudio);
   audioBtn.classList.toggle('selected', isAudio);
@@ -451,31 +451,30 @@ function renderPipeline() {
   webSearchToggle.closest('.demo-setting')?.classList.toggle('unavailable', !searchAvailable);
 }
 
-let lastLatency: { pipeline: Pipeline; value: number } | undefined;
+let lastLatency: { backend: AudioTurnBackend; value: number } | undefined;
 
-function renderLatency(currentPipeline: Pipeline, latest: number) {
-  lastLatency = { pipeline: currentPipeline, value: latest };
-  const samples = latencySamples[currentPipeline];
+function renderLatency(currentBackend: AudioTurnBackend, latest: number) {
+  lastLatency = { backend: currentBackend, value: latest };
+  const samples = latencySamples[currentBackend];
   const average = Math.round(samples.reduce((sum, value) => sum + value, 0) / samples.length);
-  const oldAverage = latencySamples.asr_llm_tts.length
-    ? `${Math.round(latencySamples.asr_llm_tts.reduce((a, b) => a + b, 0) / latencySamples.asr_llm_tts.length)} ms`
+  const oldAverage = latencySamples.composite.length
+    ? `${Math.round(latencySamples.composite.reduce((a, b) => a + b, 0) / latencySamples.composite.length)} ms`
     : runtimeText[language].pending;
-  const audioAverage = latencySamples.audio_llm.length
-    ? `${Math.round(latencySamples.audio_llm.reduce((a, b) => a + b, 0) / latencySamples.audio_llm.length)} ms`
+  const audioAverage = latencySamples.native.length
+    ? `${Math.round(latencySamples.native.reduce((a, b) => a + b, 0) / latencySamples.native.length)} ms`
     : runtimeText[language].pending;
   latencyEl.textContent = language === 'zh'
     ? `本轮 ${Math.round(latest)} ms · 当前模式均值 ${average} ms · 级联 ${oldAverage} / 原生 ${audioAverage}`
     : `Latest ${Math.round(latest)} ms · current average ${average} ms · cascaded ${oldAverage} / native ${audioAverage}`;
 }
 
-function buildSession(pipeline: Pipeline) {
+function buildSession(backend: AudioTurnBackend) {
   const pendingUserAudioEnd = { value: undefined as number | undefined };
   const voiceSession = createOtterVoiceSession({
     mode: 'full_duplex',
     // Both UI choices now share the same audio-turn client architecture. The
     // selected provider decides whether the server uses one native Audio LLM
     // or composes ASR → LLM → MP3 TTS behind the unified SSE route.
-    pipeline: 'audio_llm',
     audioLlmStartTiming: 'after_audio',
     runtime,
     providers: {
@@ -483,8 +482,8 @@ function buildSession(pipeline: Pipeline) {
       // authoritative transcript of the user's audio. Core therefore needs a
       // caption ASR for GPT Audio and Gemini Live. The cascaded adapter already
       // transcribes its input server-side, so it intentionally skips this call.
-      ...(pipeline === 'audio_llm' ? { asr: captionAsr } : {}),
-      audioLlm: pipeline === 'audio_llm'
+      ...(backend === 'native' ? { asr: captionAsr } : {}),
+      audioLlm: backend === 'native'
         ? selectedAudioModel === 'gemini'
           ? webSearchEnabled
             ? onlineGeminiAudioLlm
@@ -567,8 +566,8 @@ function buildSession(pipeline: Pipeline) {
   voiceSession.on('assistant_audio_start', (event) => {
     const latency = recordTurnLatency(event.turnId, 'firstAudioMs', pendingUserAudioEnd);
     if (latency === undefined) return;
-    latencySamples[pipeline].push(latency);
-    renderLatency(pipeline, latency);
+    latencySamples[backend].push(latency);
+    renderLatency(backend, latency);
   });
   voiceSession.on('error', (event) => {
     preserveLiveAssistantTurn();
@@ -581,7 +580,7 @@ function buildSession(pipeline: Pipeline) {
     openAiAudioBtn.disabled = false;
     geminiAudioBtn.disabled = false;
     session = undefined;
-    renderPipeline();
+    renderBackend();
   });
   voiceSession.on('finished', () => {
     preserveLiveAssistantTurn();
@@ -593,7 +592,7 @@ function buildSession(pipeline: Pipeline) {
     openAiAudioBtn.disabled = false;
     geminiAudioBtn.disabled = false;
     session = undefined;
-    renderPipeline();
+    renderBackend();
     meterEl.style.setProperty('--level', '0');
   });
   return voiceSession;
@@ -629,20 +628,20 @@ startBtn.addEventListener('click', async () => {
   openAiAudioBtn.disabled = true;
   geminiAudioBtn.disabled = true;
   webSearchToggle.disabled = true;
-  const pipeline = selectedPipeline;
-  session = buildSession(pipeline);
+  const backend = selectedBackend;
+  session = buildSession(backend);
   await session.start();
 });
 
 finishBtn.addEventListener('click', () => void session?.finish());
 
-for (const [button, pipeline] of [
-  [cascadeBtn, 'asr_llm_tts'],
-  [audioBtn, 'audio_llm'],
+for (const [button, backend] of [
+  [cascadeBtn, 'composite'],
+  [audioBtn, 'native'],
 ] as const) {
   button.addEventListener('click', () => {
-    selectedPipeline = pipeline;
-    renderPipeline();
+    selectedBackend = backend;
+    renderBackend();
   });
 }
 
@@ -653,7 +652,7 @@ for (const [button, model] of [
   button.addEventListener('click', () => {
     selectedAudioModel = model;
     localStorage.setItem('ottervoice-audio-model', model);
-    renderPipeline();
+    renderBackend();
   });
 }
 
@@ -703,9 +702,9 @@ function applyLanguage(next: AppLanguage) {
   });
   for (const turnId of turnLatencies.keys()) renderTurnLatency(turnId);
 
-  renderPipeline();
+  renderBackend();
   renderState(stateEl.dataset.state ?? 'idle');
-  if (lastLatency) renderLatency(lastLatency.pipeline, lastLatency.value);
+  if (lastLatency) renderLatency(lastLatency.backend, lastLatency.value);
   else latencyEl.textContent = runtimeText[next].latencyEmpty;
 }
 

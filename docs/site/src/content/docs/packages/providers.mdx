@@ -31,8 +31,16 @@ description: 仓库自带的 ASR / LLM / TTS / Audio LLM 适配器与凭证模�
 import {
   createOpenRouterGatewayASR,
   createOpenRouterGatewayAudioLLM,
+  createOpenRouterGatewayVoiceTurn,
 } from '@ottervoice/provider-openrouter';
 
+// 服务端组合 ASR → LLM → TTS；输入转写与回复共用一次 SSE 请求。
+const cascadedVoice = createOpenRouterGatewayVoiceTurn({
+  baseUrl: '/api/voice/asr-llm-tts',
+  prepareAudio,
+});
+
+// 原生 Audio LLM 不一定返回输入转写，因此可并行配置 caption ASR。
 const asr = createOpenRouterGatewayASR({
   baseUrl: '/api/voice/asr',
   format: 'webm',
@@ -44,8 +52,11 @@ const audioLlm = createOpenRouterGatewayAudioLLM({
 ```
 
 服务端用 `createOpenRouterGateway()` 配置 `policy` 和强制的 `authorize`
-钩子。`createOpenRouterLLM`、`createOpenRouterAudioLLM` 等直连工厂只用于
-可信 Node/服务端/CLI。
+钩子。复合 `asr_llm_tts` profile 只有在 `policy.asr`、`policy.llm` 与
+`policy.tts` 都存在时才启用。独立 `audio_llm` profile 对应原生语音模型，
+独立 `asr` 只用于可选字幕；不再提供客户端 LLM/TTS profile。
+`createOpenRouterLLM`、`createOpenRouterTTS` 等直连工厂只用于可信后端组合
+`AudioLLMProvider`。
 
 Deepgram 等能够签发短期且权限受限的直连 WebSocket 能力，仍可使用：
 

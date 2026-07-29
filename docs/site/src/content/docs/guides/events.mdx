@@ -40,6 +40,10 @@ session.on('assistant_text', ({ turnId, text }) => {
 
 `assistant_text_delta.delta` 是本次新增片段；渲染用累计字段 `text`。`asr_final` / `assistant_text` 可能修正标点。同一说话方的音频与文本事件共用 `turnId`。
 
+`asr_final` 不一定来自独立 ASR。若 `AudioLLMProvider.transcribesInput` 为
+`true`，Core 会把同一 audio-turn 响应中的权威输入转写提交为 `asr_final`；这种
+配置可以省略 `providers.asr`。未声明该能力时，仍由 caption ASR 产生用户字幕。
+
 ## 状态与事件顺序
 
 ```text

@@ -1,8 +1,8 @@
 {
   "name": "@ottervoice/core",
-  "version": "0.2.0-alpha.1",
+  "version": "0.2.0-alpha.2",
   "type": "module",
-  "description": "Platform-agnostic core for OtterVoice: VoiceSession, state machine, provider router, events, and mock providers.",
+  "description": "Platform-agnostic OtterVoice core: unified audio-turn VoiceSession, state machine, events, and mocks.",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
@@ -29,10 +29,5 @@
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "build": "rm -rf dist tsconfig.tsbuildinfo && tsc -p tsconfig.json",
     "test": "bun test"
-  },
-  "typedoc": {
-    "entryPoints": [
-      "./src/index.ts"
-    ]
   }
 }

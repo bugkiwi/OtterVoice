@@ -24,10 +24,11 @@ npm install @ottervoice/core @ottervoice/provider-openrouter
 ## Browser / app (recommended)
 
 ```ts
-import { createOpenRouterGatewayLLM } from '@ottervoice/provider-openrouter';
+import { createOpenRouterGatewayVoiceTurn } from '@ottervoice/provider-openrouter';
 
-const llm = createOpenRouterGatewayLLM({
-  baseUrl: '/api/voice/llm',
+const voice = createOpenRouterGatewayVoiceTurn({
+  baseUrl: '/api/voice/asr-llm-tts',
+  prepareAudio,
 });
 ```
 
@@ -42,10 +43,16 @@ import { createOpenRouterGateway } from '@ottervoice/provider-openrouter';
 const handleVoice = createOpenRouterGateway({
   apiKey: process.env.OPENROUTER_API_KEY,
   policy: {
+    asr: { model: 'qwen/qwen3-asr-flash-2026-02-10' },
     llm: {
       model: 'openai/gpt-4o-mini',
       systemPrompt: process.env.OTTERVOICE_SYSTEM_PROMPT ?? 'Be concise.',
       maxTokens: 256,
+    },
+    tts: {
+      model: 'minimax/speech-2.8-turbo',
+      voice: 'alloy',
+      responseFormat: 'mp3',
     },
   },
   authorize: async ({ request, profile }) =>
@@ -53,11 +60,16 @@ const handleVoice = createOpenRouterGateway({
 });
 ```
 
-Mount `handleVoice` at `/api/voice/*`. The four built-in profiles are `asr`,
-`llm`, `tts`, and `audio-llm`; an omitted profile is disabled.
+Mount `handleVoice` at `/api/voice/*`. The composite
+`asr-llm-tts/chat/completions` route accepts one audio turn, runs all three
+stages on the server, and returns text plus sentence-sized MP3 segments over
+one SSE response. Apps use this route or the native `audio-llm` route through
+the same `AudioLLMProvider` contract. The standalone `asr` route remains
+available only for optional captions; there are no standalone client LLM/TTS
+profiles.
 
-Direct factories such as `createOpenRouterLLM()` remain available for trusted
-Node/server/CLI runtimes. Do not return a broad OpenRouter bearer token to a
+Direct `createOpenRouterLLM()` and `createOpenRouterTTS()` factories remain as
+trusted-server building blocks for composite audio-turn implementations. Do not return a broad OpenRouter bearer token to a
 browser: hiding a long-lived key is insufficient if the client can still select
 models or generation parameters.
 
@@ -74,7 +86,7 @@ MIT
 
 ### ChatBody
 
-Defined in: [provider-openrouter/src/chat.ts:7](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L7)
+Defined in: [provider-openrouter/src/chat.ts:7](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L7)
 
 OpenAI-compatible chat-completions request body fields used by the adapter.
 
@@ -82,21 +94,36 @@ OpenAI-compatible chat-completions request body fields used by the adapter.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="max_tokens"></a> `max_tokens?` | `number` | Max completion tokens. | [provider-openrouter/src/chat.ts:15](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L15) |
-| <a id="messages"></a> `messages` | \{ `content`: `string`; `role`: `string`; \}[] | Chat messages in OpenAI role/content shape. | [provider-openrouter/src/chat.ts:11](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L11) |
-| <a id="model"></a> `model` | `string` | Model id on OpenRouter. | [provider-openrouter/src/chat.ts:9](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L9) |
-| <a id="reasoning"></a> `reasoning?` | \{ `enabled`: `boolean`; \} | OpenRouter reasoning toggle when the model supports it. | [provider-openrouter/src/chat.ts:21](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L21) |
-| `reasoning.enabled` | `boolean` | - | [provider-openrouter/src/chat.ts:21](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L21) |
-| <a id="response_format"></a> `response_format?` | \{ `type`: `"json_object"`; \} | Force JSON-object responses when supported. | [provider-openrouter/src/chat.ts:19](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L19) |
-| `response_format.type` | `"json_object"` | - | [provider-openrouter/src/chat.ts:19](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L19) |
-| <a id="stream"></a> `stream?` | `boolean` | When true, request SSE streaming. | [provider-openrouter/src/chat.ts:17](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L17) |
-| <a id="temperature"></a> `temperature?` | `number` | Sampling temperature. | [provider-openrouter/src/chat.ts:13](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L13) |
+| <a id="max_tokens"></a> `max_tokens?` | `number` | Max completion tokens. | [provider-openrouter/src/chat.ts:15](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L15) |
+| <a id="messages"></a> `messages` | \{ `content`: `string`; `role`: `string`; \}[] | Chat messages in OpenAI role/content shape. | [provider-openrouter/src/chat.ts:11](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L11) |
+| <a id="model"></a> `model` | `string` | Model id on OpenRouter. | [provider-openrouter/src/chat.ts:9](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L9) |
+| <a id="reasoning"></a> `reasoning?` | \{ `enabled`: `boolean`; \} | OpenRouter reasoning toggle when the model supports it. | [provider-openrouter/src/chat.ts:21](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L21) |
+| `reasoning.enabled` | `boolean` | - | [provider-openrouter/src/chat.ts:21](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L21) |
+| <a id="response_format"></a> `response_format?` | \{ `type`: `"json_object"`; \} | Force JSON-object responses when supported. | [provider-openrouter/src/chat.ts:19](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L19) |
+| `response_format.type` | `"json_object"` | - | [provider-openrouter/src/chat.ts:19](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L19) |
+| <a id="stream"></a> `stream?` | `boolean` | When true, request SSE streaming. | [provider-openrouter/src/chat.ts:17](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L17) |
+| <a id="temperature"></a> `temperature?` | `number` | Sampling temperature. | [provider-openrouter/src/chat.ts:13](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L13) |
+
+***
+
+### ChatCompletion
+
+Defined in: [provider-openrouter/src/chat.ts:104](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L104)
+
+Minimal chat-completion payload accepted by the text extraction helpers.
+
+#### Properties
+
+| Property | Type | Description | Defined in |
+| ------ | ------ | ------ | ------ |
+| <a id="choices"></a> `choices?` | \{ `delta?`: \{ `content?`: `string`; \}; `message?`: \{ `content?`: `string`; \}; \}[] | Completion choices containing either a final message or streamed delta. | [provider-openrouter/src/chat.ts:106](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L106) |
+| <a id="usage"></a> `usage?` | [`RawUsage`](/docs/en/reference/api/ottervoice-provider-openrouter/#rawusage) | Optional OpenAI-compatible token accounting. | [provider-openrouter/src/chat.ts:108](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L108) |
 
 ***
 
 ### HeaderOptions
 
-Defined in: [provider-openrouter/src/chat.ts:57](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L57)
+Defined in: [provider-openrouter/src/chat.ts:57](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L57)
 
 Optional OpenRouter attribution and header overrides.
 
@@ -111,15 +138,15 @@ Optional OpenRouter attribution and header overrides.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="headers"></a> `headers?` | `Record`\<`string`, `string`\> | Extra headers merged last (override defaults carefully). | [provider-openrouter/src/chat.ts:63](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L63) |
-| <a id="referer"></a> `referer?` | `string` | Sent as `HTTP-Referer` for OpenRouter rankings / allowlists. | [provider-openrouter/src/chat.ts:59](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L59) |
-| <a id="title"></a> `title?` | `string` | Sent as `X-Title` (app name shown on OpenRouter). | [provider-openrouter/src/chat.ts:61](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L61) |
+| <a id="headers"></a> `headers?` | `Record`\<`string`, `string`\> | Extra headers merged last (override defaults carefully). | [provider-openrouter/src/chat.ts:63](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L63) |
+| <a id="referer"></a> `referer?` | `string` | Sent as `HTTP-Referer` for OpenRouter rankings / allowlists. | [provider-openrouter/src/chat.ts:59](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L59) |
+| <a id="title"></a> `title?` | `string` | Sent as `X-Title` (app name shown on OpenRouter). | [provider-openrouter/src/chat.ts:61](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L61) |
 
 ***
 
 ### OpenRouterASROptions
 
-Defined in: [provider-openrouter/src/audio.ts:26](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L26)
+Defined in: [provider-openrouter/src/audio.ts:26](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L26)
 
 Options for direct OpenRouter HTTP transcription in trusted server/CLI
 runtimes. Browser/app integrations should use `OpenRouterGatewayASROptions`.
@@ -133,19 +160,19 @@ runtimes. Browser/app integrations should use `OpenRouterGatewayASROptions`.
 | Property | Type | Description | Overrides | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ | ------ |
 | <a id="apikey"></a> `apiKey?` | `string` | A long-lived key (server-side only — never ship to clients). | - | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`apiKey`](/docs/en/reference/api/ottervoice-provider-utils/#apikey) | provider-utils/dist/credential.d.ts:37 |
-| <a id="baseurl"></a> `baseUrl?` | `string` | API root; defaults to OpenRouter's chat-compatible base URL. | - | - | [provider-openrouter/src/audio.ts:44](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L44) |
-| <a id="emptypartialbackoffms"></a> `emptyPartialBackoffMs?` | `number` | Delay the next rolling request after an empty provisional transcript. Defaults to the greater of 3x `partialIntervalMs` and 3 seconds. | - | - | [provider-openrouter/src/audio.ts:40](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L40) |
+| <a id="baseurl"></a> `baseUrl?` | `string` | API root; defaults to OpenRouter's chat-compatible base URL. | - | - | [provider-openrouter/src/audio.ts:44](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L44) |
+| <a id="emptypartialbackoffms"></a> `emptyPartialBackoffMs?` | `number` | Delay the next rolling request after an empty provisional transcript. Defaults to the greater of 3x `partialIntervalMs` and 3 seconds. | - | - | [provider-openrouter/src/audio.ts:40](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L40) |
 | <a id="fetch"></a> `fetch?` | [`FetchLike`](/docs/en/reference/api/ottervoice-provider-utils/#fetchlike) | Custom `fetch` implementation (tests / React Native polyfills). | - | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`fetch`](/docs/en/reference/api/ottervoice-provider-utils/#fetch) | provider-utils/dist/credential.d.ts:50 |
-| <a id="format"></a> `format?` | `"opus"` \| `"webm"` \| `"wav"` \| `"mp3"` | Browser MediaRecorder defaults to WebM. | - | - | [provider-openrouter/src/audio.ts:30](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L30) |
-| <a id="headers-1"></a> `headers?` | `Record`\<`string`, `string`\> | Extra headers merged last (override defaults carefully). | - | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`headers`](/docs/en/reference/api/ottervoice-provider-openrouter/#headers) | [provider-openrouter/src/chat.ts:63](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L63) |
-| <a id="language"></a> `language?` | `string` | BCP-47 language hint sent to the transcription API when supported. Keep server-owned in standard mode. | - | - | [provider-openrouter/src/audio.ts:42](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L42) |
-| <a id="model-1"></a> `model` | `string` | OpenRouter / OpenAI-compatible transcription model id. Keep server-owned. | - | - | [provider-openrouter/src/audio.ts:28](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L28) |
-| <a id="now"></a> `now?` | () => `number` | Test hook for partial-result scheduling. | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`now`](/docs/en/reference/api/ottervoice-provider-utils/#now) | - | [provider-openrouter/src/audio.ts:48](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L48) |
-| <a id="partialintervalms"></a> `partialIntervalMs?` | `number` | Re-transcribe the accumulated live PCM at this interval to provide best-effort partial results before the turn ends. Omit for batch-only ASR. | - | - | [provider-openrouter/src/audio.ts:35](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L35) |
-| <a id="referer-1"></a> `referer?` | `string` | Sent as `HTTP-Referer` for OpenRouter rankings / allowlists. | - | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`referer`](/docs/en/reference/api/ottervoice-provider-openrouter/#referer) | [provider-openrouter/src/chat.ts:59](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L59) |
-| <a id="requeststage"></a> `requestStage?` | `"gateway"` \| `"provider"` | Classify HTTP failures as gateway/provider errors. Defaults from whether `baseUrl` is customized. | - | - | [provider-openrouter/src/audio.ts:46](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L46) |
-| <a id="servermanaged"></a> `serverManaged?` | `boolean` | Omit provider policy fields because a trusted gateway reconstructs the request. | - | - | [provider-openrouter/src/audio.ts:50](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L50) |
-| <a id="title-1"></a> `title?` | `string` | Sent as `X-Title` (app name shown on OpenRouter). | - | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`title`](/docs/en/reference/api/ottervoice-provider-openrouter/#title) | [provider-openrouter/src/chat.ts:61](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L61) |
+| <a id="format"></a> `format?` | `"opus"` \| `"webm"` \| `"wav"` \| `"mp3"` | Browser MediaRecorder defaults to WebM. | - | - | [provider-openrouter/src/audio.ts:30](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L30) |
+| <a id="headers-1"></a> `headers?` | `Record`\<`string`, `string`\> | Extra headers merged last (override defaults carefully). | - | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`headers`](/docs/en/reference/api/ottervoice-provider-openrouter/#headers) | [provider-openrouter/src/chat.ts:63](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L63) |
+| <a id="language"></a> `language?` | `string` | BCP-47 language hint sent to the transcription API when supported. Keep server-owned in standard mode. | - | - | [provider-openrouter/src/audio.ts:42](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L42) |
+| <a id="model-1"></a> `model` | `string` | OpenRouter / OpenAI-compatible transcription model id. Keep server-owned. | - | - | [provider-openrouter/src/audio.ts:28](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L28) |
+| <a id="now"></a> `now?` | () => `number` | Test hook for partial-result scheduling. | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`now`](/docs/en/reference/api/ottervoice-provider-utils/#now) | - | [provider-openrouter/src/audio.ts:48](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L48) |
+| <a id="partialintervalms"></a> `partialIntervalMs?` | `number` | Re-transcribe the accumulated live PCM at this interval to provide best-effort partial results before the turn ends. Omit for batch-only ASR. | - | - | [provider-openrouter/src/audio.ts:35](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L35) |
+| <a id="referer-1"></a> `referer?` | `string` | Sent as `HTTP-Referer` for OpenRouter rankings / allowlists. | - | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`referer`](/docs/en/reference/api/ottervoice-provider-openrouter/#referer) | [provider-openrouter/src/chat.ts:59](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L59) |
+| <a id="requeststage"></a> `requestStage?` | `"gateway"` \| `"provider"` | Classify HTTP failures as gateway/provider errors. Defaults from whether `baseUrl` is customized. | - | - | [provider-openrouter/src/audio.ts:46](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L46) |
+| <a id="servermanaged"></a> `serverManaged?` | `boolean` | Omit provider policy fields because a trusted gateway reconstructs the request. | - | - | [provider-openrouter/src/audio.ts:50](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L50) |
+| <a id="title-1"></a> `title?` | `string` | Sent as `X-Title` (app name shown on OpenRouter). | - | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`title`](/docs/en/reference/api/ottervoice-provider-openrouter/#title) | [provider-openrouter/src/chat.ts:61](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L61) |
 | <a id="tokenbrokercredentials"></a> `tokenBrokerCredentials?` | `RequestCredentials` | Browser credential mode for the broker request. Use `include` for a cross-origin cookie session. | - | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerCredentials`](/docs/en/reference/api/ottervoice-provider-utils/#tokenbrokercredentials) | provider-utils/dist/credential.d.ts:48 |
 | <a id="tokenbrokerheaders"></a> `tokenBrokerHeaders?` | `Readonly`\<`Record`\<`string`, `string`\>\> | Application-authentication headers sent only to the token broker, such as a short-lived user session bearer token. Use browser-compatible characters. | - | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerHeaders`](/docs/en/reference/api/ottervoice-provider-utils/#tokenbrokerheaders) | provider-utils/dist/credential.d.ts:44 |
 | <a id="tokenbrokersessionid"></a> `tokenBrokerSessionId?` | `string` | Application voice-session id sent to the broker for ownership checks, audit, and quotas. | - | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerSessionId`](/docs/en/reference/api/ottervoice-provider-utils/#tokenbrokersessionid) | provider-utils/dist/credential.d.ts:46 |
@@ -155,7 +182,7 @@ runtimes. Browser/app integrations should use `OpenRouterGatewayASROptions`.
 
 ### OpenRouterAudioLLMOptions
 
-Defined in: [provider-openrouter/src/audio-llm.ts:35](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio-llm.ts#L35)
+Defined in: [provider-openrouter/src/audio-llm.ts:35](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio-llm.ts#L35)
 
 Options for the direct OpenRouter Audio LLM adapter in trusted server/CLI
 runtimes. Browser/app integrations should use
@@ -170,29 +197,29 @@ runtimes. Browser/app integrations should use
 | Property | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
 | <a id="apikey-1"></a> `apiKey?` | `string` | A long-lived key (server-side only — never ship to clients). | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`apiKey`](/docs/en/reference/api/ottervoice-provider-utils/#apikey) | provider-utils/dist/credential.d.ts:37 |
-| <a id="baseurl-1"></a> `baseUrl?` | `string` | API root; defaults to OpenRouter's public `…/api/v1`. | - | [provider-openrouter/src/audio-llm.ts:41](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio-llm.ts#L41) |
-| <a id="defaulttemperature"></a> `defaultTemperature?` | `number` | Default sampling temperature when the session does not override. Keep server-owned. | - | [provider-openrouter/src/audio-llm.ts:48](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio-llm.ts#L48) |
+| <a id="baseurl-1"></a> `baseUrl?` | `string` | API root; defaults to OpenRouter's public `…/api/v1`. | - | [provider-openrouter/src/audio-llm.ts:41](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio-llm.ts#L41) |
+| <a id="defaulttemperature"></a> `defaultTemperature?` | `number` | Default sampling temperature when the session does not override. Keep server-owned. | - | [provider-openrouter/src/audio-llm.ts:48](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio-llm.ts#L48) |
 | <a id="fetch-1"></a> `fetch?` | [`FetchLike`](/docs/en/reference/api/ottervoice-provider-utils/#fetchlike) | Custom `fetch` implementation (tests / React Native polyfills). | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`fetch`](/docs/en/reference/api/ottervoice-provider-utils/#fetch) | provider-utils/dist/credential.d.ts:50 |
-| <a id="headers-2"></a> `headers?` | `Record`\<`string`, `string`\> | Extra headers merged last (override defaults carefully). | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`headers`](/docs/en/reference/api/ottervoice-provider-openrouter/#headers) | [provider-openrouter/src/chat.ts:63](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L63) |
-| <a id="model-2"></a> `model` | `string` | Audio-capable chat model id. Keep server-owned in standard mode. | - | [provider-openrouter/src/audio-llm.ts:37](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio-llm.ts#L37) |
+| <a id="headers-2"></a> `headers?` | `Record`\<`string`, `string`\> | Extra headers merged last (override defaults carefully). | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`headers`](/docs/en/reference/api/ottervoice-provider-openrouter/#headers) | [provider-openrouter/src/chat.ts:63](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L63) |
+| <a id="model-2"></a> `model` | `string` | Audio-capable chat model id. Keep server-owned in standard mode. | - | [provider-openrouter/src/audio-llm.ts:37](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio-llm.ts#L37) |
 | <a id="now-1"></a> `now?` | () => `number` | Clock override for deterministic expiry checks in tests. | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`now`](/docs/en/reference/api/ottervoice-provider-utils/#now) | provider-utils/dist/credential.d.ts:52 |
-| <a id="prepareaudio"></a> `prepareAudio?` | (`audio`, `format`) => `Promise`\<[`PreparedAudioInput`](/docs/en/reference/api/ottervoice-provider-openrouter/#preparedaudioinput)\> | OpenAI audio chat accepts WAV/MP3, while browsers normally record WebM. Supply a runtime-specific decoder when WebM/Opus input is possible. | - | [provider-openrouter/src/audio-llm.ts:53](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio-llm.ts#L53) |
-| <a id="referer-2"></a> `referer?` | `string` | Sent as `HTTP-Referer` for OpenRouter rankings / allowlists. | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`referer`](/docs/en/reference/api/ottervoice-provider-openrouter/#referer) | [provider-openrouter/src/chat.ts:59](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L59) |
-| <a id="requeststage-1"></a> `requestStage?` | `"gateway"` \| `"provider"` | Classify HTTP failures as direct provider or same-origin gateway errors. Defaults to `gateway` when `baseUrl` is customized, otherwise `provider`. | - | [provider-openrouter/src/audio-llm.ts:46](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio-llm.ts#L46) |
-| <a id="requiredonesentinel"></a> `requireDoneSentinel?` | `boolean` | Require the SSE response to end with an explicit `[DONE]` sentinel. Disabled by default for compatibility with gateways that close a complete stream cleanly. | - | [provider-openrouter/src/audio-llm.ts:61](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio-llm.ts#L61) |
-| <a id="servermanaged-1"></a> `serverManaged?` | `boolean` | Omit model, system prompt, voice, temperature, and token limits because a trusted gateway reconstructs them. Prefer `createOpenRouterGatewayAudioLLM`. | - | [provider-openrouter/src/audio-llm.ts:66](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio-llm.ts#L66) |
-| <a id="title-2"></a> `title?` | `string` | Sent as `X-Title` (app name shown on OpenRouter). | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`title`](/docs/en/reference/api/ottervoice-provider-openrouter/#title) | [provider-openrouter/src/chat.ts:61](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L61) |
+| <a id="prepareaudio"></a> `prepareAudio?` | (`audio`, `format`) => `Promise`\<[`PreparedAudioInput`](/docs/en/reference/api/ottervoice-provider-openrouter/#preparedaudioinput)\> | OpenAI audio chat accepts WAV/MP3, while browsers normally record WebM. Supply a runtime-specific decoder when WebM/Opus input is possible. | - | [provider-openrouter/src/audio-llm.ts:53](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio-llm.ts#L53) |
+| <a id="referer-2"></a> `referer?` | `string` | Sent as `HTTP-Referer` for OpenRouter rankings / allowlists. | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`referer`](/docs/en/reference/api/ottervoice-provider-openrouter/#referer) | [provider-openrouter/src/chat.ts:59](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L59) |
+| <a id="requeststage-1"></a> `requestStage?` | `"gateway"` \| `"provider"` | Classify HTTP failures as direct provider or same-origin gateway errors. Defaults to `gateway` when `baseUrl` is customized, otherwise `provider`. | - | [provider-openrouter/src/audio-llm.ts:46](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio-llm.ts#L46) |
+| <a id="requiredonesentinel"></a> `requireDoneSentinel?` | `boolean` | Require the SSE response to end with an explicit `[DONE]` sentinel. Disabled by default for compatibility with gateways that close a complete stream cleanly. | - | [provider-openrouter/src/audio-llm.ts:61](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio-llm.ts#L61) |
+| <a id="servermanaged-1"></a> `serverManaged?` | `boolean` | Omit model, system prompt, voice, temperature, and token limits because a trusted gateway reconstructs them. Prefer `createOpenRouterGatewayAudioLLM`. | - | [provider-openrouter/src/audio-llm.ts:66](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio-llm.ts#L66) |
+| <a id="title-2"></a> `title?` | `string` | Sent as `X-Title` (app name shown on OpenRouter). | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`title`](/docs/en/reference/api/ottervoice-provider-openrouter/#title) | [provider-openrouter/src/chat.ts:61](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L61) |
 | <a id="tokenbrokercredentials-1"></a> `tokenBrokerCredentials?` | `RequestCredentials` | Browser credential mode for the broker request. Use `include` for a cross-origin cookie session. | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerCredentials`](/docs/en/reference/api/ottervoice-provider-utils/#tokenbrokercredentials) | provider-utils/dist/credential.d.ts:48 |
 | <a id="tokenbrokerheaders-1"></a> `tokenBrokerHeaders?` | `Readonly`\<`Record`\<`string`, `string`\>\> | Application-authentication headers sent only to the token broker, such as a short-lived user session bearer token. Use browser-compatible characters. | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerHeaders`](/docs/en/reference/api/ottervoice-provider-utils/#tokenbrokerheaders) | provider-utils/dist/credential.d.ts:44 |
 | <a id="tokenbrokersessionid-1"></a> `tokenBrokerSessionId?` | `string` | Application voice-session id sent to the broker for ownership checks, audit, and quotas. | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerSessionId`](/docs/en/reference/api/ottervoice-provider-utils/#tokenbrokersessionid) | provider-utils/dist/credential.d.ts:46 |
 | <a id="tokenbrokerurl-1"></a> `tokenBrokerUrl?` | `string` | Endpoint that mints short-lived, least-privilege tokens; broad provider bearer tokens are not client-safe. | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerUrl`](/docs/en/reference/api/ottervoice-provider-utils/#tokenbrokerurl) | provider-utils/dist/credential.d.ts:39 |
-| <a id="voice"></a> `voice?` | \| `"alloy"` \| `"ash"` \| `"ballad"` \| `"coral"` \| `"echo"` \| `"fable"` \| `"nova"` \| `"onyx"` \| `"sage"` \| `"shimmer"` \| `"verse"` | Output voice when the model returns spoken audio. Keep server-owned. | - | [provider-openrouter/src/audio-llm.ts:39](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio-llm.ts#L39) |
+| <a id="voice"></a> `voice?` | \| `"alloy"` \| `"ash"` \| `"ballad"` \| `"coral"` \| `"echo"` \| `"fable"` \| `"nova"` \| `"onyx"` \| `"sage"` \| `"shimmer"` \| `"verse"` | Output voice when the model returns spoken audio. Keep server-owned. | - | [provider-openrouter/src/audio-llm.ts:39](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio-llm.ts#L39) |
 
 ***
 
 ### OpenRouterGatewayASRPolicy
 
-Defined in: [provider-openrouter/src/gateway-server.ts:14](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L14)
+Defined in: [provider-openrouter/src/gateway-server.ts:20](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L20)
 
 Locked server policy for speech recognition requests.
 
@@ -200,14 +227,14 @@ Locked server policy for speech recognition requests.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="language-1"></a> `language?` | `string` | Optional fixed recognition language. Omit to let the provider detect it. | [provider-openrouter/src/gateway-server.ts:18](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L18) |
-| <a id="model-3"></a> `model` | `string` | Provider model id. Never read this value from an untrusted client. | [provider-openrouter/src/gateway-server.ts:16](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L16) |
+| <a id="language-1"></a> `language?` | `string` | Optional fixed recognition language. Omit to let the provider detect it. | [provider-openrouter/src/gateway-server.ts:24](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L24) |
+| <a id="model-3"></a> `model` | `string` | Provider model id. Never read this value from an untrusted client. | [provider-openrouter/src/gateway-server.ts:22](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L22) |
 
 ***
 
 ### OpenRouterGatewayAudioLLMOptions
 
-Defined in: [provider-openrouter/src/index.ts:185](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L185)
+Defined in: [provider-openrouter/src/index.ts:170](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L170)
 
 Client-safe Audio LLM gateway options. Model, prompt, voice, and generation limits stay on the server.
 
@@ -219,17 +246,17 @@ Client-safe Audio LLM gateway options. Model, prompt, voice, and generation limi
 
 | Property | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
-| <a id="baseurl-2"></a> `baseUrl` | `string` | Profile-specific application base URL, such as `/api/voice/llm`. | [`OpenRouterGatewayClientOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayclientoptions).[`baseUrl`](/docs/en/reference/api/ottervoice-provider-openrouter/#baseurl-3) | [provider-openrouter/src/index.ts:169](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L169) |
-| <a id="fetch-2"></a> `fetch?` | [`FetchLike`](/docs/en/reference/api/ottervoice-provider-utils/#fetchlike) | Custom fetch implementation, commonly Expo's fetch adapter. | [`OpenRouterGatewayClientOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayclientoptions).[`fetch`](/docs/en/reference/api/ottervoice-provider-openrouter/#fetch-3) | [provider-openrouter/src/index.ts:173](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L173) |
-| <a id="headers-3"></a> `headers?` | `Record`\<`string`, `string`\> | Application-gateway headers, for example a short-lived session token. | [`OpenRouterGatewayClientOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayclientoptions).[`headers`](/docs/en/reference/api/ottervoice-provider-openrouter/#headers-4) | [provider-openrouter/src/index.ts:171](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L171) |
-| <a id="prepareaudio-1"></a> `prepareAudio?` | (`audio`, `format`) => `Promise`\<[`PreparedAudioInput`](/docs/en/reference/api/ottervoice-provider-openrouter/#preparedaudioinput)\> | Runtime conversion from browser/native capture to WAV or MP3. | - | [provider-openrouter/src/index.ts:187](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L187) |
-| <a id="requiredonesentinel-1"></a> `requireDoneSentinel?` | `boolean` | Require the server SSE response to end with `[DONE]`. | - | [provider-openrouter/src/index.ts:189](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L189) |
+| <a id="baseurl-2"></a> `baseUrl` | `string` | Profile-specific application base URL, such as `/api/voice/llm`. | [`OpenRouterGatewayClientOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayclientoptions).[`baseUrl`](/docs/en/reference/api/ottervoice-provider-openrouter/#baseurl-3) | [provider-openrouter/src/index.ts:154](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L154) |
+| <a id="fetch-2"></a> `fetch?` | [`FetchLike`](/docs/en/reference/api/ottervoice-provider-utils/#fetchlike) | Custom fetch implementation, commonly Expo's fetch adapter. | [`OpenRouterGatewayClientOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayclientoptions).[`fetch`](/docs/en/reference/api/ottervoice-provider-openrouter/#fetch-3) | [provider-openrouter/src/index.ts:158](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L158) |
+| <a id="headers-3"></a> `headers?` | `Record`\<`string`, `string`\> | Application-gateway headers, for example a short-lived session token. | [`OpenRouterGatewayClientOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayclientoptions).[`headers`](/docs/en/reference/api/ottervoice-provider-openrouter/#headers-4) | [provider-openrouter/src/index.ts:156](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L156) |
+| <a id="prepareaudio-1"></a> `prepareAudio?` | (`audio`, `format`) => `Promise`\<[`PreparedAudioInput`](/docs/en/reference/api/ottervoice-provider-openrouter/#preparedaudioinput)\> | Runtime conversion from browser/native capture to WAV or MP3. | - | [provider-openrouter/src/index.ts:172](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L172) |
+| <a id="requiredonesentinel-1"></a> `requireDoneSentinel?` | `boolean` | Require the server SSE response to end with `[DONE]`. | - | [provider-openrouter/src/index.ts:174](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L174) |
 
 ***
 
 ### OpenRouterGatewayAudioLLMPolicy
 
-Defined in: [provider-openrouter/src/gateway-server.ts:50](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L50)
+Defined in: [provider-openrouter/src/gateway-server.ts:81](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L81)
 
 Locked server policy for native Audio LLM requests.
 
@@ -237,17 +264,17 @@ Locked server policy for native Audio LLM requests.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="maxtokens"></a> `maxTokens` | `number` | Hard server-selected output-token ceiling. | [provider-openrouter/src/gateway-server.ts:60](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L60) |
-| <a id="model-4"></a> `model` | `string` | Provider model id. Never read this value from an untrusted client. | [provider-openrouter/src/gateway-server.ts:52](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L52) |
-| <a id="systemprompt"></a> `systemPrompt` | `string` | Trusted system instruction injected before client conversation history. | [provider-openrouter/src/gateway-server.ts:54](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L54) |
-| <a id="temperature-1"></a> `temperature?` | `number` | Server-selected sampling temperature. | [provider-openrouter/src/gateway-server.ts:58](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L58) |
-| <a id="voice-1"></a> `voice` | `string` | Server-selected output voice. | [provider-openrouter/src/gateway-server.ts:56](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L56) |
+| <a id="maxtokens"></a> `maxTokens` | `number` | Hard server-selected output-token ceiling. | [provider-openrouter/src/gateway-server.ts:91](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L91) |
+| <a id="model-4"></a> `model` | `string` | Provider model id. Never read this value from an untrusted client. | [provider-openrouter/src/gateway-server.ts:83](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L83) |
+| <a id="systemprompt"></a> `systemPrompt` | `string` | Trusted system instruction injected before client conversation history. | [provider-openrouter/src/gateway-server.ts:85](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L85) |
+| <a id="temperature-1"></a> `temperature?` | `number` | Server-selected sampling temperature. | [provider-openrouter/src/gateway-server.ts:89](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L89) |
+| <a id="voice-1"></a> `voice` | `string` | Server-selected output voice. | [provider-openrouter/src/gateway-server.ts:87](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L87) |
 
 ***
 
 ### OpenRouterGatewayAuthorizationContext
 
-Defined in: [provider-openrouter/src/gateway-server.ts:79](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L79)
+Defined in: [provider-openrouter/src/gateway-server.ts:110](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L110)
 
 Context passed to the application-owned gateway authorization hook.
 
@@ -255,36 +282,35 @@ Context passed to the application-owned gateway authorization hook.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="profile"></a> `profile` | [`OpenRouterGatewayProfile`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayprofile) | Server profile selected by the explicit route. | [provider-openrouter/src/gateway-server.ts:85](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L85) |
-| <a id="request"></a> `request` | `Request` | Original application request. | [provider-openrouter/src/gateway-server.ts:81](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L81) |
-| <a id="url"></a> `url` | `URL` | Parsed request URL. | [provider-openrouter/src/gateway-server.ts:83](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L83) |
+| <a id="profile"></a> `profile` | [`OpenRouterGatewayProfile`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayprofile) | Server profile selected by the explicit route. | [provider-openrouter/src/gateway-server.ts:116](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L116) |
+| <a id="request"></a> `request` | `Request` | Original application request. | [provider-openrouter/src/gateway-server.ts:112](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L112) |
+| <a id="url"></a> `url` | `URL` | Parsed request URL. | [provider-openrouter/src/gateway-server.ts:114](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L114) |
 
 ***
 
 ### OpenRouterGatewayClientOptions
 
-Defined in: [provider-openrouter/src/index.ts:167](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L167)
+Defined in: [provider-openrouter/src/index.ts:152](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L152)
 
 Shared browser/app options for a server-managed OpenRouter gateway profile.
 
 #### Extended by
 
 - [`OpenRouterGatewayAudioLLMOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayaudiollmoptions)
-- [`OpenRouterGatewayTTSOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayttsoptions)
 
 #### Properties
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="baseurl-3"></a> `baseUrl` | `string` | Profile-specific application base URL, such as `/api/voice/llm`. | [provider-openrouter/src/index.ts:169](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L169) |
-| <a id="fetch-3"></a> `fetch?` | [`FetchLike`](/docs/en/reference/api/ottervoice-provider-utils/#fetchlike) | Custom fetch implementation, commonly Expo's fetch adapter. | [provider-openrouter/src/index.ts:173](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L173) |
-| <a id="headers-4"></a> `headers?` | `Record`\<`string`, `string`\> | Application-gateway headers, for example a short-lived session token. | [provider-openrouter/src/index.ts:171](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L171) |
+| <a id="baseurl-3"></a> `baseUrl` | `string` | Profile-specific application base URL, such as `/api/voice/llm`. | [provider-openrouter/src/index.ts:154](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L154) |
+| <a id="fetch-3"></a> `fetch?` | [`FetchLike`](/docs/en/reference/api/ottervoice-provider-utils/#fetchlike) | Custom fetch implementation, commonly Expo's fetch adapter. | [provider-openrouter/src/index.ts:158](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L158) |
+| <a id="headers-4"></a> `headers?` | `Record`\<`string`, `string`\> | Application-gateway headers, for example a short-lived session token. | [provider-openrouter/src/index.ts:156](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L156) |
 
 ***
 
 ### OpenRouterGatewayLLMPolicy
 
-Defined in: [provider-openrouter/src/gateway-server.ts:22](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L22)
+Defined in: [provider-openrouter/src/gateway-server.ts:28](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L28)
 
 Locked server policy for text LLM requests.
 
@@ -292,18 +318,19 @@ Locked server policy for text LLM requests.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="maxtokens-1"></a> `maxTokens` | `number` | Hard server-selected output-token ceiling. | [provider-openrouter/src/gateway-server.ts:30](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L30) |
-| <a id="model-5"></a> `model` | `string` | Provider model id. Never read this value from an untrusted client. | [provider-openrouter/src/gateway-server.ts:24](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L24) |
-| <a id="reasoningenabled"></a> `reasoningEnabled?` | `boolean` | Server-selected OpenRouter reasoning behavior. | [provider-openrouter/src/gateway-server.ts:32](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L32) |
-| <a id="responseformat"></a> `responseFormat?` | `"text"` \| `"json"` | Server-selected response shape. Defaults to text. | [provider-openrouter/src/gateway-server.ts:34](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L34) |
-| <a id="systemprompt-1"></a> `systemPrompt` | `string` | Trusted system instruction injected before client conversation history. | [provider-openrouter/src/gateway-server.ts:26](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L26) |
-| <a id="temperature-2"></a> `temperature?` | `number` | Server-selected sampling temperature. | [provider-openrouter/src/gateway-server.ts:28](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L28) |
+| <a id="maxtokens-1"></a> `maxTokens` | `number` | Hard server-selected output-token ceiling. | [provider-openrouter/src/gateway-server.ts:36](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L36) |
+| <a id="model-5"></a> `model` | `string` | Provider model id. Never read this value from an untrusted client. | [provider-openrouter/src/gateway-server.ts:30](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L30) |
+| <a id="provider"></a> `provider?` | [`OpenRouterGatewayProviderRoutingPolicy`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayproviderroutingpolicy) | Server-selected OpenRouter endpoint routing preferences. See [OpenRouterGatewayProviderRoutingPolicy](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayproviderroutingpolicy). | [provider-openrouter/src/gateway-server.ts:45](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L45) |
+| <a id="reasoningenabled"></a> `reasoningEnabled?` | `boolean` | Server-selected OpenRouter reasoning behavior. | [provider-openrouter/src/gateway-server.ts:38](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L38) |
+| <a id="responseformat"></a> `responseFormat?` | `"text"` \| `"json"` | Server-selected response shape. Defaults to text. | [provider-openrouter/src/gateway-server.ts:40](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L40) |
+| <a id="systemprompt-1"></a> `systemPrompt` | `string` | Trusted system instruction injected before client conversation history. | [provider-openrouter/src/gateway-server.ts:32](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L32) |
+| <a id="temperature-2"></a> `temperature?` | `number` | Server-selected sampling temperature. | [provider-openrouter/src/gateway-server.ts:34](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L34) |
 
 ***
 
 ### OpenRouterGatewayOptions
 
-Defined in: [provider-openrouter/src/gateway-server.ts:98](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L98)
+Defined in: [provider-openrouter/src/gateway-server.ts:129](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L129)
 
 Options for [createOpenRouterGateway](/docs/en/reference/api/ottervoice-provider-openrouter/#createopenroutergateway).
 
@@ -311,25 +338,25 @@ Options for [createOpenRouterGateway](/docs/en/reference/api/ottervoice-provider
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="apikey-2"></a> `apiKey?` | `string` | Long-lived OpenRouter key read only in the trusted server runtime. | [provider-openrouter/src/gateway-server.ts:100](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L100) |
-| <a id="authorize"></a> `authorize` | (`context`) => [`OpenRouterGatewayAuthorizationResult`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayauthorizationresult) | Application authorization and session-ownership check. This hook is mandatory so production integrations cannot accidentally omit the trust boundary. | [provider-openrouter/src/gateway-server.ts:107](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L107) |
-| <a id="fetch-4"></a> `fetch?` | [`FetchLike`](/docs/en/reference/api/ottervoice-provider-utils/#fetchlike) | Server-side fetch override for tests or custom runtimes. | [provider-openrouter/src/gateway-server.ts:129](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L129) |
-| <a id="gatewayprefix"></a> `gatewayPrefix?` | `string` | Browser-facing prefix. Defaults to `/api/voice`. | [provider-openrouter/src/gateway-server.ts:111](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L111) |
-| <a id="maxmessages"></a> `maxMessages?` | `number` | Maximum conversation messages accepted from a client. Defaults to 32. | [provider-openrouter/src/gateway-server.ts:117](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L117) |
-| <a id="maxrequestbodybytes"></a> `maxRequestBodyBytes?` | `number` | Maximum encoded request size. Defaults to 6 MiB. | [provider-openrouter/src/gateway-server.ts:115](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L115) |
-| <a id="maxtextcharacters"></a> `maxTextCharacters?` | `number` | Maximum cumulative client-controlled text characters. Defaults to 32,000. | [provider-openrouter/src/gateway-server.ts:119](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L119) |
-| <a id="policy"></a> `policy` | [`OpenRouterGatewayPolicy`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewaypolicy) | Locked model, prompt, voice, and generation policy. | [provider-openrouter/src/gateway-server.ts:102](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L102) |
-| <a id="referer-3"></a> `referer?` | `string` | Server-owned HTTP Referer sent upstream. | [provider-openrouter/src/gateway-server.ts:125](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L125) |
-| <a id="title-3"></a> `title?` | `string` | Server-owned application title sent upstream. | [provider-openrouter/src/gateway-server.ts:127](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L127) |
-| <a id="ttscacheentries"></a> `ttsCacheEntries?` | `number` | Maximum in-memory TTS cache entries. Defaults to zero (disabled). | [provider-openrouter/src/gateway-server.ts:123](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L123) |
-| <a id="upstreambaseurl"></a> `upstreamBaseUrl?` | `string` | Provider API root. Defaults to OpenRouter's public v1 endpoint. | [provider-openrouter/src/gateway-server.ts:113](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L113) |
-| <a id="upstreamtimeoutms"></a> `upstreamTimeoutMs?` | `number` | Total upstream response timeout in milliseconds. Defaults to 60 seconds. | [provider-openrouter/src/gateway-server.ts:121](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L121) |
+| <a id="apikey-2"></a> `apiKey?` | `string` | Long-lived OpenRouter key read only in the trusted server runtime. | [provider-openrouter/src/gateway-server.ts:131](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L131) |
+| <a id="authorize"></a> `authorize` | (`context`) => [`OpenRouterGatewayAuthorizationResult`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayauthorizationresult) | Application authorization and session-ownership check. This hook is mandatory so production integrations cannot accidentally omit the trust boundary. | [provider-openrouter/src/gateway-server.ts:138](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L138) |
+| <a id="fetch-4"></a> `fetch?` | [`FetchLike`](/docs/en/reference/api/ottervoice-provider-utils/#fetchlike) | Server-side fetch override for tests or custom runtimes. | [provider-openrouter/src/gateway-server.ts:160](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L160) |
+| <a id="gatewayprefix"></a> `gatewayPrefix?` | `string` | Browser-facing prefix. Defaults to `/api/voice`. | [provider-openrouter/src/gateway-server.ts:142](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L142) |
+| <a id="maxmessages"></a> `maxMessages?` | `number` | Maximum conversation messages accepted from a client. Defaults to 32. | [provider-openrouter/src/gateway-server.ts:148](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L148) |
+| <a id="maxrequestbodybytes"></a> `maxRequestBodyBytes?` | `number` | Maximum encoded request size. Defaults to 6 MiB. | [provider-openrouter/src/gateway-server.ts:146](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L146) |
+| <a id="maxtextcharacters"></a> `maxTextCharacters?` | `number` | Maximum cumulative client-controlled text characters. Defaults to 32,000. | [provider-openrouter/src/gateway-server.ts:150](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L150) |
+| <a id="policy"></a> `policy` | [`OpenRouterGatewayPolicy`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewaypolicy) | Locked model, prompt, voice, and generation policy. | [provider-openrouter/src/gateway-server.ts:133](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L133) |
+| <a id="referer-3"></a> `referer?` | `string` | Server-owned HTTP Referer sent upstream. | [provider-openrouter/src/gateway-server.ts:156](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L156) |
+| <a id="title-3"></a> `title?` | `string` | Server-owned application title sent upstream. | [provider-openrouter/src/gateway-server.ts:158](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L158) |
+| <a id="ttscacheentries"></a> `ttsCacheEntries?` | `number` | Maximum in-memory TTS cache entries. Defaults to zero (disabled). | [provider-openrouter/src/gateway-server.ts:154](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L154) |
+| <a id="upstreambaseurl"></a> `upstreamBaseUrl?` | `string` | Provider API root. Defaults to OpenRouter's public v1 endpoint. | [provider-openrouter/src/gateway-server.ts:144](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L144) |
+| <a id="upstreamtimeoutms"></a> `upstreamTimeoutMs?` | `number` | Total upstream response timeout in milliseconds. Defaults to 60 seconds. | [provider-openrouter/src/gateway-server.ts:152](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L152) |
 
 ***
 
 ### OpenRouterGatewayPolicy
 
-Defined in: [provider-openrouter/src/gateway-server.ts:67](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L67)
+Defined in: [provider-openrouter/src/gateway-server.ts:98](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L98)
 
 Server-owned provider policy. Omit a profile to disable its route entirely.
 The gateway never accepts these values from a browser or app request body.
@@ -338,37 +365,35 @@ The gateway never accepts these values from a browser or app request body.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="asr"></a> `asr?` | [`OpenRouterGatewayASRPolicy`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayasrpolicy) | Policy for `/asr/audio/transcriptions`. | [provider-openrouter/src/gateway-server.ts:69](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L69) |
-| <a id="audiollm"></a> `audioLlm?` | [`OpenRouterGatewayAudioLLMPolicy`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayaudiollmpolicy) | Policy for `/audio-llm/chat/completions`. | [provider-openrouter/src/gateway-server.ts:75](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L75) |
-| <a id="llm"></a> `llm?` | [`OpenRouterGatewayLLMPolicy`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayllmpolicy) | Policy for `/llm/chat/completions`. | [provider-openrouter/src/gateway-server.ts:71](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L71) |
-| <a id="tts"></a> `tts?` | [`OpenRouterGatewayTTSPolicy`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayttspolicy) | Policy for `/tts/audio/speech`. | [provider-openrouter/src/gateway-server.ts:73](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L73) |
+| <a id="asr"></a> `asr?` | [`OpenRouterGatewayASRPolicy`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayasrpolicy) | Policy for standalone ASR and the ASR stage of the composite voice route. | [provider-openrouter/src/gateway-server.ts:100](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L100) |
+| <a id="audiollm"></a> `audioLlm?` | [`OpenRouterGatewayAudioLLMPolicy`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayaudiollmpolicy) | Policy for `/audio-llm/chat/completions`. | [provider-openrouter/src/gateway-server.ts:106](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L106) |
+| <a id="llm"></a> `llm?` | [`OpenRouterGatewayLLMPolicy`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayllmpolicy) | Policy for the LLM stage of the composite voice route. | [provider-openrouter/src/gateway-server.ts:102](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L102) |
+| <a id="tts"></a> `tts?` | [`OpenRouterGatewayTTSPolicy`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayttspolicy) | Policy for the TTS stage of the composite voice route. | [provider-openrouter/src/gateway-server.ts:104](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L104) |
 
 ***
 
-### OpenRouterGatewayTTSOptions
+### OpenRouterGatewayProviderRoutingPolicy
 
-Defined in: [provider-openrouter/src/index.ts:193](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L193)
+Defined in: [provider-openrouter/src/gateway-server.ts:49](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L49)
 
-Client-safe TTS gateway options. Model, voice, speed, and format policy stay on the server.
-
-#### Extends
-
-- [`OpenRouterGatewayClientOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayclientoptions)
+Locked OpenRouter endpoint-routing preferences for text LLM requests.
 
 #### Properties
 
-| Property | Type | Description | Inherited from | Defined in |
-| ------ | ------ | ------ | ------ | ------ |
-| <a id="baseurl-4"></a> `baseUrl` | `string` | Profile-specific application base URL, such as `/api/voice/llm`. | [`OpenRouterGatewayClientOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayclientoptions).[`baseUrl`](/docs/en/reference/api/ottervoice-provider-openrouter/#baseurl-3) | [provider-openrouter/src/index.ts:169](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L169) |
-| <a id="fetch-5"></a> `fetch?` | [`FetchLike`](/docs/en/reference/api/ottervoice-provider-utils/#fetchlike) | Custom fetch implementation, commonly Expo's fetch adapter. | [`OpenRouterGatewayClientOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayclientoptions).[`fetch`](/docs/en/reference/api/ottervoice-provider-openrouter/#fetch-3) | [provider-openrouter/src/index.ts:173](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L173) |
-| <a id="headers-5"></a> `headers?` | `Record`\<`string`, `string`\> | Application-gateway headers, for example a short-lived session token. | [`OpenRouterGatewayClientOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayclientoptions).[`headers`](/docs/en/reference/api/ottervoice-provider-openrouter/#headers-4) | [provider-openrouter/src/index.ts:171](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L171) |
-| <a id="pcmstreaming"></a> `pcmStreaming?` | `boolean` | Whether the server-selected model supports incremental raw-PCM output. Defaults to `true`. Set this to `false` for MP3-only streaming models so core uses sentence-sized buffered synthesis instead of [TTSProvider.stream](/docs/en/reference/api/ottervoice-core/#stream-1). | - | [provider-openrouter/src/index.ts:199](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L199) |
+| Property | Type | Description | Defined in |
+| ------ | ------ | ------ | ------ |
+| <a id="preferredmaxlatency"></a> `preferredMaxLatency?` | \{ `p50?`: `number`; `p75?`: `number`; `p90?`: `number`; `p99?`: `number`; \} | Preferred maximum time-to-first-token latency in seconds. Endpoints above these rolling percentile thresholds are deprioritized, not excluded. | [provider-openrouter/src/gateway-server.ts:56](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L56) |
+| `preferredMaxLatency.p50?` | `number` | Preferred maximum median latency in seconds. | [provider-openrouter/src/gateway-server.ts:58](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L58) |
+| `preferredMaxLatency.p75?` | `number` | Preferred maximum p75 latency in seconds. | [provider-openrouter/src/gateway-server.ts:60](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L60) |
+| `preferredMaxLatency.p90?` | `number` | Preferred maximum p90 latency in seconds. | [provider-openrouter/src/gateway-server.ts:62](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L62) |
+| `preferredMaxLatency.p99?` | `number` | Preferred maximum p99 latency in seconds. | [provider-openrouter/src/gateway-server.ts:64](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L64) |
+| <a id="sort"></a> `sort?` | `"price"` \| `"throughput"` \| `"latency"` | Attribute used to order eligible provider endpoints. | [provider-openrouter/src/gateway-server.ts:51](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L51) |
 
 ***
 
 ### OpenRouterGatewayTTSPolicy
 
-Defined in: [provider-openrouter/src/gateway-server.ts:38](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L38)
+Defined in: [provider-openrouter/src/gateway-server.ts:69](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L69)
 
 Locked server policy for speech synthesis requests.
 
@@ -376,20 +401,37 @@ Locked server policy for speech synthesis requests.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="model-6"></a> `model` | `string` | Provider model id. Never read this value from an untrusted client. | [provider-openrouter/src/gateway-server.ts:40](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L40) |
-| <a id="responseformat-1"></a> `responseFormat?` | `"mp3"` \| `"pcm"` | Server-selected one-shot output encoding. Streaming requests force PCM. | [provider-openrouter/src/gateway-server.ts:46](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L46) |
-| <a id="speed"></a> `speed?` | `number` | Server-selected speaking-rate multiplier. | [provider-openrouter/src/gateway-server.ts:44](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L44) |
-| <a id="voice-2"></a> `voice` | `string` | Server-selected voice id. | [provider-openrouter/src/gateway-server.ts:42](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L42) |
+| <a id="model-6"></a> `model` | `string` | Provider model id. Never read this value from an untrusted client. | [provider-openrouter/src/gateway-server.ts:71](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L71) |
+| <a id="responseformat-1"></a> `responseFormat?` | `"mp3"` \| `"pcm"` | Server-selected one-shot output encoding. Streaming requests force PCM. | [provider-openrouter/src/gateway-server.ts:77](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L77) |
+| <a id="speed"></a> `speed?` | `number` | Server-selected speaking-rate multiplier. | [provider-openrouter/src/gateway-server.ts:75](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L75) |
+| <a id="voice-2"></a> `voice` | `string` | Server-selected voice id. | [provider-openrouter/src/gateway-server.ts:73](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L73) |
+
+***
+
+### OpenRouterGatewayVoiceTurnOptions
+
+Defined in: [provider-openrouter/src/voice-turn.ts:24](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/voice-turn.ts#L24)
+
+Client options for the server-orchestrated ASR → LLM → TTS voice-turn route.
+
+#### Properties
+
+| Property | Type | Description | Defined in |
+| ------ | ------ | ------ | ------ |
+| <a id="baseurl-4"></a> `baseUrl` | `string` | Application route prefix, such as `/api/voice/asr-llm-tts`. | [provider-openrouter/src/voice-turn.ts:26](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/voice-turn.ts#L26) |
+| <a id="fetch-5"></a> `fetch?` | [`FetchLike`](/docs/en/reference/api/ottervoice-provider-utils/#fetchlike) | Custom Fetch implementation for browser, native, or test runtimes. | [provider-openrouter/src/voice-turn.ts:30](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/voice-turn.ts#L30) |
+| <a id="headers-5"></a> `headers?` | `Record`\<`string`, `string`\> | Application-gateway headers, for example a short-lived session token. | [provider-openrouter/src/voice-turn.ts:28](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/voice-turn.ts#L28) |
+| <a id="prepareaudio-2"></a> `prepareAudio?` | (`audio`, `format`) => `Promise`\<[`PreparedAudioInput`](/docs/en/reference/api/ottervoice-provider-openrouter/#preparedaudioinput)\> | Runtime conversion from browser/native capture to WAV or MP3. | [provider-openrouter/src/voice-turn.ts:32](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/voice-turn.ts#L32) |
+| <a id="requiredonesentinel-2"></a> `requireDoneSentinel?` | `boolean` | Require the composite SSE response to end with `[DONE]`. | [provider-openrouter/src/voice-turn.ts:37](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/voice-turn.ts#L37) |
 
 ***
 
 ### OpenRouterOptions
 
-Defined in: [provider-openrouter/src/index.ts:45](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L45)
+Defined in: [provider-openrouter/src/index.ts:43](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L43)
 
-Options for [createOpenRouterLLM](/docs/en/reference/api/ottervoice-provider-openrouter/#createopenrouterllm). Use this direct provider in trusted
-server/CLI runtimes. Browsers and apps should prefer
-[createOpenRouterGatewayLLM](/docs/en/reference/api/ottervoice-provider-openrouter/#createopenroutergatewayllm) with a policy-enforcing server gateway.
+Options for [createOpenRouterLLM](/docs/en/reference/api/ottervoice-provider-openrouter/#createopenrouterllm). Use this direct provider only as a
+trusted-server building block for a composite audio-turn backend.
 
 #### Extends
 
@@ -400,17 +442,16 @@ server/CLI runtimes. Browsers and apps should prefer
 | Property | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
 | <a id="apikey-3"></a> `apiKey?` | `string` | A long-lived key (server-side only — never ship to clients). | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`apiKey`](/docs/en/reference/api/ottervoice-provider-utils/#apikey) | provider-utils/dist/credential.d.ts:37 |
-| <a id="baseurl-5"></a> `baseUrl?` | `string` | API base, default `https://openrouter.ai/api/v1`. | - | [provider-openrouter/src/index.ts:49](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L49) |
-| <a id="defaulttemperature-1"></a> `defaultTemperature?` | `number` | Applied when a request does not specify its own temperature. | - | [provider-openrouter/src/index.ts:53](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L53) |
+| <a id="baseurl-5"></a> `baseUrl?` | `string` | API base, default `https://openrouter.ai/api/v1`. | - | [provider-openrouter/src/index.ts:47](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L47) |
+| <a id="defaulttemperature-1"></a> `defaultTemperature?` | `number` | Applied when a request does not specify its own temperature. | - | [provider-openrouter/src/index.ts:51](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L51) |
 | <a id="fetch-6"></a> `fetch?` | [`FetchLike`](/docs/en/reference/api/ottervoice-provider-utils/#fetchlike) | Custom `fetch` implementation (tests / React Native polyfills). | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`fetch`](/docs/en/reference/api/ottervoice-provider-utils/#fetch) | provider-utils/dist/credential.d.ts:50 |
-| <a id="headers-6"></a> `headers?` | `Record`\<`string`, `string`\> | Extra headers merged last (override defaults carefully). | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`headers`](/docs/en/reference/api/ottervoice-provider-openrouter/#headers) | [provider-openrouter/src/chat.ts:63](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L63) |
-| <a id="model-7"></a> `model` | `string` | OpenRouter model id, e.g. `openai/gpt-4o-mini`. | - | [provider-openrouter/src/index.ts:47](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L47) |
+| <a id="headers-6"></a> `headers?` | `Record`\<`string`, `string`\> | Extra headers merged last (override defaults carefully). | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`headers`](/docs/en/reference/api/ottervoice-provider-openrouter/#headers) | [provider-openrouter/src/chat.ts:63](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L63) |
+| <a id="model-7"></a> `model` | `string` | OpenRouter model id, e.g. `openai/gpt-4o-mini`. | - | [provider-openrouter/src/index.ts:45](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L45) |
 | <a id="now-2"></a> `now?` | () => `number` | Clock override for deterministic expiry checks in tests. | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`now`](/docs/en/reference/api/ottervoice-provider-utils/#now) | provider-utils/dist/credential.d.ts:52 |
-| <a id="reasoningenabled-1"></a> `reasoningEnabled?` | `boolean` | Explicitly enable/disable reasoning tokens on compatible models. | - | [provider-openrouter/src/index.ts:55](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L55) |
-| <a id="referer-4"></a> `referer?` | `string` | Sent as `HTTP-Referer` for OpenRouter rankings / allowlists. | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`referer`](/docs/en/reference/api/ottervoice-provider-openrouter/#referer) | [provider-openrouter/src/chat.ts:59](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L59) |
-| <a id="requeststage-2"></a> `requestStage?` | `"gateway"` \| `"provider"` | Classify HTTP failures as gateway/provider errors. Defaults from whether `baseUrl` is customized. | - | [provider-openrouter/src/index.ts:51](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L51) |
-| <a id="servermanaged-2"></a> `serverManaged?` | `boolean` | Omit model, system prompt, generation controls, and response format from the browser request because a trusted policy gateway reconstructs them. Prefer [createOpenRouterGatewayLLM](/docs/en/reference/api/ottervoice-provider-openrouter/#createopenroutergatewayllm) instead of setting this directly. | - | [provider-openrouter/src/index.ts:61](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L61) |
-| <a id="title-4"></a> `title?` | `string` | Sent as `X-Title` (app name shown on OpenRouter). | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`title`](/docs/en/reference/api/ottervoice-provider-openrouter/#title) | [provider-openrouter/src/chat.ts:61](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L61) |
+| <a id="reasoningenabled-1"></a> `reasoningEnabled?` | `boolean` | Explicitly enable/disable reasoning tokens on compatible models. | - | [provider-openrouter/src/index.ts:53](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L53) |
+| <a id="referer-4"></a> `referer?` | `string` | Sent as `HTTP-Referer` for OpenRouter rankings / allowlists. | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`referer`](/docs/en/reference/api/ottervoice-provider-openrouter/#referer) | [provider-openrouter/src/chat.ts:59](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L59) |
+| <a id="requeststage-2"></a> `requestStage?` | `"gateway"` \| `"provider"` | Classify HTTP failures as gateway/provider errors. Defaults from whether `baseUrl` is customized. | - | [provider-openrouter/src/index.ts:49](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L49) |
+| <a id="title-4"></a> `title?` | `string` | Sent as `X-Title` (app name shown on OpenRouter). | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`title`](/docs/en/reference/api/ottervoice-provider-openrouter/#title) | [provider-openrouter/src/chat.ts:61](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L61) |
 | <a id="tokenbrokercredentials-2"></a> `tokenBrokerCredentials?` | `RequestCredentials` | Browser credential mode for the broker request. Use `include` for a cross-origin cookie session. | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerCredentials`](/docs/en/reference/api/ottervoice-provider-utils/#tokenbrokercredentials) | provider-utils/dist/credential.d.ts:48 |
 | <a id="tokenbrokerheaders-2"></a> `tokenBrokerHeaders?` | `Readonly`\<`Record`\<`string`, `string`\>\> | Application-authentication headers sent only to the token broker, such as a short-lived user session bearer token. Use browser-compatible characters. | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerHeaders`](/docs/en/reference/api/ottervoice-provider-utils/#tokenbrokerheaders) | provider-utils/dist/credential.d.ts:44 |
 | <a id="tokenbrokersessionid-2"></a> `tokenBrokerSessionId?` | `string` | Application voice-session id sent to the broker for ownership checks, audit, and quotas. | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerSessionId`](/docs/en/reference/api/ottervoice-provider-utils/#tokenbrokersessionid) | provider-utils/dist/credential.d.ts:46 |
@@ -420,10 +461,10 @@ server/CLI runtimes. Browsers and apps should prefer
 
 ### OpenRouterTTSOptions
 
-Defined in: [provider-openrouter/src/audio.ts:57](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L57)
+Defined in: [provider-openrouter/src/audio.ts:57](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L57)
 
 Options for direct OpenRouter HTTP speech synthesis in trusted server/CLI
-runtimes. Browser/app integrations should use `OpenRouterGatewayClientOptions`.
+runtimes. Use it for the TTS stage of a composite audio-turn backend.
 
 #### Extends
 
@@ -434,27 +475,26 @@ runtimes. Browser/app integrations should use `OpenRouterGatewayClientOptions`.
 | Property | Type | Description | Inherited from | Defined in |
 | ------ | ------ | ------ | ------ | ------ |
 | <a id="apikey-4"></a> `apiKey?` | `string` | A long-lived key (server-side only — never ship to clients). | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`apiKey`](/docs/en/reference/api/ottervoice-provider-utils/#apikey) | provider-utils/dist/credential.d.ts:37 |
-| <a id="baseurl-6"></a> `baseUrl?` | `string` | API root; defaults to OpenRouter's chat-compatible base URL. | - | [provider-openrouter/src/audio.ts:63](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L63) |
+| <a id="baseurl-6"></a> `baseUrl?` | `string` | API root; defaults to OpenRouter's chat-compatible base URL. | - | [provider-openrouter/src/audio.ts:63](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L63) |
 | <a id="fetch-7"></a> `fetch?` | [`FetchLike`](/docs/en/reference/api/ottervoice-provider-utils/#fetchlike) | Custom `fetch` implementation (tests / React Native polyfills). | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`fetch`](/docs/en/reference/api/ottervoice-provider-utils/#fetch) | provider-utils/dist/credential.d.ts:50 |
-| <a id="headers-7"></a> `headers?` | `Record`\<`string`, `string`\> | Extra headers merged last (override defaults carefully). | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`headers`](/docs/en/reference/api/ottervoice-provider-openrouter/#headers) | [provider-openrouter/src/chat.ts:63](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L63) |
-| <a id="model-8"></a> `model` | `string` | OpenRouter / OpenAI-compatible TTS model id. Keep server-owned. | - | [provider-openrouter/src/audio.ts:59](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L59) |
+| <a id="headers-7"></a> `headers?` | `Record`\<`string`, `string`\> | Extra headers merged last (override defaults carefully). | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`headers`](/docs/en/reference/api/ottervoice-provider-openrouter/#headers) | [provider-openrouter/src/chat.ts:63](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L63) |
+| <a id="model-8"></a> `model` | `string` | OpenRouter / OpenAI-compatible TTS model id. Keep server-owned. | - | [provider-openrouter/src/audio.ts:59](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L59) |
 | <a id="now-3"></a> `now?` | () => `number` | Clock override for deterministic expiry checks in tests. | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`now`](/docs/en/reference/api/ottervoice-provider-utils/#now) | provider-utils/dist/credential.d.ts:52 |
-| <a id="referer-5"></a> `referer?` | `string` | Sent as `HTTP-Referer` for OpenRouter rankings / allowlists. | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`referer`](/docs/en/reference/api/ottervoice-provider-openrouter/#referer) | [provider-openrouter/src/chat.ts:59](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L59) |
-| <a id="requeststage-3"></a> `requestStage?` | `"gateway"` \| `"provider"` | Classify HTTP failures as gateway/provider errors. Defaults from whether `baseUrl` is customized. | - | [provider-openrouter/src/audio.ts:65](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L65) |
-| <a id="servermanaged-3"></a> `serverManaged?` | `boolean` | Omit provider policy fields because a trusted gateway reconstructs the request. | - | [provider-openrouter/src/audio.ts:69](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L69) |
-| <a id="speed-1"></a> `speed?` | `number` | Speaking rate multiplier when the upstream model supports it. Keep server-owned. | - | [provider-openrouter/src/audio.ts:67](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L67) |
-| <a id="title-5"></a> `title?` | `string` | Sent as `X-Title` (app name shown on OpenRouter). | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`title`](/docs/en/reference/api/ottervoice-provider-openrouter/#title) | [provider-openrouter/src/chat.ts:61](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L61) |
+| <a id="referer-5"></a> `referer?` | `string` | Sent as `HTTP-Referer` for OpenRouter rankings / allowlists. | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`referer`](/docs/en/reference/api/ottervoice-provider-openrouter/#referer) | [provider-openrouter/src/chat.ts:59](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L59) |
+| <a id="requeststage-3"></a> `requestStage?` | `"gateway"` \| `"provider"` | Classify HTTP failures as gateway/provider errors. Defaults from whether `baseUrl` is customized. | - | [provider-openrouter/src/audio.ts:65](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L65) |
+| <a id="speed-1"></a> `speed?` | `number` | Speaking rate multiplier when the upstream model supports it. Keep server-owned. | - | [provider-openrouter/src/audio.ts:67](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L67) |
+| <a id="title-5"></a> `title?` | `string` | Sent as `X-Title` (app name shown on OpenRouter). | [`HeaderOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#headeroptions).[`title`](/docs/en/reference/api/ottervoice-provider-openrouter/#title) | [provider-openrouter/src/chat.ts:61](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L61) |
 | <a id="tokenbrokercredentials-3"></a> `tokenBrokerCredentials?` | `RequestCredentials` | Browser credential mode for the broker request. Use `include` for a cross-origin cookie session. | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerCredentials`](/docs/en/reference/api/ottervoice-provider-utils/#tokenbrokercredentials) | provider-utils/dist/credential.d.ts:48 |
 | <a id="tokenbrokerheaders-3"></a> `tokenBrokerHeaders?` | `Readonly`\<`Record`\<`string`, `string`\>\> | Application-authentication headers sent only to the token broker, such as a short-lived user session bearer token. Use browser-compatible characters. | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerHeaders`](/docs/en/reference/api/ottervoice-provider-utils/#tokenbrokerheaders) | provider-utils/dist/credential.d.ts:44 |
 | <a id="tokenbrokersessionid-3"></a> `tokenBrokerSessionId?` | `string` | Application voice-session id sent to the broker for ownership checks, audit, and quotas. | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerSessionId`](/docs/en/reference/api/ottervoice-provider-utils/#tokenbrokersessionid) | provider-utils/dist/credential.d.ts:46 |
 | <a id="tokenbrokerurl-3"></a> `tokenBrokerUrl?` | `string` | Endpoint that mints short-lived, least-privilege tokens; broad provider bearer tokens are not client-safe. | [`CredentialOptions`](/docs/en/reference/api/ottervoice-provider-utils/#credentialoptions).[`tokenBrokerUrl`](/docs/en/reference/api/ottervoice-provider-utils/#tokenbrokerurl) | provider-utils/dist/credential.d.ts:39 |
-| <a id="voice-3"></a> `voice` | `string` | Voice name accepted by the selected model. Keep server-owned. | - | [provider-openrouter/src/audio.ts:61](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L61) |
+| <a id="voice-3"></a> `voice` | `string` | Voice name accepted by the selected model. Keep server-owned. | - | [provider-openrouter/src/audio.ts:61](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L61) |
 
 ***
 
 ### PreparedAudioInput
 
-Defined in: [provider-openrouter/src/audio-llm.ts:23](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio-llm.ts#L23)
+Defined in: [provider-openrouter/src/audio-llm.ts:23](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio-llm.ts#L23)
 
 WAV/MP3 bytes ready for OpenAI-compatible audio chat.
 
@@ -462,8 +502,24 @@ WAV/MP3 bytes ready for OpenAI-compatible audio chat.
 
 | Property | Type | Description | Defined in |
 | ------ | ------ | ------ | ------ |
-| <a id="audio"></a> `audio` | `ArrayBuffer` | Encoded audio body. | [provider-openrouter/src/audio-llm.ts:25](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio-llm.ts#L25) |
-| <a id="format-1"></a> `format` | `"wav"` \| `"mp3"` | Container accepted by the audio chat API. | [provider-openrouter/src/audio-llm.ts:27](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio-llm.ts#L27) |
+| <a id="audio"></a> `audio` | `ArrayBuffer` | Encoded audio body. | [provider-openrouter/src/audio-llm.ts:25](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio-llm.ts#L25) |
+| <a id="format-1"></a> `format` | `"wav"` \| `"mp3"` | Container accepted by the audio chat API. | [provider-openrouter/src/audio-llm.ts:27](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio-llm.ts#L27) |
+
+***
+
+### RawUsage
+
+Defined in: [provider-openrouter/src/chat.ts:84](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L84)
+
+OpenAI-compatible token counters accepted by [mapUsage](/docs/en/reference/api/ottervoice-provider-openrouter/#mapusage).
+
+#### Properties
+
+| Property | Type | Description | Defined in |
+| ------ | ------ | ------ | ------ |
+| <a id="completion_tokens"></a> `completion_tokens?` | `number` | Tokens generated by the completion. | [provider-openrouter/src/chat.ts:88](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L88) |
+| <a id="prompt_tokens"></a> `prompt_tokens?` | `number` | Tokens consumed by prompts/messages. | [provider-openrouter/src/chat.ts:86](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L86) |
+| <a id="total_tokens"></a> `total_tokens?` | `number` | Combined prompt and completion tokens. | [provider-openrouter/src/chat.ts:90](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L90) |
 
 ## Type Aliases
 
@@ -473,7 +529,7 @@ WAV/MP3 bytes ready for OpenAI-compatible audio chat.
 type OpenRouterGatewayASROptions = OpenRouterGatewayClientOptions & Pick<OpenRouterASROptions, "format" | "partialIntervalMs" | "emptyPartialBackoffMs" | "now">;
 ```
 
-Defined in: [provider-openrouter/src/index.ts:179](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L179)
+Defined in: [provider-openrouter/src/index.ts:164](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L164)
 
 Client-safe ASR gateway options. Provider model and language policy stay on the server.
 
@@ -485,7 +541,7 @@ Client-safe ASR gateway options. Provider model and language policy stay on the 
 type OpenRouterGatewayAuthorizationResult = boolean | Response | Promise<boolean | Response>;
 ```
 
-Defined in: [provider-openrouter/src/gateway-server.ts:92](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L92)
+Defined in: [provider-openrouter/src/gateway-server.ts:123](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L123)
 
 Authorization result for an OpenRouter policy gateway.
 Return `true` to continue, `false` to reject, or a custom response.
@@ -495,10 +551,10 @@ Return `true` to continue, `false` to reject, or a custom response.
 ### OpenRouterGatewayProfile
 
 ```ts
-type OpenRouterGatewayProfile = "asr" | "llm" | "tts" | "audio_llm";
+type OpenRouterGatewayProfile = "asr" | "audio_llm" | "asr_llm_tts";
 ```
 
-Defined in: [provider-openrouter/src/gateway-server.ts:7](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L7)
+Defined in: [provider-openrouter/src/gateway-server.ts:14](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L14)
 
 Server-owned gateway profile selected by an explicit application route.
 
@@ -510,7 +566,7 @@ Server-owned gateway profile selected by an explicit application route.
 const DEFAULT_BASE_URL: "https://openrouter.ai/api/v1" = 'https://openrouter.ai/api/v1';
 ```
 
-Defined in: [provider-openrouter/src/chat.ts:4](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L4)
+Defined in: [provider-openrouter/src/chat.ts:4](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L4)
 
 Default OpenRouter OpenAI-compatible API root.
 
@@ -526,7 +582,7 @@ function buildChatBody(
    openRouter?): ChatBody;
 ```
 
-Defined in: [provider-openrouter/src/chat.ts:32](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L32)
+Defined in: [provider-openrouter/src/chat.ts:32](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L32)
 
 Build the OpenAI-compatible chat-completions request body.
 
@@ -554,7 +610,7 @@ Build the OpenAI-compatible chat-completions request body.
 function buildHeaders(token, options): Record<string, string>;
 ```
 
-Defined in: [provider-openrouter/src/chat.ts:72](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L72)
+Defined in: [provider-openrouter/src/chat.ts:72](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L72)
 
 Assemble request headers, including OpenRouter's optional attribution.
 
@@ -577,7 +633,7 @@ Assemble request headers, including OpenRouter's optional attribution.
 function bytesToBase64(bytes): string;
 ```
 
-Defined in: [provider-openrouter/src/audio.ts:163](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L163)
+Defined in: [provider-openrouter/src/audio.ts:161](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L161)
 
 Browser- and Node-safe base64 without relying on Buffer.
 
@@ -599,7 +655,7 @@ Browser- and Node-safe base64 without relying on Buffer.
 function createOpenRouterASR(options): ASRProvider;
 ```
 
-Defined in: [provider-openrouter/src/audio.ts:189](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L189)
+Defined in: [provider-openrouter/src/audio.ts:187](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L187)
 
 Direct transcription through OpenRouter's `/audio/transcriptions` endpoint
 for trusted server/CLI runtimes.
@@ -617,7 +673,7 @@ final request still covers the complete turn.
 
 [`ASRProvider`](/docs/en/reference/api/ottervoice-core/#asrprovider)
 
-An [ASRProvider](/docs/en/reference/api/ottervoice-core/#asrprovider) for VoiceSessionConfig.providers.asr.
+An [ASRProvider](/docs/en/reference/api/ottervoice-core/#asrprovider) for a session's caption/transcription provider slot.
 
 ***
 
@@ -627,7 +683,7 @@ An [ASRProvider](/docs/en/reference/api/ottervoice-core/#asrprovider) for VoiceS
 function createOpenRouterAudioLLM(options): AudioLLMProvider;
 ```
 
-Defined in: [provider-openrouter/src/audio-llm.ts:183](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio-llm.ts#L183)
+Defined in: [provider-openrouter/src/audio-llm.ts:183](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio-llm.ts#L183)
 
 Direct OpenRouter native Audio LLM provider for trusted server/CLI runtimes.
 Use the gateway factory in browser/app integrations.
@@ -642,7 +698,7 @@ Use the gateway factory in browser/app integrations.
 
 [`AudioLLMProvider`](/docs/en/reference/api/ottervoice-core/#audiollmprovider)
 
-An [AudioLLMProvider](/docs/en/reference/api/ottervoice-core/#audiollmprovider) for `pipeline: 'audio_llm'`.
+An [AudioLLMProvider](/docs/en/reference/api/ottervoice-core/#audiollmprovider) for unified voice sessions.
 
 ***
 
@@ -652,7 +708,7 @@ An [AudioLLMProvider](/docs/en/reference/api/ottervoice-core/#audiollmprovider) 
 function createOpenRouterGateway(options): (request) => Promise<Response>;
 ```
 
-Defined in: [provider-openrouter/src/gateway-server.ts:360](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/gateway-server.ts#L360)
+Defined in: [provider-openrouter/src/gateway-server.ts:361](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/gateway-server.ts#L361)
 
 Create a server-side OpenRouter gateway that reconstructs every upstream
 request from a locked policy. Browser-supplied model, system/developer
@@ -667,7 +723,7 @@ fields are never forwarded.
 
 #### Returns
 
-A Fetch-compatible request handler for the four profile routes.
+A Fetch-compatible request handler for standalone and composite profile routes.
 
 (`request`) => `Promise`\<`Response`\>
 
@@ -679,7 +735,7 @@ A Fetch-compatible request handler for the four profile routes.
 function createOpenRouterGatewayASR(options): ASRProvider;
 ```
 
-Defined in: [provider-openrouter/src/index.ts:210](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L210)
+Defined in: [provider-openrouter/src/index.ts:185](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L185)
 
 Create an ASR provider for a server-managed application gateway.
 
@@ -703,7 +759,7 @@ An ASR provider that sends only audio input and no provider policy fields.
 function createOpenRouterGatewayAudioLLM(options): AudioLLMProvider;
 ```
 
-Defined in: [provider-openrouter/src/index.ts:272](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L272)
+Defined in: [provider-openrouter/src/index.ts:203](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L203)
 
 Create an Audio LLM provider for a server-managed application gateway.
 
@@ -721,51 +777,32 @@ An Audio LLM provider that sends audio/history without business policy fields.
 
 ***
 
-### createOpenRouterGatewayLLM()
+### createOpenRouterGatewayVoiceTurn()
 
 ```ts
-function createOpenRouterGatewayLLM(options): LLMProvider;
+function createOpenRouterGatewayVoiceTurn(options): AudioLLMProvider;
 ```
 
-Defined in: [provider-openrouter/src/index.ts:228](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L228)
+Defined in: [provider-openrouter/src/voice-turn.ts:91](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/voice-turn.ts#L91)
 
-Create a text LLM provider for a server-managed application gateway.
+Create a client-safe voice-turn provider backed by one server-orchestrated
+ASR → LLM → MP3 TTS SSE request.
+
+Use this for cascaded voice applications that should expose the same client
+lifecycle as a native audio model while keeping every vendor call and model
+policy on the server.
 
 #### Parameters
 
 | Parameter | Type | Description |
 | ------ | ------ | ------ |
-| `options` | [`OpenRouterGatewayClientOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayclientoptions) | Profile URL and optional application authorization headers/fetch. |
+| `options` | [`OpenRouterGatewayVoiceTurnOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayvoiceturnoptions) | Composite route, audio preparation, and transport options. |
 
 #### Returns
 
-[`LLMProvider`](/docs/en/reference/api/ottervoice-core/#llmprovider)
+[`AudioLLMProvider`](/docs/en/reference/api/ottervoice-core/#audiollmprovider)
 
-An LLM provider that sends only user/assistant history and transport mode.
-
-***
-
-### createOpenRouterGatewayTTS()
-
-```ts
-function createOpenRouterGatewayTTS(options): TTSProvider;
-```
-
-Defined in: [provider-openrouter/src/index.ts:246](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L246)
-
-Create a TTS provider for a server-managed application gateway.
-
-#### Parameters
-
-| Parameter | Type | Description |
-| ------ | ------ | ------ |
-| `options` | [`OpenRouterGatewayTTSOptions`](/docs/en/reference/api/ottervoice-provider-openrouter/#openroutergatewayttsoptions) | Profile URL and optional application authorization headers/fetch. |
-
-#### Returns
-
-[`TTSProvider`](/docs/en/reference/api/ottervoice-core/#ttsprovider)
-
-A TTS provider that sends only text; model, voice, speed, and format stay server-side.
+An [AudioLLMProvider](/docs/en/reference/api/ottervoice-core/#audiollmprovider) that also supplies the input transcript.
 
 ***
 
@@ -775,7 +812,7 @@ A TTS provider that sends only text; model, voice, speed, and format stay server
 function createOpenRouterLLM(options): LLMProvider;
 ```
 
-Defined in: [provider-openrouter/src/index.ts:73](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/index.ts#L73)
+Defined in: [provider-openrouter/src/index.ts:65](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/index.ts#L65)
 
 LLM provider backed by OpenRouter's OpenAI-compatible HTTP API. A direct
 client credential is safe only when it is short-lived and tightly scoped;
@@ -799,7 +836,7 @@ broad OpenRouter credentials require a policy-enforcing server gateway.
 function createOpenRouterTTS(options): TTSProvider;
 ```
 
-Defined in: [provider-openrouter/src/audio.ts:449](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio.ts#L449)
+Defined in: [provider-openrouter/src/audio.ts:464](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio.ts#L464)
 
 Direct OpenRouter TTS for trusted server/CLI runtimes through the
 OpenAI-compatible `/audio/speech` endpoint.
@@ -814,7 +851,7 @@ OpenAI-compatible `/audio/speech` endpoint.
 
 [`TTSProvider`](/docs/en/reference/api/ottervoice-core/#ttsprovider)
 
-A [TTSProvider](/docs/en/reference/api/ottervoice-core/#ttsprovider) for the classic `asr_llm_tts` pipeline.
+A [TTSProvider](/docs/en/reference/api/ottervoice-core/#ttsprovider) for trusted-server audio-turn composition.
 
 ***
 
@@ -824,7 +861,7 @@ A [TTSProvider](/docs/en/reference/api/ottervoice-core/#ttsprovider) for the cla
 function extractDelta(json): string;
 ```
 
-Defined in: [provider-openrouter/src/chat.ts:110](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L110)
+Defined in: [provider-openrouter/src/chat.ts:117](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L117)
 
 Extract the incremental text from a streamed chunk.
 
@@ -832,7 +869,7 @@ Extract the incremental text from a streamed chunk.
 
 | Parameter | Type |
 | ------ | ------ |
-| `json` | `ChatCompletion` |
+| `json` | [`ChatCompletion`](/docs/en/reference/api/ottervoice-provider-openrouter/#chatcompletion) |
 
 #### Returns
 
@@ -846,7 +883,7 @@ Extract the incremental text from a streamed chunk.
 function extractText(json): string;
 ```
 
-Defined in: [provider-openrouter/src/chat.ts:105](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L105)
+Defined in: [provider-openrouter/src/chat.ts:112](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L112)
 
 Extract the assistant text from a non-streamed completion.
 
@@ -854,7 +891,7 @@ Extract the assistant text from a non-streamed completion.
 
 | Parameter | Type |
 | ------ | ------ |
-| `json` | `ChatCompletion` |
+| `json` | [`ChatCompletion`](/docs/en/reference/api/ottervoice-provider-openrouter/#chatcompletion) |
 
 #### Returns
 
@@ -870,7 +907,7 @@ function mapUsage(usage):
   | undefined;
 ```
 
-Defined in: [provider-openrouter/src/chat.ts:90](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/chat.ts#L90)
+Defined in: [provider-openrouter/src/chat.ts:94](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/chat.ts#L94)
 
 Map an OpenAI-style `usage` object to the core [LLMUsage](/docs/en/reference/api/ottervoice-core/#llmusage) shape.
 
@@ -878,7 +915,7 @@ Map an OpenAI-style `usage` object to the core [LLMUsage](/docs/en/reference/api
 
 | Parameter | Type |
 | ------ | ------ |
-| `usage` | `RawUsage` \| `null` \| `undefined` |
+| `usage` | \| [`RawUsage`](/docs/en/reference/api/ottervoice-provider-openrouter/#rawusage) \| `null` \| `undefined` |
 
 #### Returns
 
@@ -893,7 +930,7 @@ Map an OpenAI-style `usage` object to the core [LLMUsage](/docs/en/reference/api
 function pcm16ToWav(pcm, sampleRate?): ArrayBuffer;
 ```
 
-Defined in: [provider-openrouter/src/audio-llm.ts:153](https://github.com/bugkiwi/OtterVoice/blob/9ba56c4ee7b2f668b0270402ccace13d0d5a5952/packages/provider-openrouter/src/audio-llm.ts#L153)
+Defined in: [provider-openrouter/src/audio-llm.ts:153](https://github.com/bugkiwi/OtterVoice/blob/293dcd6e6779183ea7a5d7f96fbfd2d1201d496d/packages/provider-openrouter/src/audio-llm.ts#L153)
 
 Wrap OpenAI's 24 kHz mono PCM16 stream so browser audio elements can play it.
 

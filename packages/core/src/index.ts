@@ -26,21 +26,6 @@ export type {
   PlaybackEchoFilterOptions,
 } from './playback-echo-filter.js';
 export {
-  ProviderRegistry,
-  providerProfiles,
-  resolveProfile,
-} from './provider-router.js';
-export type {
-  ProviderProfile,
-  ProviderProfileName,
-  ProviderRoutingContext,
-  ProviderRegion,
-  ProviderPlan,
-  ProviderFeature,
-  RegisteredProviders,
-  ResolvedProviders,
-} from './provider-router.js';
-export {
   VoiceSession,
   createVoiceSession,
   createOtterVoiceSession,
@@ -51,12 +36,14 @@ export { SpeechTextSegmenter } from './internal/speech-text-segmenter.js';
 // Built-in mock providers & runtime (testing + developer profile).
 export {
   createMockASR,
+  createMockAudioLLM,
   createMockLLM,
   createMockTTS,
   createMockPronunciation,
 } from './providers/mock.js';
 export type {
   MockASROptions,
+  MockAudioLLMOptions,
   MockLLMOptions,
   MockTTSOptions,
   MockPronunciationOptions,

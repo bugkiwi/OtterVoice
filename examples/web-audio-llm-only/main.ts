@@ -35,7 +35,6 @@ startButton.addEventListener('click', async () => {
   const gateway = `${location.origin}/api/voice`;
   session = createOtterVoiceSession({
     mode: 'full_duplex',
-    pipeline: 'audio_llm',
     audioLlmStartTiming: 'after_audio',
     runtime,
     providers: {

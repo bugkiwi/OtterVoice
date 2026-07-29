@@ -92,11 +92,11 @@
     },
     "packages/core": {
       "name": "@ottervoice/core",
-      "version": "0.2.0-alpha.1",
+      "version": "0.2.0-alpha.2",
     },
     "packages/protocol": {
       "name": "@ottervoice/protocol",
-      "version": "0.2.0-alpha.1",
+      "version": "0.2.0-alpha.2",
       "devDependencies": {
         "@ottervoice/core": "workspace:^",
       },
@@ -106,7 +106,7 @@
     },
     "packages/provider-azure-speech": {
       "name": "@ottervoice/provider-azure-speech",
-      "version": "0.2.0-alpha.1",
+      "version": "0.2.0-alpha.2",
       "dependencies": {
         "@ottervoice/provider-utils": "workspace:^",
       },
@@ -120,7 +120,7 @@
     },
     "packages/provider-deepgram": {
       "name": "@ottervoice/provider-deepgram",
-      "version": "0.2.0-alpha.1",
+      "version": "0.2.0-alpha.2",
       "dependencies": {
         "@ottervoice/provider-utils": "workspace:^",
       },
@@ -134,7 +134,7 @@
     },
     "packages/provider-elevenlabs": {
       "name": "@ottervoice/provider-elevenlabs",
-      "version": "0.2.0-alpha.1",
+      "version": "0.2.0-alpha.2",
       "dependencies": {
         "@ottervoice/provider-utils": "workspace:^",
       },
@@ -148,7 +148,7 @@
     },
     "packages/provider-openrouter": {
       "name": "@ottervoice/provider-openrouter",
-      "version": "0.2.0-alpha.1",
+      "version": "0.2.0-alpha.2",
       "dependencies": {
         "@ottervoice/provider-utils": "workspace:^",
       },
@@ -162,7 +162,7 @@
     },
     "packages/provider-utils": {
       "name": "@ottervoice/provider-utils",
-      "version": "0.2.0-alpha.1",
+      "version": "0.2.0-alpha.2",
       "devDependencies": {
         "@ottervoice/core": "workspace:^",
       },
@@ -172,7 +172,7 @@
     },
     "packages/runtime-node": {
       "name": "@ottervoice/runtime-node",
-      "version": "0.2.0-alpha.1",
+      "version": "0.2.0-alpha.2",
       "devDependencies": {
         "@ottervoice/core": "workspace:^",
       },
@@ -182,7 +182,7 @@
     },
     "packages/runtime-react-native": {
       "name": "@ottervoice/runtime-react-native",
-      "version": "0.2.0-alpha.1",
+      "version": "0.2.0-alpha.2",
       "devDependencies": {
         "@ottervoice/core": "workspace:^",
       },
@@ -192,7 +192,7 @@
     },
     "packages/runtime-web": {
       "name": "@ottervoice/runtime-web",
-      "version": "0.2.0-alpha.1",
+      "version": "0.2.0-alpha.2",
       "devDependencies": {
         "@ottervoice/core": "workspace:^",
       },

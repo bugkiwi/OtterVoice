@@ -12,7 +12,7 @@ Application UI
    ↕ RuntimeAdapter          ↕ Gateway client providers（仅用户内容）
 runtime-web | rn | node      自有鉴权网关（服务端策略）
                               ↕ Provider API
-                              ASR · LLM · TTS · Audio LLM
+                              原生 Audio LLM 或服务端 ASR → LLM → TTS
 ```
 
 ## 职责边界
@@ -31,14 +31,19 @@ runtime-web | rn | node      自有鉴权网关（服务端策略）
 改用 `createOpenRouterGateway*` 客户端工厂；服务端通过
 `createOpenRouterGateway()` 注入模型、prompt、voice 和生成上限。
 
-客户端仍可控制 VAD、字幕显示、播放、打断等体验参数。`pipeline`、滚动
-ASR、提前发起 Audio LLM 与自动重试会影响成本；若产品允许客户端选择，
+客户端仍可控制 VAD、字幕显示、播放、打断等体验参数。滚动 ASR、
+提前发起 audio-turn 与自动重试会影响成本；若产品允许客户端选择后端，
 网关必须按用户/会话/profile 另行执行预算和速率限制。
 
-## 两条流水线
+## 一个契约，两种后端
 
-- **`asr_llm_tts`（默认）**：本地确认整轮音频 → ASR → 流式 LLM → 句子/分句队列 → 流式 PCM TTS；不支持流式 TTS 的 Provider 会按句顺序合成。
-- **`audio_llm`**：ASR 负责字幕，整轮音频进入 Audio LLM；通过 `audioLlmStartTiming` 选择两者并行或等待 `asr_final`，文本与 PCM 流式返回。
+- **原生后端**：整轮音频进入原生 Audio LLM，直接返回助手文本与音频。
+- **复合后端**：同一个 `AudioLLMProvider` 在可信服务端执行 ASR → LLM → TTS，并流式返回输入转写、助手文本与音频。
+
+客户端始终配置 `providers.audioLlm`。复合 Provider 通常以
+`transcribesInput: true` 返回同一请求中的输入转写，避免额外的字幕 ASR；原生
+Provider 不返回输入转写时可再配置 `providers.asr`。`audioLlmStartTiming` 决定
+独立字幕 ASR 与回复生成并行，还是等待 `asr_final`。
 
 组合根创建 Session 一次，UI 只订阅事件。换 Runtime / Provider 不必改 UI。
 

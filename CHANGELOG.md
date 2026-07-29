@@ -3,10 +3,20 @@
 Notable changes to OtterVoice are documented here. Prerelease versions may
 still evolve, but compatibility notes call out any required migration.
 
-## Unreleased
+## 0.2.0-alpha.2 — 2026-07-29
 
 ### Added
 
+- One unified `VoiceSessionConfig` centered on a required audio-turn provider;
+  caption ASR is optional when `AudioLLMProvider.transcribesInput` is true.
+- Input-transcript and encoded-audio-segment callbacks for audio-turn providers,
+  allowing native models and server-composed voice stacks to share one client
+  lifecycle.
+- `createOpenRouterGatewayVoiceTurn` plus the server-side `asr_llm_tts` profile,
+  which streams the input transcript, assistant text, and ordered MP3 segments
+  from one policy-controlled request.
+- `SpeechTextSegmenter` for incrementally turning model deltas into ordered TTS
+  clauses.
 - `AudioOutputAdapter.onPlaybackRequested` separates a platform playback
   attempt from confirmed audible playback. All built-in runtimes and mocks
   expose the callback.
@@ -18,12 +28,31 @@ still evolve, but compatibility notes call out any required migration.
   for encoded audio and the first scheduled output time for PCM.
 - Official Web Audio LLM and Expo examples start caption ASR and Audio LLM
   response generation in parallel with `audioLlmStartTiming: 'after_audio'`.
+- The Expo example now uses the same unified backend switch as Web: composite
+  voice-turn by default or native Audio LLM with optional caption ASR. App
+  backgrounding gracefully finishes and disposes the session.
+- React Native capture and playback now cancel stale asynchronous native setup
+  after `stop()` and clean one-shot as well as streamed temporary audio files.
+- The Web showcase now switches between native GPT Audio, Gemini Live, and a
+  server-composed ASR → LLM → TTS path while preserving one Core audio-turn
+  contract and server-owned model policy.
+- `createMockAudioLLM` now provides a deterministic end-to-end Session mock.
 
 ### Compatibility
 
 - Custom React Native `ExpoSound` bridges must forward the native `playing`
   field in `ExpoPlaybackStatus`. `onPlaybackRequested` is optional on the base
   `AudioOutputAdapter`, so existing third-party runtimes remain source-compatible.
+- `asr_endpointing` and the unused ASR endpointing capability flags were removed;
+  use `volume`, `hybrid`, or `manual` turn detection. Provider segmentation
+  remains transcript data and local VAD/manual control owns turn boundaries.
+- This prerelease removes the classic Session configuration: `pipeline`,
+  `providers.llm`, `providers.tts`, `agent`, opening prompts passed to `start()`,
+  and `submitUserText()` are no longer public Session APIs.
+- `ProviderRegistry` and its classic three-provider profiles were removed.
+  `LLMProvider`, `TTSProvider`, `createOpenRouterLLM()`, and
+  `createOpenRouterTTS()` remain available as trusted-backend building blocks
+  for a composite `AudioLLMProvider`.
 
 ## 0.2.0-alpha.1 — 2026-07-16
 

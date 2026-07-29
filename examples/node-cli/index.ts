@@ -1,15 +1,13 @@
 /**
  * Node CLI demo — runs a fully mocked half-duplex voice session end to end,
  * with no microphone, network, or API keys. It exercises the same code path a
- * real app would, just with mock providers and an in-memory runtime.
+ * real app would, just with a mock audio-turn provider and in-memory runtime.
  *
  *   bun run examples/node-cli/index.ts
  */
 import {
-  createMockASR,
-  createMockLLM,
+  createMockAudioLLM,
   createMockRuntime,
-  createMockTTS,
   createVoiceSession,
 } from '@ottervoice/core';
 
@@ -25,14 +23,12 @@ const session = createVoiceSession({
   mode: 'half_duplex',
   runtime,
   providers: {
-    asr: createMockASR({ transcripts: scriptedUserUtterances }),
-    llm: createMockLLM({
-      reply: (input) => {
-        const last = input.messages.at(-1)?.content ?? '';
-        return `Interesting — tell me more about: "${last}"`;
+    audioLlm: createMockAudioLLM({
+      inputTranscripts: scriptedUserUtterances,
+      reply: (_input, _callIndex, inputText) => {
+        return `Interesting — tell me more about: "${inputText}"`;
       },
     }),
-    tts: createMockTTS(),
   },
   policy: { autoStartListening: true },
 });
@@ -46,7 +42,7 @@ session.on('asr_final', (e) => console.log(`🗣  ${e.text}`));
 session.on('finished', () => console.log('\n✅ Session finished.'));
 session.on('error', (e) => console.error('❌ error:', e.code, e.message));
 
-await session.start('Good morning! Tell me about your work.');
+await session.start();
 
 // Emit one audio chunk per user utterance and wait for the assistant to reply
 // and re-open the mic (state returns to "listening") before the next one.
@@ -64,6 +60,7 @@ async function userSpeaks(): Promise<void> {
     timestamp: Date.now(),
     durationMs: 1200,
   });
+  await session.endUserTurn();
   await backToListening;
 }
 
@@ -77,7 +74,5 @@ const usage = session.getUsage();
 console.log('\n📊 Usage:');
 console.log(`   turns:             ${session.getTurns().length}`);
 console.log(`   assistant chars:   ${usage.assistantSpeechChars}`);
-console.log(`   tts chars:         ${usage.ttsChars}`);
-console.log(`   asr audio ms:      ${usage.asrAudioMs}`);
 console.log(`   llm input tokens:  ${usage.llmInputTokens ?? 0}`);
 console.log(`   llm output tokens: ${usage.llmOutputTokens ?? 0}`);

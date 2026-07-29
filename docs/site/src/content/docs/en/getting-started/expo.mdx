@@ -28,13 +28,23 @@ const runtime = createExpoRuntime({
 
 const session = createVoiceSession({
   mode: 'full_duplex',
-  pipeline: 'audio_llm',
   audioLlmStartTiming: 'after_audio', // Run final ASR and reply generation in parallel.
   asrPartial: false, // One final ASR call; clients cannot amplify rolling requests.
   runtime,
-  providers: { asr, llm, audioLlm },
+  providers: { asr, audioLlm },
 });
 ```
+
+The example's `createMobileProviders()` always returns the unified
+`providers.audioLlm` contract:
+
+| `EXPO_PUBLIC_OTTERVOICE_BACKEND` | Server implementation | Client providers |
+| --- | --- | --- |
+| `composite` (default) | One `/asr-llm-tts` request runs ASR → LLM → TTS | `audioLlm` |
+| `native` | `/audio-llm` native speech model; `/asr` is optional captions only | `audioLlm` + optional `asr` |
+
+Switching backends does not change Session, Runtime, events, or UI. Mobile has
+no classic ASR / LLM / TTS three-provider path.
 
 Dual delivery:
 
@@ -50,3 +60,11 @@ per-user, conversation, and profile budgets, rate limits, and idempotency at the
 gateway.
 
 Suspend encoded capture during assistant playback while keeping volume callbacks for barge-in. See [runtime-react-native](/docs/en/packages/runtime-react-native/).
+
+## App lifecycle
+
+When the app leaves `active`, the example calls `finish('app_background')` and
+then `dispose()` to stop capture, requests, and playback. Returning to the
+foreground requires an explicit new session. The runtime cancels asynchronous
+microphone/player setup that completes after `stop()` and removes temporary
+audio files, preventing background resource leaks.

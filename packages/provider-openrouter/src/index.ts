@@ -4,7 +4,6 @@ import {
   type LLMGenerateOutput,
   type LLMProvider,
   type LLMStreamChunk,
-  type TTSProvider,
 } from '@ottervoice/core';
 import {
   createCredentialResolver,
@@ -25,7 +24,6 @@ import {
 } from './chat.js';
 import {
   createOpenRouterASR,
-  createOpenRouterTTS,
   type OpenRouterASROptions,
 } from './audio.js';
 import {
@@ -39,9 +37,8 @@ export * from './voice-turn.js';
 export * from './gateway-server.js';
 
 /**
- * Options for {@link createOpenRouterLLM}. Use this direct provider in trusted
- * server/CLI runtimes. Browsers and apps should prefer
- * {@link createOpenRouterGatewayLLM} with a policy-enforcing server gateway.
+ * Options for {@link createOpenRouterLLM}. Use this direct provider only as a
+ * trusted-server building block for a composite audio-turn backend.
  */
 export interface OpenRouterOptions extends CredentialOptions, HeaderOptions {
   /** OpenRouter model id, e.g. `openai/gpt-4o-mini`. */
@@ -54,12 +51,6 @@ export interface OpenRouterOptions extends CredentialOptions, HeaderOptions {
   defaultTemperature?: number;
   /** Explicitly enable/disable reasoning tokens on compatible models. */
   reasoningEnabled?: boolean;
-  /**
-   * Omit model, system prompt, generation controls, and response format from
-   * the browser request because a trusted policy gateway reconstructs them.
-   * Prefer {@link createOpenRouterGatewayLLM} instead of setting this directly.
-   */
-  serverManaged?: boolean;
 }
 
 const PROVIDER = 'openrouter';
@@ -83,19 +74,12 @@ export function createOpenRouterLLM(options: OpenRouterOptions): LLMProvider {
 
   async function send(input: LLMGenerateInput, stream: boolean): Promise<Response> {
     const { token } = await resolveCredential();
-    const body = options.serverManaged
-      ? {
-          messages: input.messages
-            .filter((message) => message.role === 'user' || message.role === 'assistant')
-            .map((message) => ({ role: message.role, content: message.content })),
-          stream,
-        }
-      : buildChatBody(options.model, input, {
-          temperature: options.defaultTemperature,
-          stream,
-        }, {
-          reasoningEnabled: options.reasoningEnabled,
-        });
+    const body = buildChatBody(options.model, input, {
+      temperature: options.defaultTemperature,
+      stream,
+    }, {
+      reasoningEnabled: options.reasoningEnabled,
+    });
     return fetchImpl(url, {
       method: 'POST',
       headers: buildHeaders(token, options),
@@ -190,16 +174,6 @@ export interface OpenRouterGatewayAudioLLMOptions extends OpenRouterGatewayClien
   requireDoneSentinel?: boolean;
 }
 
-/** Client-safe TTS gateway options. Model, voice, speed, and format policy stay on the server. */
-export interface OpenRouterGatewayTTSOptions extends OpenRouterGatewayClientOptions {
-  /**
-   * Whether the server-selected model supports incremental raw-PCM output.
-   * Defaults to `true`. Set this to `false` for MP3-only streaming models so
-   * core uses sentence-sized buffered synthesis instead of {@link TTSProvider.stream}.
-   */
-  pcmStreaming?: boolean;
-}
-
 const GATEWAY_PLACEHOLDER = 'ottervoice-server-managed-gateway';
 
 /**
@@ -218,50 +192,6 @@ export function createOpenRouterGatewayASR(
     requestStage: 'gateway',
     serverManaged: true,
   });
-}
-
-/**
- * Create a text LLM provider for a server-managed application gateway.
- *
- * @param options - Profile URL and optional application authorization headers/fetch.
- * @returns An LLM provider that sends only user/assistant history and transport mode.
- */
-export function createOpenRouterGatewayLLM(
-  options: OpenRouterGatewayClientOptions,
-): LLMProvider {
-  return createOpenRouterLLM({
-    ...options,
-    apiKey: GATEWAY_PLACEHOLDER,
-    model: GATEWAY_PLACEHOLDER,
-    requestStage: 'gateway',
-    serverManaged: true,
-  });
-}
-
-/**
- * Create a TTS provider for a server-managed application gateway.
- *
- * @param options - Profile URL and optional application authorization headers/fetch.
- * @returns A TTS provider that sends only text; model, voice, speed, and format stay server-side.
- */
-export function createOpenRouterGatewayTTS(
-  options: OpenRouterGatewayTTSOptions,
-): ReturnType<typeof createOpenRouterTTS> {
-  const { pcmStreaming = true, ...clientOptions } = options;
-  const provider = createOpenRouterTTS({
-    ...clientOptions,
-    apiKey: GATEWAY_PLACEHOLDER,
-    model: GATEWAY_PLACEHOLDER,
-    voice: GATEWAY_PLACEHOLDER,
-    requestStage: 'gateway',
-    serverManaged: true,
-  });
-  if (pcmStreaming) return provider;
-  return {
-    ...provider,
-    capabilities: { ...provider.capabilities, streaming: false },
-    stream: undefined,
-  };
 }
 
 /**

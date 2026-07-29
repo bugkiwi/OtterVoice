@@ -3,18 +3,17 @@ title: "@ottervoice/core"
 description: VoiceSession, config, events, mocks, and the state machine.
 ---
 
-Entry point: `createVoiceSession(config)`.
+`createVoiceSession(config)` and `createOtterVoiceSession(config)` accept the
+same unified audio-turn configuration. The latter is only a more explicit alias.
 
 ## `VoiceSessionConfig`
 
 | Field | Notes |
 | --- | --- |
 | `mode` | `half_duplex` · `full_duplex` · `push_to_talk` · `streaming_transcript` |
-| `pipeline` | `asr_llm_tts` (default) or `audio_llm` |
 | `runtime` | Platform adapter |
-| `providers.asr` / `llm` | Required |
-| `providers.tts` | Required for `asr_llm_tts` |
-| `providers.audioLlm` | Required for `audio_llm` |
+| `providers.audioLlm` | Required; a native speech model or server-composed voice stack |
+| `providers.asr` | Optional caption ASR when the audio-turn provider does not transcribe input |
 | `language` | Preferred ASR language |
 | `asrPartial` | Emit `asr_partial` (default `true`) |
 | `turnDetection` | VAD while listening |
@@ -23,13 +22,17 @@ Entry point: `createVoiceSession(config)`.
 | `audioLlmSystemPrompt` / `audioLlmMaxTokens` | Trusted Node/server sessions only; browser standard mode injects them at the gateway |
 | `audioLlmStartTiming` | `after_audio` for parallel low latency; default `after_asr_final` |
 
+Core talks to one audio-turn provider. That provider may be one native speech
+model or a server-composed ASR → LLM → TTS
+stack. With `transcribesInput: true`, Core commits the provider's input
+transcript as `asr_final`; otherwise configure a separate caption ASR.
+
 Full fields: [API reference](/docs/en/reference/). Source: [`types.ts`](https://github.com/bugkiwi/OtterVoice/blob/main/packages/core/src/types.ts).
 
-Core is cross-runtime orchestration, so prompt, temperature, max-token, and
-voice controls remain available for trusted server sessions. They are not a
-browser security boundary. Browser/app integrations should use server-managed
-providers and let their application gateway override every business and cost
-policy field.
+Low-level `LLMProvider` and `TTSProvider` contracts remain available for trusted
+backends implementing a composite `AudioLLMProvider`; they are no longer
+`VoiceSessionConfig.providers` slots. Browser/app integrations should use
+server-managed providers and keep business and cost policy at their gateway.
 
 ## `TurnDetectionConfig`
 

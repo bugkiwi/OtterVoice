@@ -178,7 +178,7 @@ export function pcm16ToWav(pcm: Uint8Array, sampleRate = 24_000): ArrayBuffer {
  * Use the gateway factory in browser/app integrations.
  *
  * @param options - Model, voice, credentials, and optional WebM→WAV preparer.
- * @returns An {@link AudioLLMProvider} for `pipeline: 'audio_llm'`.
+ * @returns An {@link AudioLLMProvider} for unified voice sessions.
  */
 export function createOpenRouterAudioLLM(
   options: OpenRouterAudioLLMOptions,

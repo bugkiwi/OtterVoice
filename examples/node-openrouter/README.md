@@ -1,6 +1,8 @@
-# Node + OpenRouter LLM
+# Node + composite OpenRouter audio turn
 
-Same mock mic/speakers as `node-cli`, but the **LLM can be live** via OpenRouter when `OPENROUTER_API_KEY` is set. Without a key it falls back to a mock LLM (CI-friendly).
+Same mock mic/speakers as `node-cli`, but the single `AudioLLMProvider` can
+compose a live OpenRouter text model with scripted transcription and mock TTS.
+Without a key it falls back to a fully mocked audio-turn provider (CI-friendly).
 
 ## Run
 
@@ -18,7 +20,9 @@ OPENROUTER_MODEL=google/gemini-2.5-flash-lite OPENROUTER_API_KEY=sk-... \
 
 ## Notes
 
-- Runtime is still `createMockRuntime` (headless CLI). Use `@ottervoice/runtime-node` when you need real byte streams or injected `fetch` / `WebSocket`.
+- Runtime is still `createMockRuntime` (headless CLI). Both the composed and
+  mocked branches expose the same `providers.audioLlm` Session contract.
+- Use `@ottervoice/runtime-node` when you need real byte streams or injected `fetch` / `WebSocket`.
 - Never ship long-lived keys in browser or app clients — use the [token broker](../token-broker) pattern.
 
 Docs: [Node quick start](https://ottervoice.vercel.app/docs/getting-started/node/)

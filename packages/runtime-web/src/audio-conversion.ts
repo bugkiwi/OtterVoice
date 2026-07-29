@@ -1,9 +1,23 @@
 import type { AudioLLMInputFormat } from '@ottervoice/core';
 
-interface DecodedAudioLike {
+/**
+ * Minimal decoded Web Audio buffer accepted by {@link encodeMonoWav}.
+ * Use this structural type when testing conversion without a browser
+ * `AudioBuffer` implementation.
+ */
+export interface DecodedAudioLike {
+  /** Number of PCM frames in the decoded buffer. */
   length: number;
+  /** Number of interleaved source channels. */
   numberOfChannels: number;
+  /** Source sample rate in Hz. */
   sampleRate: number;
+  /**
+   * Return normalized PCM samples for one zero-based channel.
+   *
+   * @param channel - Zero-based channel index.
+   * @returns Normalized PCM samples for that channel.
+   */
   getChannelData(channel: number): Float32Array;
 }
 

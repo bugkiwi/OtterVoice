@@ -1,6 +1,6 @@
 {
   "name": "@ottervoice/runtime-react-native",
-  "version": "0.2.0-alpha.1",
+  "version": "0.2.0-alpha.2",
   "type": "module",
   "description": "React Native (Expo) runtime adapter for OtterVoice: recording capture and sound playback.",
   "license": "MIT",
@@ -35,10 +35,5 @@
   },
   "devDependencies": {
     "@ottervoice/core": "workspace:^"
-  },
-  "typedoc": {
-    "entryPoints": [
-      "./src/index.ts"
-    ]
   }
 }

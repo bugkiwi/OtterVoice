@@ -508,7 +508,7 @@ describe('createOpenRouterTTS', () => {
     });
   });
 
-  it('streams raw PCM response chunks and marks gateway requests as streaming', async () => {
+  it('streams raw PCM response chunks for trusted-server composition', async () => {
     let body: any;
     const controller = new AbortController();
     const provider = createOpenRouterTTS({
@@ -516,7 +516,6 @@ describe('createOpenRouterTTS', () => {
       model: 'locked',
       voice: 'locked',
       baseUrl: 'https://app.example/tts',
-      serverManaged: true,
       fetch: async (_url, init) => {
         body = JSON.parse(String(init?.body));
         expect(init?.signal).toBe(controller.signal);
@@ -530,7 +529,13 @@ describe('createOpenRouterTTS', () => {
     })) {
       chunks.push(chunk);
     }
-    expect(body).toEqual({ input: '你好', stream: true });
+    expect(body).toEqual({
+      model: 'locked',
+      input: '你好',
+      voice: 'locked',
+      response_format: 'pcm',
+      speed: 1,
+    });
     expect(chunks).toHaveLength(1);
     expect(chunks[0]).toMatchObject({
       encoding: 'pcm_s16le',

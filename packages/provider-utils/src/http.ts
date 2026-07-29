@@ -103,7 +103,7 @@ export function normalizeHttpError(
 /**
  * Read a response body as text, returning `''` if the body cannot be read.
  *
- * @param res - Fetch {@link Response} whose body to consume.
+ * @param res - Fetch `Response` whose body to consume.
  * @returns Body text, or an empty string on read failure.
  */
 export async function readBody(res: Response): Promise<string> {

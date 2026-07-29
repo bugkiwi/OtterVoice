@@ -9,10 +9,8 @@ Mocks share the same event contract as live providers, so the UI is written once
 
 ```ts
 import {
-  createMockASR,
-  createMockLLM,
+  createMockAudioLLM,
   createMockRuntime,
-  createMockTTS,
   createVoiceSession,
 } from '@ottervoice/core';
 
@@ -21,9 +19,10 @@ const session = createVoiceSession({
   mode: 'half_duplex',
   runtime,
   providers: {
-    asr: createMockASR({ transcripts: ['Hello Otter'] }),
-    llm: createMockLLM({ reply: () => 'Hello! How can I help?' }),
-    tts: createMockTTS(),
+    audioLlm: createMockAudioLLM({
+      inputTranscripts: ['Hello Otter'],
+      reply: () => 'Hello! How can I help?',
+    }),
   },
 });
 

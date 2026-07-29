@@ -1,11 +1,16 @@
 ---
 title: Web browser
-description: Full-duplex capture, VAD, and barge-in with runtime-web.
+description: Use one audio-turn client for a native Audio LLM or a server-side voice cascade.
 ---
 
 Example: [`examples/web`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web)
 
-Need only native audio-in/audio-out? Start with the smaller [`examples/web-audio-llm-only`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web-audio-llm-only); it configures no text LLM or TTS provider.
+The full example switches between two server paths in the UI: a native Audio
+LLM and an ASR → LLM → TTS cascade. Both are one audio-turn provider in the
+browser, so they share the same Session, events, playback, and barge-in
+lifecycle. For native audio-in/audio-out only, start with the smaller
+[`examples/web-audio-llm-only`](https://github.com/bugkiwi/OtterVoice/tree/main/examples/web-audio-llm-only);
+it configures no text LLM or TTS provider.
 
 ```bash
 cd examples/web
@@ -14,16 +19,24 @@ bun run start   # http://localhost:5173
 
 The live demo is this example bundled for production: [ottervoice.vercel.app](https://ottervoice.vercel.app/)
 
+## Current example paths
+
+| UI choice | Server implementation | Input caption | Web search |
+| --- | --- | --- | --- |
+| Native · GPT Audio Mini | OpenRouter `openai/gpt-audio-mini` | Parallel Qwen ASR | Unavailable |
+| Native · Gemini Live | Google `gemini-3.1-flash-live-preview` | Parallel Qwen ASR | Optional Google Search Grounding |
+| Cascade | Qwen ASR → Gemini Flash Lite → MiniMax Speech | Same composite response | Optional OpenRouter search route |
+
+Models, prompts, voices, search tools, and budgets stay server-side. The UI's
+“Input / output text” switch controls caption visibility only; it does not
+disable transcription work required by the server path.
+
 ## Minimal wiring
 
 ```ts
-import { createVoiceSession } from '@ottervoice/core';
-import {
-  createOpenRouterGatewayASR,
-  createOpenRouterGatewayLLM,
-  createOpenRouterGatewayTTS,
-} from '@ottervoice/provider-openrouter';
-import { createWebRuntime } from '@ottervoice/runtime-web';
+import { createOtterVoiceSession } from '@ottervoice/core';
+import { createOpenRouterGatewayVoiceTurn } from '@ottervoice/provider-openrouter';
+import { createWebRuntime, prepareBrowserAudio } from '@ottervoice/runtime-web';
 
 const runtime = createWebRuntime({
   mimeType: 'audio/webm;codecs=opus',
@@ -32,20 +45,23 @@ const runtime = createWebRuntime({
   bargeInPreRollMs: 500,
 });
 
-// The browser knows only application profile routes—not model, prompt, voice, or provider key.
-const asr = createOpenRouterGatewayASR({
-  baseUrl: '/api/voice/asr',
-  format: 'webm',
+// The browser sees one application route, never model/prompt/voice/provider keys.
+const voiceTurn = createOpenRouterGatewayVoiceTurn({
+  baseUrl: '/api/voice/asr-llm-tts',
+  requireDoneSentinel: true,
+  prepareAudio: (audio, format) => prepareBrowserAudio(audio, format, {
+    sampleRate: 16_000,
+    maxDurationMs: 60_000,
+  }),
 });
-const llm = createOpenRouterGatewayLLM({ baseUrl: '/api/voice/llm' });
-const tts = createOpenRouterGatewayTTS({ baseUrl: '/api/voice/tts' });
 
-const session = createVoiceSession({
+const session = createOtterVoiceSession({
   mode: 'full_duplex',
-  pipeline: 'asr_llm_tts', // or 'audio_llm'
+  // This is the client/provider contract; the server may still run a cascade.
+  audioLlmStartTiming: 'after_audio',
   runtime,
-  language: 'en',
-  providers: { asr, llm, tts },
+  // voiceTurn.transcribesInput === true, so no separate ASR or text LLM is needed.
+  providers: { audioLlm: voiceTurn },
   turnDetection: {
     strategy: 'volume',
     minSpeechMs: 180,
@@ -61,11 +77,19 @@ const session = createVoiceSession({
 await session.start();
 ```
 
-On the server, `createOpenRouterGateway()` locks the model, system prompt,
-voice, temperature, token ceiling, and reasoning policy for every profile. Its
-mandatory `authorize` hook must verify user and conversation ownership. Do not
-set `audioLlmSystemPrompt` on a browser session; that field is for sessions that
-run entirely inside a trusted Node/server runtime.
+On the server, `createOpenRouterGateway()` locks model, system prompt, voice,
+temperature, token ceiling, and reasoning across the three policy stages of
+the composite `asr_llm_tts` profile. Its mandatory `authorize` hook must verify
+user and conversation ownership. The native Audio LLM path uses
+`createOpenRouterGatewayAudioLLM`; pair it with
+`createOpenRouterGatewayASR` when it does not return an authoritative input
+transcript. Do not set `audioLlmSystemPrompt` on a browser Session; that field
+is for Sessions running entirely in trusted Node/server code.
+
+The client has one audio-turn contract regardless of the number of models
+behind the gateway. `createOpenRouterGatewayVoiceTurn` wraps server composition
+as an `AudioLLMProvider` and uses `transcribesInput: true` to deliver the input
+transcript from the same response, avoiding a second ASR request.
 
 ## VAD defaults and starting profiles
 
