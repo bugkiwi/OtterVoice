@@ -17,9 +17,12 @@
     "@astrojs/starlight": "^0.41.3",
     "@ottervoice/core": "workspace:*",
     "@ottervoice/provider-openrouter": "workspace:*",
+    "@ottervoice/provider-utils": "workspace:*",
     "@ottervoice/runtime-web": "workspace:*",
     "astro": "^7.0.9",
-    "sharp": "^0.35.3"
+    "https-proxy-agent": "^7.0.6",
+    "sharp": "^0.35.3",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "typedoc": "^0.28.20",

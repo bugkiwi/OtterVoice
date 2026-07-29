@@ -1,9 +1,12 @@
 import {
   createOpenRouterGateway,
   type OpenRouterGatewayOptions,
-  type OpenRouterGatewayPolicy,
 } from '@ottervoice/provider-openrouter';
 import { parseSSEStream } from '@ottervoice/provider-utils';
+import {
+  createDemoOpenRouterPolicy,
+  DEMO_VOICE_PROFILE,
+} from './voice-profile';
 
 const DEFAULT_SYSTEM_PROMPT =
   `当前日期是 ${new Date().toISOString().slice(0, 10)}。对时效性信息，在可用时必须使用联网搜索核实。` +
@@ -202,36 +205,13 @@ const withWebSearch = (fetchImpl: GatewayFetch): GatewayFetch => async (input, i
   return filterWebSearchResponse(response);
 };
 
-export const demoVoiceGatewayPolicy: OpenRouterGatewayPolicy = {
-  asr: { model: 'qwen/qwen3-asr-flash-2026-02-10' },
-  llm: {
-    model: 'google/gemini-3.5-flash-lite',
-    systemPrompt: process.env.OTTERVOICE_SYSTEM_PROMPT ?? DEFAULT_SYSTEM_PROMPT,
-    temperature: 0.45,
-    maxTokens: 512,
-    provider: {
-      sort: 'latency',
-      preferredMaxLatency: { p90: 2 },
-    },
-  },
-  tts: {
-    model: 'minimax/speech-2.8-turbo',
-    voice: 'alloy',
-    speed: 1.05,
-    responseFormat: 'mp3',
-  },
-  audioLlm: {
-    model: 'openai/gpt-audio-mini',
-    systemPrompt: process.env.OTTERVOICE_SYSTEM_PROMPT ?? DEFAULT_SYSTEM_PROMPT,
-    voice: 'alloy',
-    temperature: 0.45,
-    maxTokens: 512,
-  },
-};
+export const demoVoiceGatewayPolicy = createDemoOpenRouterPolicy(
+  process.env.OTTERVOICE_SYSTEM_PROMPT ?? DEFAULT_SYSTEM_PROMPT,
+);
 
 export function createDemoVoiceGateway(
   apiKey = process.env.OPENROUTER_API_KEY,
-  overrides: Pick<OpenRouterGatewayOptions, 'fetch'> = {},
+  overrides: Pick<OpenRouterGatewayOptions, 'fetch' | 'referer' | 'title'> = {},
 ): (request: Request) => Promise<Response> {
   const fetchImpl: GatewayFetch = overrides.fetch ?? ((input, init) => globalThis.fetch(input, init));
   const authorize: OpenRouterGatewayOptions['authorize'] = ({ request, url }) => {
@@ -247,7 +227,8 @@ export function createDemoVoiceGateway(
     maxMessages: 24,
     maxTextCharacters: 20_000,
     ttsCacheEntries: 32,
-    title: 'OtterVoice Web Example',
+    ...(overrides.referer ? { referer: overrides.referer } : {}),
+    title: overrides.title ?? 'OtterVoice Web Example',
     authorize,
     fetch: fetchImpl,
   });
@@ -258,16 +239,19 @@ export function createDemoVoiceGateway(
       llm: demoVoiceGatewayPolicy.llm,
       tts: demoVoiceGatewayPolicy.tts,
     },
-    gatewayPrefix: '/api/voice/online',
+    gatewayPrefix: DEMO_VOICE_PROFILE.prefixes.online,
     maxRequestBodyBytes: 6 * 1024 * 1024,
     maxMessages: 24,
     maxTextCharacters: 20_000,
-    title: 'OtterVoice Web Example',
+    ...(overrides.referer ? { referer: overrides.referer } : {}),
+    title: overrides.title ?? 'OtterVoice Web Example',
     authorize,
     fetch: withWebSearch(fetchImpl),
   });
 
-  return (request) => new URL(request.url).pathname.startsWith('/api/voice/online/')
+  return (request) => new URL(request.url).pathname.startsWith(
+    `${DEMO_VOICE_PROFILE.prefixes.online}/`,
+  )
     ? webSearchGateway(request)
     : standardGateway(request);
 }

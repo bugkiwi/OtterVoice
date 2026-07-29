@@ -1,16 +1,17 @@
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import WebSocket, { type RawData } from 'ws';
+import { DEMO_VOICE_PROFILE } from './voice-profile';
 
-export const GEMINI_LIVE_MODEL = 'gemini-3.1-flash-live-preview';
-export const GEMINI_LIVE_VOICE = 'Charon';
+export const GEMINI_LIVE_MODEL = DEMO_VOICE_PROFILE.models.geminiLive;
+export const GEMINI_LIVE_VOICE = DEMO_VOICE_PROFILE.voices.geminiLive;
 
 const DEFAULT_SYSTEM_PROMPT =
   `当前日期是 ${new Date().toISOString().slice(0, 10)}。` +
   '你是一个反应快、语气自然的语音对话助手。默认用中文回复；如果用户明显使用其他语言，则跟随用户。' +
   '第一句立即给出结论；每次只回复 1–5 个简短句子，不使用 Markdown，不列表，适合直接语音播放。' +
   '如果会话启用了 Google Search Grounding，对时效性信息必须先搜索核实。';
-const OFFLINE_ROUTE = '/api/voice/google/audio-llm/chat/completions';
-const ONLINE_ROUTE = '/api/voice/google/online/audio-llm/chat/completions';
+const OFFLINE_ROUTE = `${DEMO_VOICE_PROFILE.routes.geminiLive}/chat/completions`;
+const ONLINE_ROUTE = `${DEMO_VOICE_PROFILE.routes.geminiLiveOnline}/chat/completions`;
 const MAX_REQUEST_BYTES = 6 * 1024 * 1024;
 const MAX_MESSAGES = 24;
 const MAX_TEXT_CHARACTERS = 20_000;

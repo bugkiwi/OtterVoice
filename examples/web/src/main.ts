@@ -15,6 +15,7 @@ import {
   createOpenRouterGatewayVoiceTurn,
 } from '@ottervoice/provider-openrouter';
 import { createWebRuntime, prepareBrowserAudio } from '@ottervoice/runtime-web';
+import { DEMO_VOICE_PROFILE } from '../voice-profile';
 import { shouldMergeAdjacentUserTurn } from './turn-log';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -34,6 +35,18 @@ const langZhBtn = $<HTMLButtonElement>('lang-zh');
 const langEnBtn = $<HTMLButtonElement>('lang-en');
 const transcriptToggle = $<HTMLInputElement>('transcript-toggle');
 const webSearchToggle = $<HTMLInputElement>('web-search-toggle');
+const openAiModelInfo = $('model-openai-audio');
+const geminiModelInfo = $('model-gemini-live');
+const cascadeModelInfo = $('model-cascade');
+
+openAiModelInfo.textContent = DEMO_VOICE_PROFILE.models.openAiAudio;
+geminiModelInfo.textContent =
+  `${DEMO_VOICE_PROFILE.models.geminiLive} · optional Google Search`;
+cascadeModelInfo.textContent = [
+  DEMO_VOICE_PROFILE.models.asr,
+  DEMO_VOICE_PROFILE.models.cascadeLlm,
+  DEMO_VOICE_PROFILE.models.cascadeTts,
+].join(' → ');
 
 type AppLanguage = 'zh' | 'en';
 
@@ -131,7 +144,6 @@ let selectedAudioModel: AudioModel = localStorage.getItem('ottervoice-audio-mode
   ? 'gemini'
   : 'openai';
 
-const VOICE_GATEWAY = '/api/voice';
 type SseAudioCapture = {
   audioBuffer: ArrayBuffer;
   mimeType: string;
@@ -347,12 +359,12 @@ const prepareTurnAudio = (
   });
 
 const captionAsr = createOpenRouterGatewayASR({
-  baseUrl: `${VOICE_GATEWAY}/asr`,
+  baseUrl: DEMO_VOICE_PROFILE.routes.captionAsr,
   format: 'webm',
 });
 
 const nativeAudioLlmBase = createOpenRouterGatewayAudioLLM({
-  baseUrl: `${VOICE_GATEWAY}/audio-llm`,
+  baseUrl: DEMO_VOICE_PROFILE.routes.openAiAudio,
   requireDoneSentinel: true,
   // Base64 expands PCM by one third. A 16 kHz / 90 s mono WAV remains below
   // Vercel's 4.5 MB function payload limit with room for the JSON envelope.
@@ -360,25 +372,25 @@ const nativeAudioLlmBase = createOpenRouterGatewayAudioLLM({
 });
 
 const geminiAudioLlmBase = createOpenRouterGatewayAudioLLM({
-  baseUrl: `${VOICE_GATEWAY}/google/audio-llm`,
+  baseUrl: DEMO_VOICE_PROFILE.routes.geminiLive,
   requireDoneSentinel: true,
   prepareAudio: prepareTurnAudio,
 });
 
 const onlineGeminiAudioLlmBase = createOpenRouterGatewayAudioLLM({
-  baseUrl: `${VOICE_GATEWAY}/google/online/audio-llm`,
+  baseUrl: DEMO_VOICE_PROFILE.routes.geminiLiveOnline,
   requireDoneSentinel: true,
   prepareAudio: prepareTurnAudio,
 });
 
 const cascadedVoiceBase = createOpenRouterGatewayVoiceTurn({
-  baseUrl: `${VOICE_GATEWAY}/asr-llm-tts`,
+  baseUrl: DEMO_VOICE_PROFILE.routes.cascade,
   requireDoneSentinel: true,
   prepareAudio: prepareTurnAudio,
 });
 
 const onlineCascadedVoiceBase = createOpenRouterGatewayVoiceTurn({
-  baseUrl: `${VOICE_GATEWAY}/online/asr-llm-tts`,
+  baseUrl: DEMO_VOICE_PROFILE.routes.cascadeOnline,
   requireDoneSentinel: true,
   prepareAudio: prepareTurnAudio,
 });

@@ -4,6 +4,7 @@ import {
   demoVoiceGatewayPolicy,
   stripSearchCitations,
 } from './openrouter-proxy';
+import { DEMO_VOICE_PROFILE } from './voice-profile';
 
 function request(path: string): Request {
   return new Request(`http://local.test${path}`, {
@@ -30,8 +31,8 @@ function request(path: string): Request {
 
 describe('web example OpenRouter policy gateway', () => {
   it('uses Gemini 3.5 Flash Lite and MiniMax Speech for cascaded turns', () => {
-    expect(demoVoiceGatewayPolicy.llm?.model).toBe('google/gemini-3.5-flash-lite');
-    expect(demoVoiceGatewayPolicy.tts?.model).toBe('minimax/speech-2.8-turbo');
+    expect(demoVoiceGatewayPolicy.llm?.model).toBe(DEMO_VOICE_PROFILE.models.cascadeLlm);
+    expect(demoVoiceGatewayPolicy.tts?.model).toBe(DEMO_VOICE_PROFILE.models.cascadeTts);
   });
 
   it('sends cascaded speech directly to the MiniMax audio endpoint', async () => {
@@ -64,7 +65,7 @@ describe('web example OpenRouter policy gateway', () => {
 
     expect(speechPath).toBe('/api/v1/audio/speech');
     expect(speechBody).toEqual({
-      model: 'minimax/speech-2.8-turbo',
+      model: DEMO_VOICE_PROFILE.models.cascadeTts,
       input: '你好。',
       voice: 'alloy',
       response_format: 'mp3',

@@ -4,6 +4,7 @@ import {
   GEMINI_LIVE_MODEL,
   GEMINI_LIVE_VOICE,
 } from './gemini-live-proxy';
+import { DEMO_VOICE_PROFILE } from './voice-profile';
 
 type RealtimeInput = {
   audio?: { data: string; mimeType: string };
@@ -130,10 +131,10 @@ describe('Gemini Live web example gateway', () => {
     expect(response.status).toBe(200);
     const body = await response.text();
 
-    expect(GEMINI_LIVE_MODEL).toBe('gemini-3.1-flash-live-preview');
-    expect(GEMINI_LIVE_VOICE).toBe('Charon');
+    expect(GEMINI_LIVE_MODEL).toBe(DEMO_VOICE_PROFILE.models.geminiLive);
+    expect(GEMINI_LIVE_VOICE).toBe(DEMO_VOICE_PROFILE.voices.geminiLive);
     expect(capture.searchEnabled).toBe(false);
-    expect(capture.voiceName).toBe('Charon');
+    expect(capture.voiceName).toBe(DEMO_VOICE_PROFILE.voices.geminiLive);
     expect(capture.systemInstruction).toContain('Earlier question');
     expect(capture.audio?.[0]?.audio).toEqual({
       data: 'AQIDBA==',

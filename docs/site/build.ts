@@ -6,6 +6,7 @@ const webExample = new URL('./examples/web/', repositoryRoot);
 const outdir = new URL('./dist/', siteRoot);
 const docsBuild = new URL('./dist-docs/', siteRoot);
 const docsOutdir = new URL('./dist/docs/', siteRoot);
+const serverOutdir = new URL('./generated/', siteRoot);
 
 await Bun.file(new URL('./app.js.map', outdir)).delete().catch(() => undefined);
 await Bun.file(new URL('./opening.mp3', outdir)).delete().catch(() => undefined);
@@ -21,6 +22,20 @@ const result = await Bun.build({
 
 if (!result.success) {
   console.error(result.logs);
+  process.exit(1);
+}
+
+await rm(serverOutdir, { recursive: true, force: true });
+const server = await Bun.build({
+  entrypoints: [new URL('./voice-proxy.ts', siteRoot).pathname],
+  outdir: serverOutdir.pathname,
+  naming: 'voice-proxy.js',
+  target: 'node',
+  packages: 'bundle',
+  minify: true,
+});
+if (!server.success) {
+  console.error(server.logs);
   process.exit(1);
 }
 
@@ -64,3 +79,4 @@ await cp(docsBuild, docsOutdir, { recursive: true });
 
 console.log(`Built OtterVoice site: ${outdir.pathname}`);
 console.log(`Docs: ${docsOutdir.pathname}`);
+console.log(`Voice Function bundle: ${new URL('./voice-proxy.js', serverOutdir).pathname}`);

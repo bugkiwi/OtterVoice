@@ -101,9 +101,11 @@ or microphone access.
 - `examples/web/src`: client-side VAD/interruption UX, input meter, transcript,
   model selection, and controls. It contains route selection but no provider
   credential, system prompt, voice, or generation budget.
+- `examples/web/voice-profile.ts`: the single browser/server source of truth for
+  demo routes, model ids, voices, and the locked OpenRouter policy factory.
 - `examples/web/openrouter-proxy.ts`: server-side authorization boundary,
-  models, system prompts, voices, generation limits, provider credentials, and
-  upstream request construction.
+  system prompts, generation limits, provider credentials, and upstream request
+  construction derived from the shared voice profile.
 - `examples/web/gemini-live-proxy.ts`: same-origin Google Live bridge, locked
   Gemini model and prompt, optional Google Search Grounding, WAV validation,
   and streamed PCM/audio-transcript translation back to the browser.
@@ -207,15 +209,18 @@ for the live demo.
 
 - `docs/site/vercel.json`: clean-clone workspace install/build, site output,
   Singapore region (required for GPT Audio availability), and Function limits
-- `docs/site/api/voice/**`: native, composed, and composed-with-search API Functions
-- `docs/site/build.ts`: showcase bundle plus a best-effort prebuilt opening voice
+- `docs/site/api/voice/**`: ASR, native, Gemini Live, composed, and search-enabled
+  API Function entrypoints
+- `docs/site/build.ts`: compiles the browser showcase and one self-contained
+  server bundle from the shared voice profile and gateway implementations
 
 Use `docs/site` as the Vercel project's Root Directory.
 
-The reference deployment requires `OPENROUTER_API_KEY`. The showcase authorizer
-accepts same-origin browser requests only. A real product must replace the
-check in `docs/site/openrouter-proxy.ts` with user login, conversation
-ownership, profile entitlement, and quota checks.
+The reference deployment requires `OPENROUTER_API_KEY`; native Gemini Live also
+requires `AISTUDIO_GOOGLE_API_KEY`. The showcase authorizer accepts same-origin
+browser requests only. A real product must replace the checks in the shared
+gateway implementations with user login, conversation ownership, profile
+entitlement, and quota checks.
 
 With the Vercel project connected to GitHub, set its Production Branch to
 `main`, then deploy a committed, clean worktree from the repository root:

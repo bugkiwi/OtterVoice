@@ -1,4 +1,4 @@
-import { proxyVoice } from '../../../../generated/voice-proxy.js';
+import { proxyVoice } from '../../../../../../generated/voice-proxy.js';
 
 export const maxDuration = 60;
 
