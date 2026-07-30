@@ -1,17 +1,20 @@
 import { describe, expect, it } from 'bun:test';
 import {
   createDemoVoiceGateway,
+  demoVoiceGatewayPolicies,
   demoVoiceGatewayPolicy,
   stripSearchCitations,
 } from './openrouter-proxy';
 import { DEMO_VOICE_PROFILE } from './voice-profile';
+import { DEMO_VOICE_LANGUAGE_HEADER } from './voice-language';
 
-function request(path: string): Request {
+function request(path: string, language = 'zh'): Request {
   return new Request(`http://local.test${path}`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
       origin: 'http://local.test',
+      [DEMO_VOICE_LANGUAGE_HEADER]: language,
     },
     body: JSON.stringify({
       model: 'client/model',
@@ -33,6 +36,41 @@ describe('web example OpenRouter policy gateway', () => {
   it('uses Gemini 3.5 Flash Lite and MiniMax Speech for cascaded turns', () => {
     expect(demoVoiceGatewayPolicy.llm?.model).toBe(DEMO_VOICE_PROFILE.models.cascadeLlm);
     expect(demoVoiceGatewayPolicy.tts?.model).toBe(DEMO_VOICE_PROFILE.models.cascadeTts);
+  });
+
+  it('selects an English server-owned system prompt from the interface language header', async () => {
+    let chatBody: Record<string, unknown> | undefined;
+    const gateway = createDemoVoiceGateway('server-secret', {
+      fetch: async (input, init) => {
+        const path = new URL(String(input)).pathname;
+        if (path.endsWith('/audio/transcriptions')) {
+          return Response.json({ text: 'Tell me something useful.' });
+        }
+        if (path.endsWith('/chat/completions')) {
+          chatBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          return new Response('data: [DONE]\n\n', {
+            headers: { 'content-type': 'text/event-stream' },
+          });
+        }
+        throw new Error(`unexpected upstream path: ${path}`);
+      },
+    });
+
+    const response = await gateway(request(
+      '/api/voice/online/asr-llm-tts/chat/completions',
+      'en',
+    ));
+    await response.text();
+
+    expect(chatBody).toBeDefined();
+    const messages = chatBody?.messages as Array<{ role: string; content: string }>;
+    expect(messages[0]?.role).toBe('system');
+    expect(messages[0]?.content).toStartWith(
+      demoVoiceGatewayPolicies.en.llm?.systemPrompt ?? '',
+    );
+    expect(messages[0]?.content).toContain('interface language is English');
+    expect(messages[0]?.content).toContain('do not output citation numbers');
+    expect(messages[0]?.content).not.toContain('默认始终使用中文');
   });
 
   it('sends cascaded speech directly to the MiniMax audio endpoint', async () => {

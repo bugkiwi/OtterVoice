@@ -27,6 +27,9 @@
 audio-turn。原生后端的可选字幕 ASR 与回复并行；复合后端则由同一次请求回传输入
 转写。服务端负责 OpenRouter、模型、system prompt、voice 与生成上限，客户端不包含
 Provider 长期密钥、具体上游地址或业务策略。
+应用会把当前界面语言作为白名单 `x-ottervoice-language: zh|en` 请求头发送给网关，
+由服务端选择对应语言的 system prompt。语言切换在会话期间锁定，避免界面语言与
+当前会话策略不一致；客户端仍不会接收或保存 prompt 内容。
 
 ### 运行
 
@@ -142,7 +145,10 @@ you control. Set `EXPO_PUBLIC_OTTERVOICE_BACKEND` to `composite` (default) or
 `native`. These values are public by design; never place provider credentials,
 prompts, models, spend controls, or a shared gateway secret in an
 `EXPO_PUBLIC_*` variable. Pass the current user's short-lived application
-session header to `createMobileProviders()` after login.
+session header to `createMobileProviders()` after login. The app also sends the
+allowlisted `x-ottervoice-language: zh|en` preference so the gateway can choose
+the matching server-owned system prompt. The language control is locked during
+an active session to keep the interface and response policy aligned.
 
 When the app leaves the active state, the example finishes and disposes the
 session, stopping capture, requests, and playback. Returning to the foreground

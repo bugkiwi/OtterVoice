@@ -18,6 +18,54 @@ import { bytesToBase64 } from './audio.js';
 import { buildHeaders, DEFAULT_BASE_URL, mapUsage, type HeaderOptions } from './chat.js';
 
 const PROVIDER = 'openrouter';
+const CJK_SCRIPT_CHARACTER = /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]$/u;
+const CJK_PUNCTUATION_CHARACTER = /^[、。，！？；：…—（）《》〈〉【】「」『』〔〕［］｛｝“”‘’]$/u;
+const LEADING_HORIZONTAL_WHITESPACE = /^[ \t]+/u;
+const TRAILING_HORIZONTAL_WHITESPACE = /[ \t]+$/u;
+
+function firstCodePoint(value: string): string | undefined {
+  return Array.from(value)[0];
+}
+
+function lastCodePoint(value: string): string | undefined {
+  return Array.from(value).at(-1);
+}
+
+function isCjkBoundaryCharacter(value: string | undefined): boolean {
+  return value !== undefined &&
+    (CJK_SCRIPT_CHARACTER.test(value) || CJK_PUNCTUATION_CHARACTER.test(value));
+}
+
+class AudioTranscriptNormalizer {
+  text = '';
+  private pendingWhitespace = '';
+
+  push(delta: string): string {
+    const combined = this.pendingWhitespace + delta;
+    this.pendingWhitespace = '';
+
+    const trailingWhitespace = combined.match(TRAILING_HORIZONTAL_WHITESPACE)?.[0] ?? '';
+    const content = trailingWhitespace.length > 0
+      ? combined.slice(0, -trailingWhitespace.length)
+      : combined;
+    this.pendingWhitespace = trailingWhitespace;
+    if (content.length === 0) return '';
+
+    const leadingWhitespace = content.match(LEADING_HORIZONTAL_WHITESPACE)?.[0] ?? '';
+    const contentWithoutLeadingWhitespace = content.slice(leadingWhitespace.length);
+    const previous = lastCodePoint(this.text);
+    const next = firstCodePoint(contentWithoutLeadingWhitespace);
+    const omitLeadingWhitespace = leadingWhitespace.length > 0 &&
+      (previous === undefined ||
+        isCjkBoundaryCharacter(previous) ||
+        isCjkBoundaryCharacter(next));
+    const normalized = omitLeadingWhitespace
+      ? contentWithoutLeadingWhitespace
+      : content;
+    this.text += normalized;
+    return normalized;
+  }
+}
 
 /** WAV/MP3 bytes ready for OpenAI-compatible audio chat. */
 export interface PreparedAudioInput {
@@ -304,7 +352,7 @@ export function createOpenRouterAudioLLM(
       const incrementalDecoder = input.onAudioChunk
         ? new IncrementalPcm16Decoder()
         : undefined;
-      let text = '';
+      const transcript = new AudioTranscriptNormalizer();
       let usage;
       let rawUsage: Record<string, unknown> | undefined;
       let firstAudioAtMs: number | undefined;
@@ -336,8 +384,10 @@ export function createOpenRouterAudioLLM(
             }
           }
           if (audio?.transcript) {
-            text += audio.transcript;
-            await input.onTranscriptDelta?.(audio.transcript);
+            const normalizedTranscript = transcript.push(audio.transcript);
+            if (normalizedTranscript.length > 0) {
+              await input.onTranscriptDelta?.(normalizedTranscript);
+            }
           }
           const chunkUsage = (json as { usage?: Record<string, unknown> }).usage;
           if (chunkUsage) rawUsage = chunkUsage;
@@ -385,7 +435,7 @@ export function createOpenRouterAudioLLM(
       }
       const wav = pcm16ToWav(audioBytes);
       return {
-        text,
+        text: transcript.text,
         audioBuffer: wav,
         mimeType: 'audio/wav',
         ...(usage ? { usage } : {}),

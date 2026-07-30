@@ -1,15 +1,18 @@
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import WebSocket, { type RawData } from 'ws';
 import { DEMO_VOICE_PROFILE } from './voice-profile';
+import {
+  demoVoiceLanguageFromRequest,
+  type DemoVoiceLanguage,
+} from './voice-language';
+import {
+  createDemoVoiceSystemPrompt,
+  demoHistoryPromptCopy,
+} from './voice-prompts';
 
 export const GEMINI_LIVE_MODEL = DEMO_VOICE_PROFILE.models.geminiLive;
 export const GEMINI_LIVE_VOICE = DEMO_VOICE_PROFILE.voices.geminiLive;
 
-const DEFAULT_SYSTEM_PROMPT =
-  `当前日期是 ${new Date().toISOString().slice(0, 10)}。` +
-  '你是一个反应快、语气自然的语音对话助手。默认用中文回复；如果用户明显使用其他语言，则跟随用户。' +
-  '第一句立即给出结论；每次只回复 1–5 个简短句子，不使用 Markdown，不列表，适合直接语音播放。' +
-  '如果会话启用了 Google Search Grounding，对时效性信息必须先搜索核实。';
 const OFFLINE_ROUTE = `${DEMO_VOICE_PROFILE.routes.geminiLive}/chat/completions`;
 const ONLINE_ROUTE = `${DEMO_VOICE_PROFILE.routes.geminiLiveOnline}/chat/completions`;
 const MAX_REQUEST_BYTES = 6 * 1024 * 1024;
@@ -57,6 +60,7 @@ type GeminiLiveClient = {
 
 export interface GeminiLiveGatewayOptions {
   apiKey?: string;
+  systemPrompts?: Partial<Record<DemoVoiceLanguage, string>>;
   systemPrompt?: string;
   proxyUrl?: string;
   createClient?: (apiKey: string) => GeminiLiveClient;
@@ -217,13 +221,18 @@ function readAudioTurn(body: Record<string, unknown>): {
   return { history, pcm: readPcm16Wav(decodeBase64(inputAudio.data)) };
 }
 
-function historySystemPrompt(systemPrompt: string, history: TextMessage[]): string {
+function historySystemPrompt(
+  systemPrompt: string,
+  history: TextMessage[],
+  language: DemoVoiceLanguage,
+): string {
   if (history.length === 0) return systemPrompt;
+  const copy = demoHistoryPromptCopy(language);
   const transcript = history.map((message) => {
-    const role = message.role === 'user' ? '用户' : '助手';
-    return `${role}：${message.content}`;
+    const role = message.role === 'user' ? copy.userRole : copy.assistantRole;
+    return `${role}: ${message.content}`;
   }).join('\n');
-  return `${systemPrompt}\n以下是此前已完成的对话，仅作为当前语音问题的上下文：\n${transcript}`;
+  return `${systemPrompt}\n${copy.historyIntroduction}\n${transcript}`;
 }
 
 function normalizeWebSocketError(value: unknown): Error {
@@ -329,6 +338,7 @@ async function createGeminiStream(
   history: TextMessage[],
   pcm: Uint8Array,
   systemPrompt: string,
+  language: DemoVoiceLanguage,
   searchEnabled: boolean,
 ): Promise<Response> {
   const encoder = new TextEncoder();
@@ -437,7 +447,7 @@ async function createGeminiStream(
 
         activeSession = await client.connect({
           callbacks,
-          systemInstruction: historySystemPrompt(systemPrompt, history),
+          systemInstruction: historySystemPrompt(systemPrompt, history, language),
           searchEnabled,
           voiceName: GEMINI_LIVE_VOICE,
         });
@@ -516,10 +526,21 @@ export function createGeminiLiveGateway(
         options.proxyUrl ?? process.env.HTTPS_PROXY ?? process.env.HTTP_PROXY,
       )
     : undefined;
-  const systemPrompt = options.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+  const systemPrompts = {
+    zh: options.systemPrompts?.zh ??
+      options.systemPrompt ??
+      process.env.OTTERVOICE_SYSTEM_PROMPT_ZH ??
+      process.env.OTTERVOICE_SYSTEM_PROMPT ??
+      createDemoVoiceSystemPrompt('zh'),
+    en: options.systemPrompts?.en ??
+      options.systemPrompt ??
+      process.env.OTTERVOICE_SYSTEM_PROMPT_EN ??
+      createDemoVoiceSystemPrompt('en'),
+  } as const;
 
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
+    const language = demoVoiceLanguageFromRequest(request);
     const searchEnabled = url.pathname === ONLINE_ROUTE;
     if (!searchEnabled && url.pathname !== OFFLINE_ROUTE) {
       return json({ error: 'not found' }, 404);
@@ -547,7 +568,8 @@ export function createGeminiLiveGateway(
         client,
         history,
         pcm,
-        systemPrompt,
+        systemPrompts[language],
+        language,
         searchEnabled,
       );
     } catch (error) {

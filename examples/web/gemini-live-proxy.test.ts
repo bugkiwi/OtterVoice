@@ -5,6 +5,7 @@ import {
   GEMINI_LIVE_VOICE,
 } from './gemini-live-proxy';
 import { DEMO_VOICE_PROFILE } from './voice-profile';
+import { DEMO_VOICE_LANGUAGE_HEADER } from './voice-language';
 
 type RealtimeInput = {
   audio?: { data: string; mimeType: string };
@@ -53,13 +54,14 @@ function wavBase64(): string {
   return Buffer.from(bytes).toString('base64');
 }
 
-function request(path: string, signal?: AbortSignal): Request {
+function request(path: string, signal?: AbortSignal, language = 'zh'): Request {
   return new Request(`http://local.test${path}`, {
     method: 'POST',
     ...(signal ? { signal } : {}),
     headers: {
       'content-type': 'application/json',
       origin: 'http://local.test',
+      [DEMO_VOICE_LANGUAGE_HEADER]: language,
     },
     body: JSON.stringify({
       model: 'client-controlled-model',
@@ -169,6 +171,26 @@ describe('Gemini Live web example gateway', () => {
     expect(response.status).toBe(200);
     await response.text();
     expect(capture.searchEnabled).toBe(true);
+  });
+
+  it('uses an English system instruction and English history labels for the English UI', async () => {
+    const capture: Capture = {};
+    const gateway = createGeminiLiveGateway({
+      apiKey: 'server-secret',
+      createClient: () => fakeClient(capture) as never,
+    });
+
+    const response = await gateway(request(
+      '/api/voice/google/audio-llm/chat/completions',
+      undefined,
+      'en',
+    ));
+    await response.text();
+
+    expect(capture.systemInstruction).toContain('interface language is English');
+    expect(capture.systemInstruction).toContain('User: Earlier question');
+    expect(capture.systemInstruction).toContain('Assistant: Earlier answer');
+    expect(capture.systemInstruction).not.toContain('以下是此前已完成的对话');
   });
 
   it('rejects cross-origin calls before opening a Live session', async () => {

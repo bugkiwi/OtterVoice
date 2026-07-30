@@ -99,6 +99,81 @@ describe('createOpenRouterAudioLLM', () => {
     expect(new Uint8Array(output.audioBuffer).slice(44)).toEqual(fullAudio);
   });
 
+  it('removes CJK token-boundary spaces while preserving English word spacing', async () => {
+    const deltas: string[] = [];
+    const provider = createOpenRouterAudioLLM({
+      apiKey: 'test',
+      model: 'openai/gpt-audio-mini',
+      fetch: async () =>
+        new Response(
+          streamFromStrings([
+            'data: {"choices":[{"delta":{"audio":{"data":"AQIDBA==","transcript":"  西班牙队"}}}]}\n',
+            'data: {"choices":[{"delta":{"audio":{"transcript":" 得了"}}}]}\n',
+            'data: {"choices":[{"delta":{"audio":{"transcript":" 2026"}}}]}\n',
+            'data: {"choices":[{"delta":{"audio":{"transcript":" 年"}}}]}\n',
+            'data: {"choices":[{"delta":{"audio":{"transcript":" 世界杯冠军。"}}}]}\n',
+            'data: {"choices":[{"delta":{"audio":{"transcript":" They"}}}]}\n',
+            'data: {"choices":[{"delta":{"audio":{"transcript":" won"}}}]}\n',
+            'data: [DONE]\n',
+          ]),
+          { status: 200 },
+        ),
+    });
+
+    const output = await provider.generate({
+      audio: new Uint8Array([1]).buffer,
+      format: 'wav',
+      messages: [],
+      onTranscriptDelta: (delta) => {
+        deltas.push(delta);
+      },
+    });
+
+    expect(deltas).toEqual([
+      '西班牙队',
+      '得了',
+      '2026',
+      '年',
+      '世界杯冠军。',
+      'They',
+      ' won',
+    ]);
+    expect(output.text).toBe('西班牙队得了2026年世界杯冠军。They won');
+  });
+
+  it('defers whitespace-only transcript chunks until their language boundary is known', async () => {
+    const deltas: string[] = [];
+    const provider = createOpenRouterAudioLLM({
+      apiKey: 'test',
+      model: 'openai/gpt-audio-mini',
+      fetch: async () =>
+        new Response(
+          streamFromStrings([
+            'data: {"choices":[{"delta":{"audio":{"data":"AQIDBA==","transcript":"Hello"}}}]}\n',
+            'data: {"choices":[{"delta":{"audio":{"transcript":" "}}}]}\n',
+            'data: {"choices":[{"delta":{"audio":{"transcript":"world"}}}]}\n',
+            'data: {"choices":[{"delta":{"audio":{"transcript":"，"}}}]}\n',
+            'data: {"choices":[{"delta":{"audio":{"transcript":" "}}}]}\n',
+            'data: {"choices":[{"delta":{"audio":{"transcript":"你好"}}}]}\n',
+            'data: [DONE]\n',
+          ]),
+          { status: 200 },
+        ),
+    });
+
+    const output = await provider.generate({
+      audio: new Uint8Array([1]).buffer,
+      format: 'wav',
+      messages: [],
+      onTranscriptDelta: (delta) => {
+        deltas.push(delta);
+      },
+    });
+
+    expect(deltas).toEqual(['Hello', ' world', '，', '你好']);
+    expect(output.text).toBe('Hello world，你好');
+  });
+
   it('writes a valid WAV header around PCM16', () => {
     const wav = pcm16ToWav(new Uint8Array([1, 2, 3, 4]));
     expect(new TextDecoder().decode(wav.slice(0, 4))).toBe('RIFF');

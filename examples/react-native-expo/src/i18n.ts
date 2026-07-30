@@ -1,5 +1,11 @@
 export type AppLanguage = 'zh' | 'en';
 
+export const VOICE_LANGUAGE_HEADER = 'x-ottervoice-language';
+
+export function voiceLanguageHeaders(language: AppLanguage): Record<string, string> {
+  return { [VOICE_LANGUAGE_HEADER]: language };
+}
+
 export function languageFromLocales(
   locales: ReadonlyArray<{ languageCode?: string | null; languageTag?: string }>,
 ): AppLanguage {
@@ -13,6 +19,8 @@ export const copy = {
     eyebrow: 'MOBILE LAB · AUDIO LLM',
     headline: '现在，直接开口。',
     subhead: '麦克风持续监听。停顿即提交，AI 说话时也可以直接插话打断。',
+    languagePolicy: '回复语言 · 中文（跟随界面）',
+    languageLocked: '会话结束后可切换回复语言',
     start: '开始语音对话',
     finish: '结束会话',
     transcript: '实时对话',
@@ -41,6 +49,8 @@ export const copy = {
     eyebrow: 'MOBILE LAB · AUDIO LLM',
     headline: 'Now, just speak.',
     subhead: 'The mic keeps listening. A pause submits your turn; speak over Otter to interrupt.',
+    languagePolicy: 'Response language · English (matches interface)',
+    languageLocked: 'End the session before changing the response language',
     start: 'Start voice session',
     finish: 'End session',
     transcript: 'Live transcript',

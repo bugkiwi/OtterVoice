@@ -7,14 +7,14 @@ import {
   createDemoOpenRouterPolicy,
   DEMO_VOICE_PROFILE,
 } from './voice-profile';
-
-const DEFAULT_SYSTEM_PROMPT =
-  `当前日期是 ${new Date().toISOString().slice(0, 10)}。对时效性信息，在可用时必须使用联网搜索核实。` +
-  '你是一个反应快、语气自然的语音对话助手。默认用中文回复；如果用户明显使用其他语言，则跟随用户。' +
-  '第一句立即给出结论；每次只回复 1–5 个简短句子，不使用 Markdown，不列表，适合直接语音播放。';
-const SEARCH_OUTPUT_INSTRUCTION =
-  '联网搜索结果只用于内部核实。最终回答只输出适合朗读的自然语言正文；' +
-  '禁止输出引用编号、脚注、URL、域名、Markdown 链接、来源或参考资料列表。';
+import {
+  demoVoiceLanguageFromRequest,
+  type DemoVoiceLanguage,
+} from './voice-language';
+import {
+  createDemoVoiceSystemPrompt,
+  demoSearchOutputInstruction,
+} from './voice-prompts';
 type GatewayFetch = NonNullable<OpenRouterGatewayOptions['fetch']>;
 
 type SearchMessage = { role?: unknown; content?: unknown };
@@ -26,17 +26,21 @@ type OpenRouterStreamPayload = {
   }>;
 };
 
-function addSearchOutputInstruction(body: Record<string, unknown>): Record<string, unknown> {
+function addSearchOutputInstruction(
+  body: Record<string, unknown>,
+  language: DemoVoiceLanguage,
+): Record<string, unknown> {
   const messages = Array.isArray(body.messages)
     ? (body.messages as SearchMessage[]).map((message) => ({ ...message }))
     : [];
+  const instruction = demoSearchOutputInstruction(language);
   const systemMessage = messages.find(
     (message) => message.role === 'system' && typeof message.content === 'string',
   );
   if (systemMessage && typeof systemMessage.content === 'string') {
-    systemMessage.content = `${systemMessage.content}\n${SEARCH_OUTPUT_INSTRUCTION}`;
+    systemMessage.content = `${systemMessage.content}\n${instruction}`;
   } else {
-    messages.unshift({ role: 'system', content: SEARCH_OUTPUT_INSTRUCTION });
+    messages.unshift({ role: 'system', content: instruction });
   }
   return { ...body, messages };
 }
@@ -179,7 +183,10 @@ function filterWebSearchResponse(response: Response): Response {
   });
 }
 
-const withWebSearch = (fetchImpl: GatewayFetch): GatewayFetch => async (input, init) => {
+const withWebSearch = (
+  fetchImpl: GatewayFetch,
+  language: DemoVoiceLanguage,
+): GatewayFetch => async (input, init) => {
   const upstreamUrl = input instanceof Request ? input.url : String(input);
   if (!new URL(upstreamUrl).pathname.endsWith('/chat/completions')) {
     return fetchImpl(input, init);
@@ -188,7 +195,7 @@ const withWebSearch = (fetchImpl: GatewayFetch): GatewayFetch => async (input, i
   const response = await fetchImpl(input, {
     ...init,
     body: JSON.stringify({
-      ...addSearchOutputInstruction(body),
+      ...addSearchOutputInstruction(body, language),
       tools: [{
         type: 'openrouter:web_search',
         parameters: {
@@ -205,9 +212,23 @@ const withWebSearch = (fetchImpl: GatewayFetch): GatewayFetch => async (input, i
   return filterWebSearchResponse(response);
 };
 
-export const demoVoiceGatewayPolicy = createDemoOpenRouterPolicy(
-  process.env.OTTERVOICE_SYSTEM_PROMPT ?? DEFAULT_SYSTEM_PROMPT,
-);
+function configuredSystemPrompt(language: DemoVoiceLanguage): string {
+  if (language === 'en') {
+    return process.env.OTTERVOICE_SYSTEM_PROMPT_EN ?? createDemoVoiceSystemPrompt('en');
+  }
+  return process.env.OTTERVOICE_SYSTEM_PROMPT_ZH ??
+    process.env.OTTERVOICE_SYSTEM_PROMPT ??
+    createDemoVoiceSystemPrompt('zh');
+}
+
+/** Server-owned OpenRouter policies keyed by the allowlisted interface language. */
+export const demoVoiceGatewayPolicies = {
+  zh: createDemoOpenRouterPolicy(configuredSystemPrompt('zh')),
+  en: createDemoOpenRouterPolicy(configuredSystemPrompt('en')),
+} as const;
+
+/** Chinese policy retained as the default for clients that omit the language header. */
+export const demoVoiceGatewayPolicy = demoVoiceGatewayPolicies.zh;
 
 export function createDemoVoiceGateway(
   apiKey = process.env.OPENROUTER_API_KEY,
@@ -220,38 +241,46 @@ export function createDemoVoiceGateway(
     // application user, conversation ownership, profile, and quota here.
     return origin === url.origin;
   };
-  const standardGateway = createOpenRouterGateway({
-    apiKey,
-    policy: demoVoiceGatewayPolicy,
-    maxRequestBodyBytes: 6 * 1024 * 1024,
-    maxMessages: 24,
-    maxTextCharacters: 20_000,
-    ttsCacheEntries: 32,
-    ...(overrides.referer ? { referer: overrides.referer } : {}),
-    title: overrides.title ?? 'OtterVoice Web Example',
-    authorize,
-    fetch: fetchImpl,
-  });
-  const webSearchGateway = createOpenRouterGateway({
-    apiKey,
-    policy: {
-      asr: demoVoiceGatewayPolicy.asr,
-      llm: demoVoiceGatewayPolicy.llm,
-      tts: demoVoiceGatewayPolicy.tts,
-    },
-    gatewayPrefix: DEMO_VOICE_PROFILE.prefixes.online,
-    maxRequestBodyBytes: 6 * 1024 * 1024,
-    maxMessages: 24,
-    maxTextCharacters: 20_000,
-    ...(overrides.referer ? { referer: overrides.referer } : {}),
-    title: overrides.title ?? 'OtterVoice Web Example',
-    authorize,
-    fetch: withWebSearch(fetchImpl),
-  });
+  const createLanguageGateways = (language: DemoVoiceLanguage) => {
+    const policy = demoVoiceGatewayPolicies[language];
+    const sharedOptions = {
+      apiKey,
+      maxRequestBodyBytes: 6 * 1024 * 1024,
+      maxMessages: 24,
+      maxTextCharacters: 20_000,
+      ...(overrides.referer ? { referer: overrides.referer } : {}),
+      title: overrides.title ?? 'OtterVoice Web Example',
+      authorize,
+    };
+    return {
+      standard: createOpenRouterGateway({
+        ...sharedOptions,
+        policy,
+        ttsCacheEntries: 32,
+        fetch: fetchImpl,
+      }),
+      online: createOpenRouterGateway({
+        ...sharedOptions,
+        policy: {
+          asr: policy.asr,
+          llm: policy.llm,
+          tts: policy.tts,
+        },
+        gatewayPrefix: DEMO_VOICE_PROFILE.prefixes.online,
+        fetch: withWebSearch(fetchImpl, language),
+      }),
+    };
+  };
+  const gateways = {
+    zh: createLanguageGateways('zh'),
+    en: createLanguageGateways('en'),
+  } as const;
 
-  return (request) => new URL(request.url).pathname.startsWith(
-    `${DEMO_VOICE_PROFILE.prefixes.online}/`,
-  )
-    ? webSearchGateway(request)
-    : standardGateway(request);
+  return (request) => {
+    const language = demoVoiceLanguageFromRequest(request);
+    const online = new URL(request.url).pathname.startsWith(
+      `${DEMO_VOICE_PROFILE.prefixes.online}/`,
+    );
+    return gateways[language][online ? 'online' : 'standard'](request);
+  };
 }

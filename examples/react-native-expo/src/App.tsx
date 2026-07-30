@@ -68,7 +68,6 @@ function DemoScreen() {
   const scheme = useColorScheme();
   const colors = scheme === 'dark' ? dark : light;
   const runtime = useExpoAudioRuntime();
-  const providers = useMemo(() => createMobileProviders(), []);
   const sessionRef = useRef<VoiceSession | null>(null);
   const cleanupsRef = useRef<Array<() => void>>([]);
   const releaseChainRef = useRef<Promise<void>>(Promise.resolve());
@@ -93,6 +92,10 @@ function DemoScreen() {
   const t = copy[language];
   const sessionActive = !['idle', 'finished', 'error'].includes(state);
   const active = starting || sessionActive;
+  const providers = useMemo(
+    () => createMobileProviders({}, language),
+    [language],
+  );
 
   useEffect(
     () => runtime.audioInput.onVolume((value) => {
@@ -388,13 +391,16 @@ function DemoScreen() {
               <Pressable
                 key={item}
                 accessibilityRole="radio"
-                accessibilityState={{ selected }}
+                accessibilityHint={active ? t.languageLocked : undefined}
+                accessibilityState={{ selected, disabled: active }}
+                disabled={active}
                 onPress={() => setLanguage(item)}
                 style={{
                   paddingHorizontal: 13,
                   paddingVertical: 7,
                   borderRadius: 99,
                   backgroundColor: selected ? colors.ink : 'transparent',
+                  opacity: active && !selected ? 0.38 : 1,
                 }}
               >
                 <Text style={{ color: selected ? colors.background : colors.ink, fontWeight: '700' }}>
@@ -419,6 +425,19 @@ function DemoScreen() {
         <Text selectable style={{ color: colors.muted, fontSize: 17, lineHeight: 27, maxWidth: 560 }}>
           {t.subhead}
         </Text>
+        <View
+          accessibilityLabel={t.languagePolicy}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 3 }}
+        >
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+            style={{ width: 7, height: 7, borderRadius: 99, backgroundColor: colors.accent }}
+          />
+          <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '800', letterSpacing: 0.3 }}>
+            {t.languagePolicy}
+          </Text>
+        </View>
       </View>
 
       <View

@@ -103,8 +103,12 @@ or microphone access.
   credential, system prompt, voice, or generation budget.
 - `examples/web/voice-profile.ts`: the single browser/server source of truth for
   demo routes, model ids, voices, and the locked OpenRouter policy factory.
+- `examples/web/voice-language.ts`: the allowlisted `zh` / `en` request signal
+  shared by the browser and policy gateways.
+- `examples/web/voice-prompts.ts`: server-only Chinese and English system,
+  search-output, and conversation-history instructions.
 - `examples/web/openrouter-proxy.ts`: server-side authorization boundary,
-  system prompts, generation limits, provider credentials, and upstream request
+  language-policy selection, generation limits, provider credentials, and upstream request
   construction derived from the shared voice profile.
 - `examples/web/gemini-live-proxy.ts`: same-origin Google Live bridge, locked
   Gemini model and prompt, optional Google Search Grounding, WAV validation,
@@ -114,6 +118,10 @@ The browser never receives `OPENROUTER_API_KEY`, `AISTUDIO_GOOGLE_API_KEY`, or
 privileged policy.
 `serve.ts` reads server configuration from `.env`; the client calls either the
 native Audio LLM route or the composed voice-turn route below `/api/voice`.
+Each session sends only the allowlisted `x-ottervoice-language: zh|en` preference.
+The gateway selects the matching server-owned system prompt; the prompt itself
+is never accepted from or bundled into the client. The language switch is locked
+while a session is active so the visible interface and voice policy cannot drift.
 The gateway rejects privileged
 client message roles, ignores unknown/top-level policy fields, and reconstructs
 the provider body from locked server policy. It also validates same-origin

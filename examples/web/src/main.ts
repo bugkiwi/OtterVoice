@@ -16,6 +16,15 @@ import {
 } from '@ottervoice/provider-openrouter';
 import { createWebRuntime, prepareBrowserAudio } from '@ottervoice/runtime-web';
 import { DEMO_VOICE_PROFILE } from '../voice-profile';
+import {
+  demoVoiceLanguageHeaders,
+  type DemoVoiceLanguage,
+} from '../voice-language';
+import {
+  SessionMetricsTracker,
+  type SessionMetricSummary,
+  type SessionMetricsSnapshot,
+} from './session-metrics';
 import { shouldMergeAdjacentUserTurn } from './turn-log';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -33,11 +42,19 @@ const geminiAudioBtn = $<HTMLButtonElement>('audio-model-gemini');
 const latencyEl = $('latency');
 const langZhBtn = $<HTMLButtonElement>('lang-zh');
 const langEnBtn = $<HTMLButtonElement>('lang-en');
+const languageSwitchEl = $('language-switch');
 const transcriptToggle = $<HTMLInputElement>('transcript-toggle');
 const webSearchToggle = $<HTMLInputElement>('web-search-toggle');
 const openAiModelInfo = $('model-openai-audio');
 const geminiModelInfo = $('model-gemini-live');
 const cascadeModelInfo = $('model-cascade');
+const sessionReportEl = $('session-report');
+const reportDurationEl = $('report-duration');
+const reportTurnsEl = $('report-turns');
+const reportRouteEl = $('report-route');
+const reportInterruptionsEl = $('metric-interruptions');
+const reportDetectionEl = $('metric-detection');
+const reportBackchannelsEl = $('metric-backchannels');
 
 openAiModelInfo.textContent = DEMO_VOICE_PROFILE.models.openAiAudio;
 geminiModelInfo.textContent =
@@ -48,7 +65,7 @@ cascadeModelInfo.textContent = [
   DEMO_VOICE_PROFILE.models.cascadeTts,
 ].join(' → ');
 
-type AppLanguage = 'zh' | 'en';
+type AppLanguage = DemoVoiceLanguage;
 
 const translations = {
   zh: {
@@ -62,7 +79,19 @@ const translations = {
     audioModelLabel: 'Audio 模型', audioModelOpenAi: 'GPT Audio Mini', audioModelGemini: 'Gemini 3.1 Live',
     transcriptLabel: '输入 / 输出文本', transcriptHint: '显示实时字幕与完整对话记录',
     webSearchLabel: '联网搜索', webSearchHint: '级联与 Gemini 通路可用；GPT Audio 不启用搜索',
+    languagePolicy: '回复语言 · 中文（跟随界面）',
+    languageLocked: '会话进行中；结束后可切换回复语言',
     start: '开始语音对话', finish: '结束会话',
+    reportEyebrow: 'Post-call · Local telemetry', reportTitle: '这次对话，跑得怎么样。',
+    reportDuration: '会话时长', reportTurns: '用户轮次', reportRoute: '本次通路', reportLatencyAria: '响应延迟路径',
+    metricEndOfTurn: '结束判定延迟', metricEndOfTurnHint: '最后一次有效语音到提交本轮',
+    metricTranscription: '转写延迟', metricTranscriptionHint: '用户音频结束到 ASR final',
+    metricLlmTtft: 'LLM 首字延迟', metricLlmTtftHint: 'Provider 调用到首个文本增量',
+    metricE2e: '端到端延迟', metricE2eHint: '用户音频结束到实际首音播放',
+    reportPipeline: 'Pipeline details', metricTurnCommit: 'on_user_turn_completed', metricTurnCommitHint: '结束判定到完整录音可供 provider 使用',
+    metricTtsTtfb: 'TTS / Audio TTFB', metricTtsTtfbHint: 'Provider 调用到首个音频分片抵达',
+    reportInterruption: 'Interruption', metricInterruptions: '次确认打断', metricDetection: '平均判定延迟', metricBackchannels: 'Backchannels',
+    reportNote: '数据来自当前浏览器会话的本地事件时间戳；Backchannel 在本示例中未单独启用。',
     phoneTitle: '现在，直接开口。', phoneCopy: '持续监听；停顿提交；说话即可打断。', phoneState: '正在持续收听',
     nativeEyebrow: 'Example 02 · React Native / Expo', nativeTitle: '同一条 Audio LLM 通路，装进手机。',
     nativeCopy: 'Expo SDK 57 示例接入原生 PCM 麦克风流和无缝播放队列。它复用 Web 示例的 VAD、短语打断与误打断恢复策略，客户端只访问自有鉴权网关。',
@@ -99,7 +128,19 @@ const translations = {
     audioModelLabel: 'Audio model', audioModelOpenAi: 'GPT Audio Mini', audioModelGemini: 'Gemini 3.1 Live',
     transcriptLabel: 'Input / output text', transcriptHint: 'Show live captions and the full transcript',
     webSearchLabel: 'Web search', webSearchHint: 'Available for cascaded and Gemini turns; disabled for GPT Audio',
+    languagePolicy: 'Response language · English (matches interface)',
+    languageLocked: 'Session in progress; end it before changing the response language',
     start: 'Start voice session', finish: 'End session',
+    reportEyebrow: 'Post-call · Local telemetry', reportTitle: 'How this conversation moved.',
+    reportDuration: 'Duration', reportTurns: 'User turns', reportRoute: 'Route', reportLatencyAria: 'Response latency path',
+    metricEndOfTurn: 'End-of-turn delay', metricEndOfTurnHint: 'Last voiced sample to turn submission',
+    metricTranscription: 'Transcription delay', metricTranscriptionHint: 'User audio end to final transcript',
+    metricLlmTtft: 'LLM TTFT', metricLlmTtftHint: 'Provider call to first text delta',
+    metricE2e: 'E2E latency', metricE2eHint: 'User audio end to audible response',
+    reportPipeline: 'Pipeline details', metricTurnCommit: 'on_user_turn_completed', metricTurnCommitHint: 'End-of-turn decision to complete provider-ready audio',
+    metricTtsTtfb: 'TTS / Audio TTFB', metricTtsTtfbHint: 'Provider call to first audio chunk',
+    reportInterruption: 'Interruption', metricInterruptions: 'confirmed interruptions', metricDetection: 'Average detection delay', metricBackchannels: 'Backchannels',
+    reportNote: 'Measured from local browser event timestamps in this session. Backchannels are not independently enabled in this demo.',
     phoneTitle: 'Now, just speak.', phoneCopy: 'Always listening. Pause to submit. Speak to interrupt.', phoneState: 'Listening continuously',
     nativeEyebrow: 'Example 02 · React Native / Expo', nativeTitle: 'The same Audio LLM path, now in your pocket.',
     nativeCopy: 'The Expo SDK 57 example connects a native PCM microphone stream to a gapless playback queue. It shares the Web demo’s VAD, short-phrase interruption, and false-barge-in recovery while calling only your authenticated gateway.',
@@ -140,6 +181,7 @@ const storedToggle = (key: string, fallback: boolean): boolean => {
 let transcriptVisible = storedToggle('ottervoice-transcript-visible', true);
 let webSearchEnabled = storedToggle('ottervoice-web-search', false);
 type AudioModel = 'openai' | 'gemini';
+type AudioTurnBackend = 'composite' | 'native';
 let selectedAudioModel: AudioModel = localStorage.getItem('ottervoice-audio-model') === 'gemini'
   ? 'gemini'
   : 'openai';
@@ -160,18 +202,133 @@ const runtimeText = {
     playTitle: '播放 OpenRouter SSE 组装后的原始音频（独立于会话播放）', chunks: '片', pending: '待测',
     firstText: '首字', firstAudio: '首音', relativeToAskEnd: '相对提问结束',
     latencyEmpty: '完成一轮对话后显示“停顿 → 开始播放”的实测延迟',
+    sample: '个样本', noSample: '暂无样本', turns: '轮',
   },
   en: {
     you: 'You', otter: 'Otter', playing: 'Playing…', playFailed: 'Playback failed', playSse: '▶ SSE audio',
     playTitle: 'Play the original audio assembled from OpenRouter SSE chunks', chunks: 'chunks', pending: 'pending',
     firstText: 'First text', firstAudio: 'First audio', relativeToAskEnd: 'from ask end',
     latencyEmpty: 'Measured pause → first audio playback latency appears after one turn',
+    sample: 'samples', noSample: 'no sample', turns: 'turns',
   },
 } as const;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+type SessionReportContext = {
+  backend: AudioTurnBackend;
+  audioModel: AudioModel;
+  webSearch: boolean;
+};
+
+type RenderedSessionReport = {
+  snapshot: SessionMetricsSnapshot;
+  context: SessionReportContext;
+};
+
+const reportMetricViews = {
+  endOfTurnDelayMs: {
+    value: $('metric-end-of-turn'),
+    samples: $('samples-end-of-turn'),
+  },
+  transcriptionDelayMs: {
+    value: $('metric-transcription'),
+    samples: $('samples-transcription'),
+  },
+  llmTtftMs: {
+    value: $('metric-llm-ttft'),
+    samples: $('samples-llm-ttft'),
+  },
+  e2eLatencyMs: {
+    value: $('metric-e2e'),
+    samples: $('samples-e2e'),
+  },
+  turnCommitDelayMs: {
+    value: $('metric-turn-commit'),
+  },
+  ttsTtfbMs: {
+    value: $('metric-tts-ttfb'),
+  },
+} satisfies Partial<Record<keyof SessionMetricsSnapshot['metrics'], {
+  value: HTMLElement;
+  samples?: HTMLElement;
+}>>;
+
+let lastSessionReport: RenderedSessionReport | undefined;
+
+function formatSessionDuration(durationMs: number): string {
+  const totalSeconds = Math.max(0, Math.round(durationMs / 1_000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function writeMetricValue(
+  element: HTMLElement,
+  summary: SessionMetricSummary,
+): void {
+  element.replaceChildren();
+  if (summary.averageMs === undefined) {
+    element.textContent = '—';
+    element.removeAttribute('title');
+    return;
+  }
+  element.append(String(Math.round(summary.averageMs)));
+  const unit = document.createElement('span');
+  unit.className = 'unit';
+  unit.textContent = 'ms';
+  element.append(unit);
+  element.title = `${summary.sampleCount} ${runtimeText[language].sample}`;
+}
+
+function reportRouteLabel(context: SessionReportContext): string {
+  const search = context.webSearch ? ' · Search' : '';
+  if (context.backend === 'composite') return `ASR → LLM → TTS${search}`;
+  const model = context.audioModel === 'gemini'
+    ? DEMO_VOICE_PROFILE.models.geminiLive
+    : DEMO_VOICE_PROFILE.models.openAiAudio;
+  return `${model}${search}`;
+}
+
+function renderSessionReport(
+  snapshot: SessionMetricsSnapshot,
+  context: SessionReportContext,
+): void {
+  lastSessionReport = { snapshot, context };
+  reportDurationEl.textContent = formatSessionDuration(snapshot.durationMs);
+  reportTurnsEl.textContent = `${snapshot.turns} ${runtimeText[language].turns}`;
+  const routeLabel = reportRouteLabel(context);
+  reportRouteEl.textContent = routeLabel;
+  reportRouteEl.title = routeLabel;
+
+  for (const [key, view] of Object.entries(reportMetricViews) as Array<[
+    keyof typeof reportMetricViews,
+    (typeof reportMetricViews)[keyof typeof reportMetricViews],
+  ]>) {
+    const summary = snapshot.metrics[key];
+    writeMetricValue(view.value, summary);
+    if (view.samples) {
+      view.samples.textContent = summary.sampleCount > 0
+        ? `${summary.sampleCount} ${runtimeText[language].sample}`
+        : runtimeText[language].noSample;
+    }
+  }
+
+  reportInterruptionsEl.textContent = String(snapshot.interruptions);
+  writeMetricValue(
+    reportDetectionEl,
+    snapshot.metrics.interruptionDetectionMs,
+  );
+  reportBackchannelsEl.textContent = String(snapshot.backchannels);
+  sessionReportEl.hidden = false;
+}
+
+function hideSessionReport(): void {
+  lastSessionReport = undefined;
+  sessionReportEl.hidden = true;
 }
 
 function playSseAudio(capture: SseAudioCapture, button: HTMLButtonElement) {
@@ -358,50 +515,53 @@ const prepareTurnAudio = (
     maxDurationMs: 90_000,
   });
 
-const captionAsr = createOpenRouterGatewayASR({
-  baseUrl: DEMO_VOICE_PROFILE.routes.captionAsr,
-  format: 'webm',
-});
-
-const nativeAudioLlmBase = createOpenRouterGatewayAudioLLM({
-  baseUrl: DEMO_VOICE_PROFILE.routes.openAiAudio,
-  requireDoneSentinel: true,
-  // Base64 expands PCM by one third. A 16 kHz / 90 s mono WAV remains below
-  // Vercel's 4.5 MB function payload limit with room for the JSON envelope.
-  prepareAudio: prepareTurnAudio,
-});
-
-const geminiAudioLlmBase = createOpenRouterGatewayAudioLLM({
-  baseUrl: DEMO_VOICE_PROFILE.routes.geminiLive,
-  requireDoneSentinel: true,
-  prepareAudio: prepareTurnAudio,
-});
-
-const onlineGeminiAudioLlmBase = createOpenRouterGatewayAudioLLM({
-  baseUrl: DEMO_VOICE_PROFILE.routes.geminiLiveOnline,
-  requireDoneSentinel: true,
-  prepareAudio: prepareTurnAudio,
-});
-
-const cascadedVoiceBase = createOpenRouterGatewayVoiceTurn({
-  baseUrl: DEMO_VOICE_PROFILE.routes.cascade,
-  requireDoneSentinel: true,
-  prepareAudio: prepareTurnAudio,
-});
-
-const onlineCascadedVoiceBase = createOpenRouterGatewayVoiceTurn({
-  baseUrl: DEMO_VOICE_PROFILE.routes.cascadeOnline,
-  requireDoneSentinel: true,
-  prepareAudio: prepareTurnAudio,
-});
+let activeSessionMetrics: SessionMetricsTracker | undefined;
 
 function captureProviderAudio(provider: AudioLLMProvider): AudioLLMProvider {
   return {
     ...provider,
-    async generate(
-      ...args: Parameters<AudioLLMProvider['generate']>
-    ): ReturnType<AudioLLMProvider['generate']> {
-      const output = await provider.generate(...args);
+    async generate(input): ReturnType<AudioLLMProvider['generate']> {
+      const metrics = activeSessionMetrics;
+      const requestStartedAt = Date.now();
+      let recordedFirstText = false;
+      let recordedFirstAudio = false;
+      const recordFirstText = () => {
+        if (recordedFirstText) return;
+        recordedFirstText = true;
+        metrics?.recordLlmTtft(Date.now() - requestStartedAt);
+      };
+      const recordFirstAudio = () => {
+        if (recordedFirstAudio) return;
+        recordedFirstAudio = true;
+        metrics?.recordTtsTtfb(Date.now() - requestStartedAt);
+      };
+      const output = await provider.generate({
+        ...input,
+        ...(input.onTranscriptDelta
+          ? {
+              onTranscriptDelta: async (text) => {
+                recordFirstText();
+                await input.onTranscriptDelta?.(text);
+              },
+            }
+          : {}),
+        ...(input.onAudioChunk
+          ? {
+              onAudioChunk: async (chunk) => {
+                recordFirstAudio();
+                await input.onAudioChunk?.(chunk);
+              },
+            }
+          : {}),
+        ...(input.onAudioSegment
+          ? {
+              onAudioSegment: async (segment) => {
+                recordFirstAudio();
+                await input.onAudioSegment?.(segment);
+              },
+            }
+          : {}),
+      });
       const raw = output.raw as
         | {
             audioChunkCount?: number;
@@ -420,11 +580,54 @@ function captureProviderAudio(provider: AudioLLMProvider): AudioLLMProvider {
   };
 }
 
-const nativeAudioLlm = captureProviderAudio(nativeAudioLlmBase);
-const geminiAudioLlm = captureProviderAudio(geminiAudioLlmBase);
-const onlineGeminiAudioLlm = captureProviderAudio(onlineGeminiAudioLlmBase);
-const cascadedVoice = captureProviderAudio(cascadedVoiceBase);
-const onlineCascadedVoice = captureProviderAudio(onlineCascadedVoiceBase);
+function createLanguageProviders(language: AppLanguage) {
+  const headers = demoVoiceLanguageHeaders(language);
+  const audioOptions = {
+    headers,
+    requireDoneSentinel: true,
+    // Base64 expands PCM by one third. A 16 kHz / 90 s mono WAV remains below
+    // Vercel's 4.5 MB function payload limit with room for the JSON envelope.
+    prepareAudio: prepareTurnAudio,
+  } as const;
+  return {
+    captionAsr: createOpenRouterGatewayASR({
+      baseUrl: DEMO_VOICE_PROFILE.routes.captionAsr,
+      headers,
+      format: 'webm',
+    }),
+    nativeAudioLlm: captureProviderAudio(createOpenRouterGatewayAudioLLM({
+      ...audioOptions,
+      baseUrl: DEMO_VOICE_PROFILE.routes.openAiAudio,
+    })),
+    geminiAudioLlm: captureProviderAudio(createOpenRouterGatewayAudioLLM({
+      ...audioOptions,
+      baseUrl: DEMO_VOICE_PROFILE.routes.geminiLive,
+    })),
+    onlineGeminiAudioLlm: captureProviderAudio(createOpenRouterGatewayAudioLLM({
+      ...audioOptions,
+      baseUrl: DEMO_VOICE_PROFILE.routes.geminiLiveOnline,
+    })),
+    cascadedVoice: captureProviderAudio(createOpenRouterGatewayVoiceTurn({
+      ...audioOptions,
+      baseUrl: DEMO_VOICE_PROFILE.routes.cascade,
+    })),
+    onlineCascadedVoice: captureProviderAudio(createOpenRouterGatewayVoiceTurn({
+      ...audioOptions,
+      baseUrl: DEMO_VOICE_PROFILE.routes.cascadeOnline,
+    })),
+  };
+}
+
+const TURN_VOLUME_THRESHOLD = 0.025;
+const INTERRUPTION_VOLUME_THRESHOLD = 0.055;
+let session: ReturnType<typeof buildSession> | undefined;
+
+function renderLanguageLock(locked = Boolean(session)): void {
+  langZhBtn.disabled = locked;
+  langEnBtn.disabled = locked;
+  languageSwitchEl.dataset.locked = String(locked);
+  languageSwitchEl.title = locked ? translations[language].languageLocked : '';
+}
 
 const runtime = createWebRuntime({
   // Preserve short WebM timeslices for responsive VAD and barge-in capture.
@@ -434,11 +637,15 @@ const runtime = createWebRuntime({
   mimeType: 'audio/webm;codecs=opus',
 });
 runtime.audioInput.onVolume((level) => {
+  activeSessionMetrics?.observeInputVolume(
+    level,
+    Date.now(),
+    session?.state ?? 'idle',
+  );
   const normalized = Math.min(1, level / 0.08);
   meterEl.style.setProperty('--level', normalized.toFixed(3));
 });
 
-type AudioTurnBackend = 'composite' | 'native';
 let selectedBackend: AudioTurnBackend = 'native';
 const latencySamples: Record<AudioTurnBackend, number[]> = {
   composite: [],
@@ -480,8 +687,18 @@ function renderLatency(currentBackend: AudioTurnBackend, latest: number) {
     : `Latest ${Math.round(latest)} ms · current average ${average} ms · cascaded ${oldAverage} / native ${audioAverage}`;
 }
 
-function buildSession(backend: AudioTurnBackend) {
+function buildSession(
+  backend: AudioTurnBackend,
+  metrics: SessionMetricsTracker,
+  sessionLanguage: AppLanguage,
+) {
+  const languageProviders = createLanguageProviders(sessionLanguage);
   const pendingUserAudioEnd = { value: undefined as number | undefined };
+  const reportContext: SessionReportContext = {
+    backend,
+    audioModel: selectedAudioModel,
+    webSearch: webSearchEnabled,
+  };
   const voiceSession = createOtterVoiceSession({
     mode: 'full_duplex',
     // Both UI choices now share the same audio-turn client architecture. The
@@ -494,23 +711,23 @@ function buildSession(backend: AudioTurnBackend) {
       // authoritative transcript of the user's audio. Core therefore needs a
       // caption ASR for GPT Audio and Gemini Live. The cascaded adapter already
       // transcribes its input server-side, so it intentionally skips this call.
-      ...(backend === 'native' ? { asr: captionAsr } : {}),
+      ...(backend === 'native' ? { asr: languageProviders.captionAsr } : {}),
       audioLlm: backend === 'native'
         ? selectedAudioModel === 'gemini'
           ? webSearchEnabled
-            ? onlineGeminiAudioLlm
-            : geminiAudioLlm
-          : nativeAudioLlm
+            ? languageProviders.onlineGeminiAudioLlm
+            : languageProviders.geminiAudioLlm
+          : languageProviders.nativeAudioLlm
         : webSearchEnabled
-          ? onlineCascadedVoice
-          : cascadedVoice,
+          ? languageProviders.onlineCascadedVoice
+          : languageProviders.cascadedVoice,
     },
     turnDetection: {
       strategy: 'volume',
       minSpeechMs: 180,
       silenceTimeoutMs: 500,
       maxTurnMs: 80_000,
-      volumeThreshold: 0.025,
+      volumeThreshold: TURN_VOLUME_THRESHOLD,
     },
     interruptionDetection: {
       // Core subtracts the synchronized playback envelope first; this lower
@@ -533,6 +750,7 @@ function buildSession(backend: AudioTurnBackend) {
   });
 
   voiceSession.on('statechange', (event) => {
+    metrics.recordStateChange(event.from, event.to, event.reason, Date.now());
     renderState(event.to);
     if (event.to === 'user_speaking') {
       // Barge-in ends playback, not the visible conversation turn. Preserve
@@ -542,12 +760,17 @@ function buildSession(backend: AudioTurnBackend) {
     }
   });
   voiceSession.on('asr_final', (event) => {
+    metrics.recordAsrFinal(event.turnId, Date.now());
     if (event.text.trim().length > 0) {
       addTurn('user', event.text, { turnId: event.turnId });
     }
   });
   voiceSession.on('user_audio_end', (event) => {
     pendingUserAudioEnd.value = event.at;
+    metrics.recordUserAudioEnd(event.turnId, event.at);
+  });
+  voiceSession.on('user_audio_final', (event) => {
+    metrics.recordUserAudioFinal(event.turnId, Date.now());
   });
   voiceSession.on('assistant_text_delta', (event) => {
     if (liveAssistantTurnId && liveAssistantTurnId !== event.turnId) {
@@ -578,10 +801,13 @@ function buildSession(backend: AudioTurnBackend) {
   voiceSession.on('assistant_audio_start', (event) => {
     const latency = recordTurnLatency(event.turnId, 'firstAudioMs', pendingUserAudioEnd);
     if (latency === undefined) return;
+    metrics.recordE2eLatency(latency);
     latencySamples[backend].push(latency);
     renderLatency(backend, latency);
   });
   voiceSession.on('error', (event) => {
+    metrics.finish(Date.now());
+    renderSessionReport(metrics.snapshot(), reportContext);
     preserveLiveAssistantTurn();
     renderState('error');
     addTurn('assistant', `${event.code}: ${event.message}`);
@@ -592,9 +818,13 @@ function buildSession(backend: AudioTurnBackend) {
     openAiAudioBtn.disabled = false;
     geminiAudioBtn.disabled = false;
     session = undefined;
+    renderLanguageLock(false);
+    if (activeSessionMetrics === metrics) activeSessionMetrics = undefined;
     renderBackend();
   });
   voiceSession.on('finished', () => {
+    metrics.finish(Date.now());
+    renderSessionReport(metrics.snapshot(), reportContext);
     preserveLiveAssistantTurn();
     renderState('finished');
     startBtn.disabled = false;
@@ -604,13 +834,13 @@ function buildSession(backend: AudioTurnBackend) {
     openAiAudioBtn.disabled = false;
     geminiAudioBtn.disabled = false;
     session = undefined;
+    renderLanguageLock(false);
+    if (activeSessionMetrics === metrics) activeSessionMetrics = undefined;
     renderBackend();
     meterEl.style.setProperty('--level', '0');
   });
   return voiceSession;
 }
-
-let session: ReturnType<typeof buildSession> | undefined;
 
 startBtn.addEventListener('click', async () => {
   // Must happen before any other await so delayed assistant playback retains
@@ -624,6 +854,7 @@ startBtn.addEventListener('click', async () => {
   }
   startBtn.disabled = true;
   finishBtn.disabled = false;
+  hideSessionReport();
   logEl.innerHTML = '';
   turnElements.clear();
   turnTexts.clear();
@@ -640,9 +871,35 @@ startBtn.addEventListener('click', async () => {
   openAiAudioBtn.disabled = true;
   geminiAudioBtn.disabled = true;
   webSearchToggle.disabled = true;
+  renderLanguageLock(true);
   const backend = selectedBackend;
-  session = buildSession(backend);
-  await session.start();
+  const metrics = new SessionMetricsTracker(Date.now(), {
+    turnVolumeThreshold: TURN_VOLUME_THRESHOLD,
+    interruptionVolumeThreshold: INTERRUPTION_VOLUME_THRESHOLD,
+  });
+  activeSessionMetrics = metrics;
+  session = buildSession(backend, metrics, language);
+  try {
+    await session.start();
+  } catch (error) {
+    session = undefined;
+    startBtn.disabled = false;
+    finishBtn.disabled = true;
+    cascadeBtn.disabled = false;
+    audioBtn.disabled = false;
+    openAiAudioBtn.disabled = false;
+    geminiAudioBtn.disabled = false;
+    if (activeSessionMetrics === metrics) {
+      activeSessionMetrics = undefined;
+      renderState('error');
+      addTurn(
+        'assistant',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+    renderLanguageLock(false);
+    renderBackend();
+  }
 });
 
 finishBtn.addEventListener('click', () => void session?.finish());
@@ -700,6 +957,7 @@ function applyLanguage(next: AppLanguage) {
   langEnBtn.classList.toggle('selected', next === 'en');
   langZhBtn.setAttribute('aria-pressed', String(next === 'zh'));
   langEnBtn.setAttribute('aria-pressed', String(next === 'en'));
+  renderLanguageLock();
 
   logEl.querySelectorAll<HTMLElement>('.turn').forEach((turn) => {
     const speaker = turn.querySelector<HTMLElement>('.speaker');
@@ -713,6 +971,9 @@ function applyLanguage(next: AppLanguage) {
     button.title = runtimeText[next].playTitle;
   });
   for (const turnId of turnLatencies.keys()) renderTurnLatency(turnId);
+  if (lastSessionReport) {
+    renderSessionReport(lastSessionReport.snapshot, lastSessionReport.context);
+  }
 
   renderBackend();
   renderState(stateEl.dataset.state ?? 'idle');

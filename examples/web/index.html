@@ -168,6 +168,8 @@
       .toggle-input:checked + .toggle-track::after { transform: translateX(16px); }
       .toggle-input:focus-visible + .toggle-track { outline: 3px solid var(--coral); outline-offset: 3px; }
       .toggle-input:disabled + .toggle-track { opacity: .36; cursor: default; }
+      .language-policy { display: flex; align-items: center; gap: 8px; margin: -9px 0 24px; color: var(--muted); font-size: .64rem; font-weight: 800; letter-spacing: .035em; }
+      .language-policy::before { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--coral); content: ""; }
       .status-row { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
       #state { padding: 5px 10px; border-radius: 99px; background: var(--mint); font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
       #state[data-state="assistant_speaking"] { background: var(--coral-soft); }
@@ -198,6 +200,64 @@
       .turn-latency { margin-top: 7px; color: var(--muted); font-family: "Avenir Next", sans-serif; font-size: .66rem; font-variant-numeric: tabular-nums; letter-spacing: .015em; }
       .sse-audio-play { min-height: 28px; margin-top: 8px; padding: 0 10px; border: 1px solid oklch(48% .08 37); color: oklch(48% .08 37); background: transparent; font-size: .68rem; }
       .sse-audio-meta { color: var(--muted); font-family: "Avenir Next", sans-serif; font-size: .68rem; }
+      .session-report {
+        container: session-report / inline-size;
+        border-top: 2px solid var(--ink);
+        background: oklch(96% .026 153);
+        animation: report-enter 440ms cubic-bezier(.22, 1, .36, 1) both;
+      }
+      .report-head {
+        display: grid;
+        gap: 20px;
+        padding: clamp(26px, 5vw, 40px) clamp(22px, 5vw, 42px) 24px;
+      }
+      .report-kicker { margin: 0 0 7px; color: var(--coral); font-size: .66rem; font-weight: 900; letter-spacing: .18em; text-transform: uppercase; }
+      .report-title { margin: 0; font: 500 clamp(1.75rem, 5vw, 2.65rem)/1 Georgia, "Songti SC", serif; letter-spacing: -.035em; }
+      .report-context { display: flex; align-items: stretch; border-block: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+      .report-context > span { display: grid; min-width: 0; flex: 1; gap: 2px; padding: 10px 12px; }
+      .report-context > span + span { border-left: 1px solid var(--line); }
+      .report-context small { color: var(--muted); font-size: .58rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+      .report-context strong { overflow: hidden; font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
+      .latency-route { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-inline: clamp(22px, 5vw, 42px); border-block: 1px solid var(--ink); }
+      .route-step { position: relative; min-width: 0; padding: 18px 14px 16px 0; }
+      .route-step:nth-child(even) { padding-left: 14px; border-left: 1px solid var(--line); }
+      .route-step:nth-child(n + 3) { border-top: 1px solid var(--line); }
+      .route-index { display: block; margin-bottom: 18px; color: var(--coral); font-size: .58rem; font-weight: 900; letter-spacing: .14em; }
+      .route-step h3 { margin: 0; font-size: .7rem; letter-spacing: .04em; }
+      .route-step p { min-height: 2.7em; margin: 4px 0 14px; color: var(--muted); font-size: .61rem; line-height: 1.35; }
+      .route-value { display: block; font: 500 clamp(1.45rem, 4vw, 2rem)/1 Georgia, "Songti SC", serif; font-variant-numeric: tabular-nums; }
+      .route-value .unit, .metric-value .unit { margin-left: 3px; color: var(--muted); font: 800 .55rem/1 "Avenir Next", sans-serif; letter-spacing: .06em; text-transform: uppercase; }
+      .sample-count { display: block; min-height: 1.3em; margin-top: 7px; color: var(--muted); font-size: .56rem; letter-spacing: .05em; }
+      .report-detail-grid { display: grid; gap: 24px; padding: 28px clamp(22px, 5vw, 42px) clamp(28px, 5vw, 42px); }
+      .metric-ledger { border-top: 1px solid var(--ink); }
+      .ledger-head { margin: 0; padding: 11px 0; color: var(--coral); font-size: .62rem; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
+      .metric-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: center; padding: 16px 0; border-top: 1px solid var(--line); }
+      .metric-label { display: block; font-size: .75rem; font-weight: 800; }
+      .metric-explain { display: block; max-width: 46ch; margin-top: 3px; color: var(--muted); font-size: .61rem; line-height: 1.4; }
+      .metric-value { text-align: right; font: 500 1.45rem/1 Georgia, "Songti SC", serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .interruption-ledger { align-self: stretch; padding: 22px; color: var(--paper-high); background: var(--ink); }
+      .interruption-ledger .ledger-head { padding-top: 0; color: oklch(78% .12 32); }
+      .interruption-total { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: end; padding: 14px 0 22px; border-bottom: 1px solid oklch(47% .03 166); }
+      .interruption-total strong { font: 500 clamp(3rem, 10vw, 4.8rem)/.8 Georgia, serif; font-variant-numeric: tabular-nums; }
+      .interruption-total span { max-width: 12ch; color: oklch(82% .025 161); font-size: .68rem; line-height: 1.35; }
+      .interruption-list { margin: 0; }
+      .interruption-list > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 15px 0; border-bottom: 1px solid oklch(47% .03 166); }
+      .interruption-list dt { color: oklch(82% .025 161); font-size: .66rem; }
+      .interruption-list dd { margin: 0; font: 500 1.18rem/1 Georgia, serif; font-variant-numeric: tabular-nums; }
+      .report-note { margin: -12px clamp(22px, 5vw, 42px) 30px; color: var(--muted); font-size: .6rem; line-height: 1.45; }
+      @container session-report (min-width: 720px) {
+        .report-head { grid-template-columns: minmax(0, 1fr) minmax(320px, .8fr); align-items: end; }
+        .latency-route { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .route-step { padding: 20px 18px 18px; }
+        .route-step:first-child { padding-left: 0; }
+        .route-step + .route-step { border-left: 1px solid var(--line); }
+        .route-step:nth-child(n + 3) { border-top: 0; }
+        .report-detail-grid { grid-template-columns: minmax(0, 1.65fr) minmax(220px, .7fr); gap: clamp(28px, 5vw, 54px); }
+      }
+      @keyframes report-enter {
+        from { opacity: 0; transform: translateY(14px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
       .native-layout { display: grid; grid-template-columns: minmax(280px, .82fr) minmax(0, 1.18fr); gap: clamp(38px, 8vw, 100px); align-items: center; }
       .phone {
         position: relative;
@@ -352,7 +412,7 @@
             <a href="/docs/" data-i18n="navDocs">技术文档</a>
             <a class="pill" href="https://github.com/bugkiwi/OtterVoice" target="_blank" rel="noreferrer">GitHub ↗</a>
           </div>
-          <div class="language-switch" aria-label="Language">
+          <div class="language-switch" id="language-switch" aria-label="Language">
             <button id="lang-zh" class="selected" type="button" aria-pressed="true">中文</button>
             <button id="lang-en" type="button" aria-pressed="false">EN</button>
           </div>
@@ -408,6 +468,7 @@
                 <span class="toggle-track" aria-hidden="true"></span>
               </label>
             </div>
+            <p class="language-policy" data-i18n="languagePolicy">回复语言 · 中文（跟随界面）</p>
             <div class="status-row"><span class="eyebrow" data-i18n="liveChannel">实时通路</span><span id="state" data-state="idle">idle</span></div>
             <p id="state-copy" aria-live="polite">准备好就可以开始</p>
             <div id="meter" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
@@ -415,6 +476,74 @@
             <p id="latency" aria-live="polite">完成一轮对话后显示“停顿 → 开始播放”的实测延迟</p>
           </section>
           <div id="log" data-i18n-aria="transcriptAria" aria-label="对话记录" aria-live="polite"></div>
+          <section id="session-report" class="session-report" aria-labelledby="session-report-title" aria-live="polite" hidden>
+            <header class="report-head">
+              <div>
+                <p class="report-kicker" data-i18n="reportEyebrow">Post-call · Local telemetry</p>
+                <h2 class="report-title" id="session-report-title" data-i18n="reportTitle">这次对话，跑得怎么样。</h2>
+              </div>
+              <div class="report-context">
+                <span><small data-i18n="reportDuration">会话时长</small><strong id="report-duration">—</strong></span>
+                <span><small data-i18n="reportTurns">用户轮次</small><strong id="report-turns">—</strong></span>
+                <span><small data-i18n="reportRoute">本次通路</small><strong id="report-route">—</strong></span>
+              </div>
+            </header>
+
+            <div class="latency-route" data-i18n-aria="reportLatencyAria" aria-label="响应延迟路径">
+              <article class="route-step">
+                <span class="route-index">01 · VAD</span>
+                <h3 data-i18n="metricEndOfTurn">结束判定延迟</h3>
+                <p data-i18n="metricEndOfTurnHint">最后一次有效语音到提交本轮</p>
+                <strong class="route-value" id="metric-end-of-turn">—</strong>
+                <span class="sample-count" id="samples-end-of-turn"></span>
+              </article>
+              <article class="route-step">
+                <span class="route-index">02 · ASR</span>
+                <h3 data-i18n="metricTranscription">转写延迟</h3>
+                <p data-i18n="metricTranscriptionHint">用户音频结束到 ASR final</p>
+                <strong class="route-value" id="metric-transcription">—</strong>
+                <span class="sample-count" id="samples-transcription"></span>
+              </article>
+              <article class="route-step">
+                <span class="route-index">03 · LLM</span>
+                <h3 data-i18n="metricLlmTtft">LLM 首字延迟</h3>
+                <p data-i18n="metricLlmTtftHint">Provider 调用到首个文本增量</p>
+                <strong class="route-value" id="metric-llm-ttft">—</strong>
+                <span class="sample-count" id="samples-llm-ttft"></span>
+              </article>
+              <article class="route-step">
+                <span class="route-index">04 · E2E</span>
+                <h3 data-i18n="metricE2e">端到端延迟</h3>
+                <p data-i18n="metricE2eHint">用户音频结束到实际首音播放</p>
+                <strong class="route-value" id="metric-e2e">—</strong>
+                <span class="sample-count" id="samples-e2e"></span>
+              </article>
+            </div>
+
+            <div class="report-detail-grid">
+              <div class="metric-ledger">
+                <h3 class="ledger-head" data-i18n="reportPipeline">Pipeline details</h3>
+                <div class="metric-row">
+                  <div><span class="metric-label" data-i18n="metricTurnCommit">on_user_turn_completed</span><span class="metric-explain" data-i18n="metricTurnCommitHint">结束判定到完整录音可供 provider 使用</span></div>
+                  <strong class="metric-value" id="metric-turn-commit">—</strong>
+                </div>
+                <div class="metric-row">
+                  <div><span class="metric-label" data-i18n="metricTtsTtfb">TTS / Audio TTFB</span><span class="metric-explain" data-i18n="metricTtsTtfbHint">Provider 调用到首个音频分片抵达</span></div>
+                  <strong class="metric-value" id="metric-tts-ttfb">—</strong>
+                </div>
+              </div>
+
+              <aside class="interruption-ledger" aria-labelledby="interruption-title">
+                <h3 class="ledger-head" id="interruption-title" data-i18n="reportInterruption">Interruption</h3>
+                <div class="interruption-total"><strong id="metric-interruptions">0</strong><span data-i18n="metricInterruptions">次确认打断</span></div>
+                <dl class="interruption-list">
+                  <div><dt data-i18n="metricDetection">平均判定延迟</dt><dd id="metric-detection">—</dd></div>
+                  <div><dt data-i18n="metricBackchannels">Backchannels</dt><dd id="metric-backchannels">0</dd></div>
+                </dl>
+              </aside>
+            </div>
+            <p class="report-note" data-i18n="reportNote">数据来自当前浏览器会话的本地事件时间戳；Backchannel 在本示例中未单独启用。</p>
+          </section>
         </div>
       </section>
 
